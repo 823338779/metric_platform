@@ -1,16 +1,35 @@
 package com.metricplatform.api;
 
+import com.metricplatform.identity.LoginRateLimitException;
+import com.metricplatform.query.QueryValidationException;
 import java.sql.SQLException;
 import java.sql.SQLTimeoutException;
 import java.util.NoSuchElementException;
-import com.metricplatform.query.QueryValidationException;
 import org.springframework.http.*;
+import org.springframework.security.access.AccessDeniedException;
+import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 
 @RestControllerAdvice
 public class ApiExceptionHandler {
+    @ExceptionHandler(BadCredentialsException.class)
+    ResponseEntity<ProblemDetail> unauthorized(BadCredentialsException exception) {
+        return problem(HttpStatus.UNAUTHORIZED, "Authentication failed", "Invalid credentials");
+    }
+
+    @ExceptionHandler(LoginRateLimitException.class)
+    ResponseEntity<ProblemDetail> rateLimited(LoginRateLimitException exception) {
+        return problem(
+                HttpStatus.TOO_MANY_REQUESTS, "Too many login attempts", "Too many login attempts");
+    }
+
+    @ExceptionHandler(AccessDeniedException.class)
+    ResponseEntity<ProblemDetail> accessDenied(AccessDeniedException exception) {
+        return problem(HttpStatus.FORBIDDEN, "Access denied", "Access denied");
+    }
+
     @ExceptionHandler(MethodArgumentTypeMismatchException.class)
     ResponseEntity<ProblemDetail> malformed(MethodArgumentTypeMismatchException exception) {
         return problem(

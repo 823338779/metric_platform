@@ -82,7 +82,7 @@ export function DataSourceEditorDrawer({
     }
   };
   const save = async () => {
-    const values = await form.validateFields();
+    const values = form.getFieldsValue(true);
     setSaving(true);
     try {
       if (value) {

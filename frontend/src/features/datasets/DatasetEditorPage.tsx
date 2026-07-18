@@ -108,6 +108,7 @@ export function DatasetEditorPage() {
       await metricPlatformApi.updateDataset(id, {
         name: values.name,
         description: values.description,
+        aliases: values.aliases ?? [],
         filterExpression: filter,
         fieldUpdates: dataset.fields.map((field) => ({
           fieldId: field.id,
@@ -121,6 +122,7 @@ export function DatasetEditorPage() {
         dataSourceId: values.dataSourceId,
         name: values.name,
         description: values.description,
+        aliases: values.aliases ?? [],
         schemaName: values.schemaName,
         objectName: values.objectName,
         selectedPhysicalFields: values.selectedPhysicalFields,
@@ -140,6 +142,9 @@ export function DatasetEditorPage() {
       </Form.Item>
       <Form.Item name="description" label="描述">
         <Input.TextArea />
+      </Form.Item>
+      <Form.Item name="aliases" label="别名">
+        <Select mode="tags" tokenSeparators={[',', '，']} placeholder="输入别名后按回车" />
       </Form.Item>
       <Form.Item
         name="dataSourceId"

@@ -1,27 +1,33 @@
 package com.metricplatform.security;
 
-import jakarta.servlet.FilterChain;
-import jakarta.servlet.http.HttpServletRequest;
+import static com.metricplatform.security.PlatformScopePolicy.METRIC_CATALOG_READ;
+import static com.metricplatform.security.PlatformScopePolicy.METRIC_MEMBER_READ;
+import static com.metricplatform.security.PlatformScopePolicy.METRIC_QUERY_EXECUTE;
+import static com.metricplatform.security.PlatformScopePolicy.METRIC_QUERY_VALIDATE;
+
 import jakarta.servlet.http.HttpServletResponse;
-import java.io.IOException;
-import java.util.List;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpMethod;
-import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.config.http.SessionCreationPolicy;
-import org.springframework.security.core.authority.SimpleGrantedAuthority;
+import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
-import org.springframework.web.filter.OncePerRequestFilter;
 
 @Configuration
 @EnableWebSecurity
 public class PlatformSecurityConfig {
     @Bean
-    SecurityFilterChain security(HttpSecurity http) throws Exception {
+    PasswordEncoder passwordEncoder() {
+        return new BCryptPasswordEncoder(12);
+    }
+
+    @Bean
+    SecurityFilterChain security(HttpSecurity http, PlatformTokenAuthenticationFilter tokenFilter)
+            throws Exception {
         return http.csrf(csrf -> csrf.disable())
                 .sessionManagement(s -> s.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .exceptionHandling(
@@ -37,59 +43,41 @@ public class PlatformSecurityConfig {
                                                                 HttpServletResponse.SC_FORBIDDEN)))
                 .authorizeHttpRequests(
                         a ->
-                                a.requestMatchers(HttpMethod.GET, "/api/v1/capabilities")
-                                        .hasAnyRole("METRIC_QUERY_CLIENT", "PLATFORM_ADMIN", "SEMANTIC_EDITOR")
-                                        .requestMatchers(HttpMethod.GET, "/api/v1/datasets/*/semantic-model")
-                                        .hasAnyRole("METRIC_QUERY_CLIENT", "PLATFORM_ADMIN", "SEMANTIC_EDITOR")
-                                        .requestMatchers(HttpMethod.POST, "/api/v1/semantic-objects:search")
-                                        .hasAnyRole("METRIC_QUERY_CLIENT", "PLATFORM_ADMIN", "SEMANTIC_EDITOR")
-                                        .requestMatchers(HttpMethod.POST, "/api/v1/semantic-objects:resolve")
-                                        .hasAnyRole("METRIC_QUERY_CLIENT", "PLATFORM_ADMIN", "SEMANTIC_EDITOR")
-                                        .requestMatchers(HttpMethod.POST, "/api/v1/dimensions/*/members:search")
-                                        .hasAnyRole("METRIC_QUERY_CLIENT", "PLATFORM_ADMIN", "SEMANTIC_EDITOR")
-                                        .requestMatchers(HttpMethod.POST, "/api/v1/queries:validate")
-                                        .hasAnyRole("METRIC_QUERY_CLIENT", "PLATFORM_ADMIN", "SEMANTIC_EDITOR")
+                                a.requestMatchers(HttpMethod.POST, "/api/v1/auth/token")
+                                        .permitAll()
+                                        .requestMatchers(HttpMethod.GET, "/api/v1/auth/me")
+                                        .authenticated()
+                                        .requestMatchers("/api/v1/admin/**")
+                                        .hasRole("PLATFORM_ADMIN")
+                                        .requestMatchers(HttpMethod.GET, "/api/v1/capabilities")
+                                        .hasAuthority(scope(METRIC_CATALOG_READ))
+                                        .requestMatchers(
+                                                HttpMethod.GET, "/api/v1/datasets/*/semantic-model")
+                                        .hasAuthority(scope(METRIC_CATALOG_READ))
+                                        .requestMatchers(
+                                                HttpMethod.POST, "/api/v1/semantic-objects:search")
+                                        .hasAuthority(scope(METRIC_CATALOG_READ))
+                                        .requestMatchers(
+                                                HttpMethod.POST, "/api/v1/semantic-objects:resolve")
+                                        .hasAuthority(scope(METRIC_CATALOG_READ))
+                                        .requestMatchers(
+                                                HttpMethod.POST,
+                                                "/api/v1/dimensions/*/members:search")
+                                        .hasAuthority(scope(METRIC_MEMBER_READ))
+                                        .requestMatchers(
+                                                HttpMethod.POST, "/api/v1/queries:validate")
+                                        .hasAuthority(scope(METRIC_QUERY_VALIDATE))
                                         .requestMatchers(HttpMethod.POST, "/api/v1/queries")
-                                        .hasAnyRole("METRIC_QUERY_CLIENT", "PLATFORM_ADMIN", "SEMANTIC_EDITOR")
+                                        .hasAuthority(scope(METRIC_QUERY_EXECUTE))
                                         .requestMatchers("/api/v1/**")
                                         .hasAnyRole("PLATFORM_ADMIN", "SEMANTIC_EDITOR")
                                         .anyRequest()
                                         .permitAll())
-                .addFilterBefore(new BearerFilter(), UsernamePasswordAuthenticationFilter.class)
+                .addFilterBefore(tokenFilter, UsernamePasswordAuthenticationFilter.class)
                 .build();
     }
 
-    static final class BearerFilter extends OncePerRequestFilter {
-        @Override
-        protected void doFilterInternal(
-                HttpServletRequest request, HttpServletResponse response, FilterChain chain)
-                throws IOException, jakarta.servlet.ServletException {
-            String header = request.getHeader("Authorization");
-            String role = null;
-            String id = null;
-            if ("Bearer admin-token".equals(header)) {
-                role = "PLATFORM_ADMIN";
-                id = "admin";
-            }
-            if ("Bearer query-token".equals(header)) {
-                role = "METRIC_QUERY_CLIENT";
-                id = "query-client";
-            }
-            if ("Bearer editor-token".equals(header)) {
-                role = "SEMANTIC_EDITOR";
-                id = "semantic-editor";
-            }
-            if (role != null) {
-                PlatformPrincipal principal = new PlatformPrincipal(id, role);
-                var auth =
-                        new UsernamePasswordAuthenticationToken(
-                                principal,
-                                null,
-                                List.of(new SimpleGrantedAuthority("ROLE_" + role)));
-                org.springframework.security.core.context.SecurityContextHolder.getContext()
-                        .setAuthentication(auth);
-            }
-            chain.doFilter(request, response);
-        }
+    private static String scope(String value) {
+        return "SCOPE_" + value;
     }
 }

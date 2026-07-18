@@ -83,9 +83,10 @@ export function MetricListPage() {
               name: value.name,
               displayName: value.displayName,
               aggregation: value.aggregation,
+              aliases: value.aliases ?? [],
               version: editing.version,
             });
-          else await metricPlatformApi.createMetric(value);
+          else await metricPlatformApi.createMetric({ ...value, aliases: value.aliases ?? [] });
           setOpen(false);
           await load();
         }}

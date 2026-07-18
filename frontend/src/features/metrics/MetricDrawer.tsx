@@ -8,6 +8,7 @@ type MetricForm = {
   name: string;
   displayName: string;
   aggregation: Metric['aggregation'];
+  aliases: string[];
 };
 
 export function MetricDrawer({
@@ -99,6 +100,9 @@ export function MetricDrawer({
           rules={[{ required: true, message: '请输入显示名称' }]}
         >
           <Input />
+        </Form.Item>
+        <Form.Item name="aliases" label="别名">
+          <Select mode="tags" tokenSeparators={[',', '，']} placeholder="输入别名后按回车" />
         </Form.Item>
       </Form>
     </Drawer>

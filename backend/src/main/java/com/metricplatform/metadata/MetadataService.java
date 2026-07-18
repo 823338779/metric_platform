@@ -60,7 +60,7 @@ public class MetadataService {
         e.setId(UUID.randomUUID());
         e.setActorId(
                 auth != null && auth.getPrincipal() instanceof PlatformPrincipal p
-                        ? p.id()
+                        ? p.identityId().toString()
                         : "system");
         e.setAction(action);
         e.setResourceType("dataset");

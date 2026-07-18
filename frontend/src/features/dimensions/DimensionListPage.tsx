@@ -95,9 +95,10 @@ export function DimensionListPage() {
               displayName: value.displayName,
               type: value.type,
               allowedGranularities: value.allowedGranularities,
+              aliases: value.aliases ?? [],
               version: editing.version,
             });
-          else await metricPlatformApi.createDimension(value);
+          else await metricPlatformApi.createDimension({ ...value, aliases: value.aliases ?? [] });
           setOpen(false);
           await load();
         }}

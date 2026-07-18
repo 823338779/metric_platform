@@ -11,3 +11,17 @@ mybatis-plus:
   type-handlers-package: com.metricplatform.persistence
 server:
   port: ${METRIC_PLATFORM_PORT:8090}
+metric-platform:
+  identity-auth:
+    enabled: ${METRIC_PLATFORM_IDENTITY_AUTH_ENABLED:true}
+    token-ttl: PT10M
+    lock-threshold: 5
+    lock-duration: PT15M
+    rate-limit: 10
+    rate-window: PT1M
+    bootstrap:
+      enabled: ${METRIC_PLATFORM_BOOTSTRAP_ENABLED:false}
+      tenant-key: ${METRIC_PLATFORM_BOOTSTRAP_TENANT_KEY:default}
+      username: ${METRIC_PLATFORM_BOOTSTRAP_USERNAME:}
+      display-name: ${METRIC_PLATFORM_BOOTSTRAP_DISPLAY_NAME:Platform Administrator}
+      password: ${METRIC_PLATFORM_BOOTSTRAP_PASSWORD:}
