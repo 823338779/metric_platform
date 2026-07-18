@@ -31,7 +31,6 @@ public final class PlatformIdentityAuditWriter {
         event.setId(UUID.randomUUID());
         event.setActorId(actor == null ? "bootstrap" : actor.identityId().toString());
         event.setEffectiveIdentityId(resourceId);
-        event.setClientId(actor == null ? "metric-platform-bootstrap" : actor.clientId());
         event.setAction(action);
         event.setResourceType(resourceType);
         event.setResourceId(resourceId);

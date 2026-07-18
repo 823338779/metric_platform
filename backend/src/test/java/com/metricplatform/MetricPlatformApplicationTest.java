@@ -37,7 +37,6 @@ class MetricPlatformApplicationTest {
         Map<String, String> entityTables =
                 Map.of(
                         "PlatformUserEntity", "platform_user",
-                        "ApiClientEntity", "api_client",
                         "DataSourceEntity", "data_source",
                         "DatasetEntity", "dataset",
                         "DatasetFieldEntity", "dataset_field",

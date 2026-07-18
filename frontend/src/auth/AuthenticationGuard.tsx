@@ -41,7 +41,7 @@ export function AuthenticationGuard() {
 
   return (
     <main className="authentication-loading" aria-label="正在验证登录状态">
-      <Spin size="large" tip="正在验证登录状态">
+      <Spin size="large" description="正在验证登录状态">
         <span className="authentication-loading-content" />
       </Spin>
     </main>

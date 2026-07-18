@@ -24,18 +24,19 @@ docker compose config --quiet
 
 The public contract is `api/openapi.yaml`. Callers create a source, explicitly select discovered fields, define semantic objects, validate a semantic request, and execute it through `/api/v1/queries`; callers never supply arbitrary SQL.
 
-## Identity authentication for Data Agent
+## Account authentication
 
-Metric Platform owns the legal identities used for governed metric access. Data Agent stores a reference to one configured username/password credential, exchanges it at `POST /api/v1/auth/token` with audience `data-agent`, and uses the returned bearer token for subsequent calls. Tokens expire after exactly ten minutes, are stored in Metric Platform only as SHA-256 hashes, and are invalidated when the password, account status, role, workspace membership, or dataset grants change.
+Metric Platform has one global resource space. Usernames are unique across the platform, and a caller exchanges only a username and password at `POST /api/v1/auth/token`. Tokens expire after exactly ten hours, are stored only as SHA-256 hashes, and are rejected when expired, revoked, or no longer consistent with the account authentication version. Every authenticated account can access every Metric Platform resource and operation; the platform has no tenants, workspaces, roles, scopes, or dataset grants.
 
-For the first local administrator, explicitly enable the one-time bootstrap and provide the secret through environment variables:
+To create the initial local account, explicitly enable the one-time bootstrap and provide the secret through environment variables:
 
 ```powershell
 $env:METRIC_PLATFORM_BOOTSTRAP_ENABLED='true'
-$env:METRIC_PLATFORM_BOOTSTRAP_TENANT_KEY='default'
-$env:METRIC_PLATFORM_BOOTSTRAP_USERNAME='platform-admin'
+$env:METRIC_PLATFORM_BOOTSTRAP_USERNAME='admin'
 $env:METRIC_PLATFORM_BOOTSTRAP_PASSWORD='<strong-local-secret>'
 .\mvnw.cmd -f .\backend\pom.xml spring-boot:run
 ```
 
-Disable bootstrap after the administrator exists. Use the `/api/v1/admin/platform-users` endpoints to create identities, replace passwords, change status, and replace dataset grants. `discoverAllowed` controls catalog/model/member visibility; `queryAllowed` is checked across every metric, dimension, filter, time range, sort, and relationship referenced by validation or execution. Authentication failures are intentionally generic, and passwords and bearer tokens must never be written to logs or audit details.
+Disable bootstrap after the account exists. There is no registration or account-management API. Authentication failures are intentionally generic, and passwords and bearer tokens must never be written to logs or audit details.
+
+This authentication response intentionally contains only account identity fields. Data Agent is a separate project and is not changed here; integrations that still expect Metric Platform tenant, workspace, role, or scope fields require a separate compatibility update.

@@ -16,7 +16,6 @@ public class AuditEventEntity extends BaseAuditEntity {
     private String resourceType;
     private UUID resourceId;
     private UUID effectiveIdentityId;
-    private String clientId;
     private String outcome;
     private String detailJson;
 }

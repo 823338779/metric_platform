@@ -28,7 +28,6 @@ class LombokBoilerplateArchitectureTest {
     private static final List<String> ENTITY_FILES =
             List.of(
                     "BaseAuditEntity.java",
-                    "ApiClientEntity.java",
                     "AuditEventEntity.java",
                     "DataSourceEntity.java",
                     "DatasetEntity.java",

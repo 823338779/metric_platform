@@ -1,16 +1,17 @@
-package com.metricplatform.authorization;
+package com.metricplatform.query;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.metricplatform.persistence.entity.AuditEventEntity;
 import com.metricplatform.persistence.service.AuditEventPersistenceService;
-import com.metricplatform.query.QueryDtos;
 import com.metricplatform.security.PlatformPrincipal;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 import org.springframework.stereotype.Component;
+import org.springframework.web.context.request.RequestContextHolder;
+import org.springframework.web.context.request.ServletRequestAttributes;
 
 @Component
 public final class MetricQueryAuditWriter {
@@ -24,7 +25,7 @@ public final class MetricQueryAuditWriter {
 
     public void write(
             PlatformPrincipal principal,
-            QueryPermission permission,
+            QueryOperation operation,
             UUID resourceId,
             String outcome,
             QueryDtos.QueryRequest request,
@@ -34,8 +35,7 @@ public final class MetricQueryAuditWriter {
         event.setId(UUID.randomUUID());
         event.setActorId(principal == null ? "anonymous" : principal.identityId().toString());
         event.setEffectiveIdentityId(principal == null ? null : principal.identityId());
-        event.setClientId(principal == null ? null : principal.clientId());
-        event.setAction("METRIC_QUERY_" + permission.name());
+        event.setAction("METRIC_QUERY_" + operation.name());
         event.setResourceType("semantic_query");
         event.setResourceId(resourceId);
         event.setOutcome(outcome);
@@ -58,7 +58,27 @@ public final class MetricQueryAuditWriter {
                 request.filters().stream().map(QueryDtos.DimensionFilter::dimensionId).toList());
         detail.put("relationshipIds", request.relationshipIds());
         detail.put("durationMs", durationMs);
+        addRequestCorrelation(detail);
         return detail;
+    }
+
+    private static void addRequestCorrelation(Map<String, Object> detail) {
+        if (!(RequestContextHolder.getRequestAttributes()
+                instanceof ServletRequestAttributes attributes)) return;
+        putHeader(detail, "correlationId", attributes, "X-Correlation-Id");
+        putHeader(detail, "agentSessionId", attributes, "X-Agent-Session-Id");
+        putHeader(detail, "agentRunId", attributes, "X-Agent-Run-Id");
+        putHeader(detail, "traceparent", attributes, "traceparent");
+    }
+
+    private static void putHeader(
+            Map<String, Object> detail,
+            String key,
+            ServletRequestAttributes attributes,
+            String header) {
+        String value = attributes.getRequest().getHeader(header);
+        if (value == null || value.isBlank() || value.length() > 160) return;
+        if (value.matches("[A-Za-z0-9._:-]+")) detail.put(key, value);
     }
 
     private String json(Map<String, Object> detail) {

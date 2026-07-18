@@ -5,7 +5,6 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 import com.metricplatform.identity.PlatformAuthenticationService;
 import com.metricplatform.security.PlatformPrincipal;
-import java.util.Set;
 import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -27,13 +26,7 @@ class QueryControllerTest {
     @BeforeEach
     void authenticateTokens() {
         org.mockito.Mockito.when(authentication.authenticate("query-token"))
-                .thenReturn(
-                        principal(
-                                Set.of("SEMANTIC_EDITOR"),
-                                Set.of(
-                                        "metric.catalog.read",
-                                        "metric.query.validate",
-                                        "metric.query.execute")));
+                .thenReturn(principal());
     }
 
     @Test
@@ -48,13 +41,13 @@ class QueryControllerTest {
     }
 
     @Test
-    void semanticEditorCannotAdminister() throws Exception {
+    void authenticatedAccountCanAdminister() throws Exception {
         mvc.perform(
-                        post("/api/v1/admin/data-sources")
+                        post("/api/v1/data-sources")
                                 .header("Authorization", "Bearer query-token")
                                 .contentType(MediaType.APPLICATION_JSON)
                                 .content("{}"))
-                .andExpect(status().isForbidden());
+                .andExpect(status().isBadRequest());
     }
 
     @Test
@@ -76,17 +69,11 @@ class QueryControllerTest {
                 .andExpect(status().isBadRequest());
     }
 
-    private static PlatformPrincipal principal(Set<String> roles, Set<String> scopes) {
+    private static PlatformPrincipal principal() {
         return new PlatformPrincipal(
                 UUID.randomUUID(),
                 "test-user",
                 "Test User",
-                UUID.randomUUID(),
-                Set.of(),
-                roles,
-                scopes,
-                null,
-                "TEST",
                 null,
                 1);
     }

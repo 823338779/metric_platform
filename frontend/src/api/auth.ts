@@ -6,10 +6,6 @@ export interface AuthIdentity {
   identityId: string;
   subject: string;
   displayName: string;
-  tenantId: string;
-  workspaceIds: string[];
-  roles: string[];
-  scopes: string[];
   authVersion: number;
 }
 

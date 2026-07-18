@@ -40,17 +40,17 @@ export function LoginPage() {
 
   return (
     <main className="login-page">
-      <Card className="login-card" bordered={false}>
+      <Card className="login-card" variant="borderless">
         <div className="login-brand">
           <Typography.Title level={2}>Metric Platform</Typography.Title>
           <Typography.Text type="secondary">登录后管理数据源与语义指标</Typography.Text>
         </div>
 
         {expired && (
-          <Alert className="login-alert" type="warning" showIcon message="登录已过期，请重新登录" />
+          <Alert className="login-alert" type="warning" showIcon title="登录已过期，请重新登录" />
         )}
 
-        {error && <Alert className="login-alert" type="error" showIcon message={error} />}
+        {error && <Alert className="login-alert" type="error" showIcon title={error} />}
 
         <Form<LoginValues> layout="vertical" requiredMark={false} onFinish={submit}>
           <Form.Item

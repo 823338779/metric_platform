@@ -14,7 +14,6 @@ public class PlatformAccessTokenEntity extends BaseAuditEntity {
     @TableId private UUID id;
     private String tokenHash;
     private UUID identityId;
-    private String audience;
     private long authVersion;
     private Instant issuedAt;
     private Instant expiresAt;

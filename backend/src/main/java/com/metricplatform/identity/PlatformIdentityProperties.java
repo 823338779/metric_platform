@@ -43,7 +43,6 @@ public class PlatformIdentityProperties {
     @Setter
     public static class Bootstrap {
         private boolean enabled;
-        private String tenantKey = "default";
         private String username = "";
         private String displayName = "Platform Administrator";
         private String password = "";

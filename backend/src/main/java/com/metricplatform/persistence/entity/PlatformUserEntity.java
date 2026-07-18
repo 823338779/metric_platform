@@ -12,12 +12,10 @@ import lombok.Setter;
 @TableName("platform_user")
 public class PlatformUserEntity extends BaseAuditEntity {
     @TableId private UUID id;
-    private UUID tenantId;
     private String username;
     private String displayName;
     private String passwordHash;
     private String passwordAlgorithm;
-    private String roleCode;
     private String status;
     private long authVersion;
     private int failedLoginCount;

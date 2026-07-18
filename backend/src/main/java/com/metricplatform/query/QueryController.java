@@ -1,8 +1,5 @@
 package com.metricplatform.query;
 
-import com.metricplatform.authorization.MetricAuthorizationService;
-import com.metricplatform.authorization.MetricQueryAuditWriter;
-import com.metricplatform.authorization.QueryPermission;
 import com.metricplatform.security.PlatformPrincipal;
 import jakarta.validation.Valid;
 import java.sql.SQLException;
@@ -25,7 +22,7 @@ public class QueryController {
     private final SemanticCatalogService catalog;
     private final DimensionMemberService members;
     private final QueryService queries;
-    private final MetricAuthorizationService authorization;
+    private final QueryDatasetResolver datasetResolver;
     private final MetricQueryAuditWriter audit;
 
     @GetMapping("/capabilities")
@@ -34,34 +31,28 @@ public class QueryController {
     }
 
     @GetMapping("/datasets/{id}/semantic-model")
-    public Object model(
-            @AuthenticationPrincipal PlatformPrincipal principal, @PathVariable UUID id) {
-        authorization.requireDiscover(principal, id);
+    public Object model(@PathVariable UUID id) {
         return catalog.semanticModel(id);
     }
 
     @PostMapping("/semantic-objects:search")
     public List<QueryDtos.SemanticSearchResult> search(
-            @AuthenticationPrincipal PlatformPrincipal principal,
             @Valid @RequestBody QueryDtos.SemanticSearchRequest request) {
-        return catalog.search(request, authorization.discoverableDatasetIds(principal));
+        return catalog.search(request, null);
     }
 
     @PostMapping("/semantic-objects:resolve")
     public QueryDtos.SemanticResolveResponse resolve(
-            @AuthenticationPrincipal PlatformPrincipal principal,
             @Valid @RequestBody QueryDtos.SemanticResolveRequest request) {
-        authorization.requireResolve(principal, request);
-        return catalog.resolve(request, authorization.discoverableDatasetIds(principal));
+        datasetResolver.requireResolve(request);
+        return catalog.resolve(request, null);
     }
 
     @PostMapping("/dimensions/{dimensionId}/members:search")
     public QueryDtos.DimensionMemberSearchResponse searchMembers(
-            @AuthenticationPrincipal PlatformPrincipal principal,
             @PathVariable UUID dimensionId,
             @Valid @RequestBody QueryDtos.DimensionMemberSearchRequest request)
             throws SQLException {
-        authorization.requireMemberSearch(principal, dimensionId);
         return members.search(dimensionId, request);
     }
 
@@ -73,11 +64,11 @@ public class QueryController {
         UUID auditId = UUID.randomUUID();
         Set<UUID> datasetIds = Set.of();
         try {
-            datasetIds = authorization.authorizeQuery(principal, request, QueryPermission.VALIDATE);
+            datasetIds = datasetResolver.datasetIds(request);
             QueryDtos.ValidationResponse response = queries.validate(request);
             audit.write(
                     principal,
-                    QueryPermission.VALIDATE,
+                    QueryOperation.VALIDATE,
                     auditId,
                     response.valid() ? "SUCCEEDED" : "INVALID",
                     request,
@@ -87,7 +78,7 @@ public class QueryController {
         } catch (RuntimeException failure) {
             audit.write(
                     principal,
-                    QueryPermission.VALIDATE,
+                    QueryOperation.VALIDATE,
                     auditId,
                     "FAILED",
                     request,
@@ -106,23 +97,21 @@ public class QueryController {
         UUID auditId = UUID.randomUUID();
         Set<UUID> datasetIds = Set.of();
         try {
-            datasetIds = authorization.authorizeQuery(principal, request, QueryPermission.EXECUTE);
+            datasetIds = datasetResolver.datasetIds(request);
             QueryDtos.QueryResponse response = queries.execute(request);
             audit.write(
                     principal,
-                    QueryPermission.EXECUTE,
+                    QueryOperation.EXECUTE,
                     response.queryId() == null ? auditId : response.queryId(),
                     "SUCCEEDED",
                     request,
                     datasetIds,
                     elapsedMs(startedAt));
-            return principal != null && principal.hasRole("METRIC_QUERY_CLIENT")
-                    ? response.withoutSql()
-                    : response;
+            return response;
         } catch (SQLException | RuntimeException failure) {
             audit.write(
                     principal,
-                    QueryPermission.EXECUTE,
+                    QueryOperation.EXECUTE,
                     auditId,
                     "FAILED",
                     request,

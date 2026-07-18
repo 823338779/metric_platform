@@ -11,7 +11,6 @@ class AuditColumnsMigrationTest {
     private static final List<String> TABLES =
             List.of(
                     "platform_user",
-                    "api_client",
                     "data_source",
                     "dataset",
                     "dataset_field",

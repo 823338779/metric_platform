@@ -5,7 +5,6 @@ import static org.assertj.core.api.Assertions.assertThat;
 import com.baomidou.mybatisplus.annotation.FieldFill;
 import com.baomidou.mybatisplus.annotation.TableField;
 import com.baomidou.mybatisplus.annotation.TableLogic;
-import com.metricplatform.persistence.entity.ApiClientEntity;
 import com.metricplatform.persistence.entity.AuditEventEntity;
 import com.metricplatform.persistence.entity.BaseAuditEntity;
 import com.metricplatform.persistence.entity.DataSourceEntity;
@@ -23,7 +22,6 @@ import org.junit.jupiter.api.Test;
 class AuditEntityContractTest {
     private static final List<Class<?>> ENTITIES =
             List.of(
-                    ApiClientEntity.class,
                     AuditEventEntity.class,
                     DataSourceEntity.class,
                     DatasetEntity.class,

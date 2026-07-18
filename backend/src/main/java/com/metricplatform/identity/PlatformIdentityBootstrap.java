@@ -1,9 +1,7 @@
 package com.metricplatform.identity;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
-import com.metricplatform.persistence.entity.PlatformTenantEntity;
 import com.metricplatform.persistence.entity.PlatformUserEntity;
-import com.metricplatform.persistence.service.PlatformTenantPersistenceService;
 import com.metricplatform.persistence.service.PlatformUserPersistenceService;
 import java.time.Clock;
 import java.util.Locale;
@@ -18,7 +16,6 @@ import org.springframework.transaction.annotation.Transactional;
 @Component
 public class PlatformIdentityBootstrap implements ApplicationRunner {
     private final PlatformIdentityProperties properties;
-    private final PlatformTenantPersistenceService tenants;
     private final PlatformUserPersistenceService users;
     private final PasswordEncoder passwordEncoder;
     private final PlatformIdentityAuditWriter audit;
@@ -26,13 +23,11 @@ public class PlatformIdentityBootstrap implements ApplicationRunner {
 
     public PlatformIdentityBootstrap(
             PlatformIdentityProperties properties,
-            PlatformTenantPersistenceService tenants,
             PlatformUserPersistenceService users,
             PasswordEncoder passwordEncoder,
             PlatformIdentityAuditWriter audit,
             Clock clock) {
         this.properties = properties;
-        this.tenants = tenants;
         this.users = users;
         this.passwordEncoder = passwordEncoder;
         this.audit = audit;
@@ -51,35 +46,19 @@ public class PlatformIdentityBootstrap implements ApplicationRunner {
             throw new IllegalStateException(
                     "Metric Platform bootstrap username and password are required");
         }
-        long administrators =
-                users.count(
-                        new LambdaQueryWrapper<PlatformUserEntity>()
-                                .eq(PlatformUserEntity::getRoleCode, "PLATFORM_ADMIN")
-                                .eq(PlatformUserEntity::getStatus, "ACTIVE"));
-        if (administrators > 0) return;
 
-        String tenantKey = normalize(bootstrap.getTenantKey());
-        PlatformTenantEntity tenant =
-                tenants.getOne(
-                        new LambdaQueryWrapper<PlatformTenantEntity>()
-                                .eq(PlatformTenantEntity::getTenantKey, tenantKey));
-        if (tenant == null) {
-            tenant = new PlatformTenantEntity();
-            tenant.setId(UUID.randomUUID());
-            tenant.setTenantKey(tenantKey);
-            tenant.setDisplayName(tenantKey);
-            tenant.setStatus("ACTIVE");
-            tenants.save(tenant);
-        }
+        String username = normalize(bootstrap.getUsername());
+        if (users.count(
+                        new LambdaQueryWrapper<PlatformUserEntity>()
+                                .eq(PlatformUserEntity::getUsername, username))
+                > 0) return;
 
         PlatformUserEntity user = new PlatformUserEntity();
         user.setId(UUID.randomUUID());
-        user.setTenantId(tenant.getId());
-        user.setUsername(normalize(bootstrap.getUsername()));
+        user.setUsername(username);
         user.setDisplayName(bootstrap.getDisplayName().trim());
         user.setPasswordHash(passwordEncoder.encode(bootstrap.getPassword()));
         user.setPasswordAlgorithm("bcrypt");
-        user.setRoleCode("PLATFORM_ADMIN");
         user.setStatus("ACTIVE");
         user.setAuthVersion(1);
         user.setPasswordChangedAt(clock.instant());
@@ -90,7 +69,7 @@ public class PlatformIdentityBootstrap implements ApplicationRunner {
                 "platform_user",
                 user.getId(),
                 "SUCCEEDED",
-                Map.of("tenantId", tenant.getId(), "role", "PLATFORM_ADMIN"));
+                Map.of("username", username));
     }
 
     private static String normalize(String value) {

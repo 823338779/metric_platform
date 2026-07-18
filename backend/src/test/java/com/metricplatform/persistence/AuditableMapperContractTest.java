@@ -2,7 +2,6 @@ package com.metricplatform.persistence;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-import com.metricplatform.persistence.mapper.ApiClientMapper;
 import com.metricplatform.persistence.mapper.AuditEventMapper;
 import com.metricplatform.persistence.mapper.AuditableBaseMapper;
 import com.metricplatform.persistence.mapper.DataSourceMapper;
@@ -25,7 +24,6 @@ class AuditableMapperContractTest {
     void everyMapperUsesTheAuditableBaseContract() throws Exception {
         assertThat(
                         List.of(
-                                ApiClientMapper.class,
                                 AuditEventMapper.class,
                                 DataSourceMapper.class,
                                 DatasetFieldMapper.class,
@@ -46,7 +44,6 @@ class AuditableMapperContractTest {
         Set<String> sqlAnnotations = Set.of("Select", "Insert", "Update", "Delete");
         List<Class<?>> mappers =
                 List.of(
-                        ApiClientMapper.class,
                         AuditEventMapper.class,
                         DataSourceMapper.class,
                         DatasetFieldMapper.class,

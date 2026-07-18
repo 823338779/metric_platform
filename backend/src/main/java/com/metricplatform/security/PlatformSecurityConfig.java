@@ -1,10 +1,5 @@
 package com.metricplatform.security;
 
-import static com.metricplatform.security.PlatformScopePolicy.METRIC_CATALOG_READ;
-import static com.metricplatform.security.PlatformScopePolicy.METRIC_MEMBER_READ;
-import static com.metricplatform.security.PlatformScopePolicy.METRIC_QUERY_EXECUTE;
-import static com.metricplatform.security.PlatformScopePolicy.METRIC_QUERY_VALIDATE;
-
 import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -47,37 +42,12 @@ public class PlatformSecurityConfig {
                                         .permitAll()
                                         .requestMatchers(HttpMethod.GET, "/api/v1/auth/me")
                                         .authenticated()
-                                        .requestMatchers("/api/v1/admin/**")
-                                        .hasRole("PLATFORM_ADMIN")
-                                        .requestMatchers(HttpMethod.GET, "/api/v1/capabilities")
-                                        .hasAuthority(scope(METRIC_CATALOG_READ))
-                                        .requestMatchers(
-                                                HttpMethod.GET, "/api/v1/datasets/*/semantic-model")
-                                        .hasAuthority(scope(METRIC_CATALOG_READ))
-                                        .requestMatchers(
-                                                HttpMethod.POST, "/api/v1/semantic-objects:search")
-                                        .hasAuthority(scope(METRIC_CATALOG_READ))
-                                        .requestMatchers(
-                                                HttpMethod.POST, "/api/v1/semantic-objects:resolve")
-                                        .hasAuthority(scope(METRIC_CATALOG_READ))
-                                        .requestMatchers(
-                                                HttpMethod.POST,
-                                                "/api/v1/dimensions/*/members:search")
-                                        .hasAuthority(scope(METRIC_MEMBER_READ))
-                                        .requestMatchers(
-                                                HttpMethod.POST, "/api/v1/queries:validate")
-                                        .hasAuthority(scope(METRIC_QUERY_VALIDATE))
-                                        .requestMatchers(HttpMethod.POST, "/api/v1/queries")
-                                        .hasAuthority(scope(METRIC_QUERY_EXECUTE))
                                         .requestMatchers("/api/v1/**")
-                                        .hasAnyRole("PLATFORM_ADMIN", "SEMANTIC_EDITOR")
+                                        .authenticated()
                                         .anyRequest()
                                         .permitAll())
                 .addFilterBefore(tokenFilter, UsernamePasswordAuthenticationFilter.class)
                 .build();
     }
 
-    private static String scope(String value) {
-        return "SCOPE_" + value;
-    }
 }

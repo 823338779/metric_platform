@@ -16,7 +16,7 @@ class OpenApiContractTest {
         String contract = Files.readString(Path.of("../api/openapi.yaml"));
         JsonNode document = new ObjectMapper(new YAMLFactory()).readTree(contract);
         assertThat(document.path("openapi").asText()).isEqualTo("3.1.0");
-        assertThat(document.path("paths").size()).isEqualTo(38);
+        assertThat(document.path("paths").size()).isEqualTo(34);
         assertThat(contract)
                 .contains(
                         "/api/v1/datasets:",
@@ -34,5 +34,13 @@ class OpenApiContractTest {
         JsonNode querySchema = document.at("/components/schemas/QueryRequest");
         assertThat(querySchema.path("required").toString()).contains("\"metricIds\"");
         assertThat(querySchema.path("properties").has("datasetId")).isFalse();
+        assertThat(contract)
+                .doesNotContain(
+                        "/api/v1/admin/platform-users",
+                        "x-required-roles",
+                        "x-required-scopes",
+                        "DatasetGrantRequest");
+        assertThat(document.at("/components/schemas/IdentitySummary/required").toString())
+                .isEqualTo("[\"identityId\",\"subject\",\"displayName\",\"authVersion\"]");
     }
 }

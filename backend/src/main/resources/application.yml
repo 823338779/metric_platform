@@ -21,7 +21,6 @@ metric-platform:
     rate-window: PT1M
     bootstrap:
       enabled: ${METRIC_PLATFORM_BOOTSTRAP_ENABLED:false}
-      tenant-key: ${METRIC_PLATFORM_BOOTSTRAP_TENANT_KEY:default}
       username: ${METRIC_PLATFORM_BOOTSTRAP_USERNAME:}
       display-name: ${METRIC_PLATFORM_BOOTSTRAP_DISPLAY_NAME:Platform Administrator}
       password: ${METRIC_PLATFORM_BOOTSTRAP_PASSWORD:}

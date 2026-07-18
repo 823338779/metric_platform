@@ -71,12 +71,6 @@ class DatasetControllerTest {
                                 UUID.randomUUID(),
                                 "test-admin",
                                 "Test Admin",
-                                UUID.randomUUID(),
-                                Set.of(),
-                                Set.of("PLATFORM_ADMIN"),
-                                Set.of(),
-                                null,
-                                "TEST",
                                 null,
                                 1));
         when(authentication.authenticate("query-token"))
@@ -85,12 +79,6 @@ class DatasetControllerTest {
                                 UUID.randomUUID(),
                                 "test-editor",
                                 "Test Editor",
-                                UUID.randomUUID(),
-                                Set.of(),
-                                Set.of("SEMANTIC_EDITOR"),
-                                Set.of("metric.catalog.read"),
-                                null,
-                                "TEST",
                                 null,
                                 1));
 
