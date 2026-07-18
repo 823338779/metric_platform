@@ -6,7 +6,7 @@ import com.baomidou.mybatisplus.annotation.Version;
 import java.util.UUID;
 
 @TableName("dataset_field")
-public class DatasetFieldEntity {
+public class DatasetFieldEntity extends BaseAuditEntity {
     @TableId private UUID id;
     private UUID datasetId;
     private String physicalName, displayName, starrocksType;

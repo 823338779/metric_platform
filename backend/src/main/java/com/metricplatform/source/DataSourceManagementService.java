@@ -37,12 +37,14 @@ public class DataSourceManagementService {
     }
 
     public List<DataSourceSummary> list(boolean includeDeleted) {
-        return sources
-                .selectList(
-                        new LambdaQueryWrapper<DataSourceEntity>()
-                                .orderByAsc(DataSourceEntity::getName))
+        List<DataSourceEntity> selected =
+                includeDeleted
+                        ? sources.selectAllIncludingDeleted()
+                        : sources.selectList(
+                                new LambdaQueryWrapper<DataSourceEntity>()
+                                        .orderByAsc(DataSourceEntity::getName));
+        return selected
                 .stream()
-                .filter(source -> includeDeleted || !"DELETED".equals(source.getStatus()))
                 .map(this::summary)
                 .toList();
     }
@@ -57,7 +59,6 @@ public class DataSourceManagementService {
         var dialect = dialects.required(request.databaseType().name());
         if (!dialect.acceptsUrl(request.jdbcUrl()))
             throw new IllegalArgumentException("JDBC URL does not match database type");
-        LocalDateTime now = LocalDateTime.now();
         DataSourceEntity source = new DataSourceEntity();
         source.setId(UUID.randomUUID());
         apply(
@@ -73,8 +74,6 @@ public class DataSourceManagementService {
         source.setPassword(request.password());
         source.setStatus(DataSourceStatus.ACTIVE.name());
         source.setHealthStatus(HealthStatus.UNKNOWN.name());
-        source.setCreatedAt(now);
-        source.setUpdatedAt(now);
         source.setVersion(0);
         try {
             sources.insert(source);
@@ -108,7 +107,6 @@ public class DataSourceManagementService {
                 request.defaultSchema());
         source.setDriverClass(dialect.driverClass());
         source.setPassword(request.password());
-        source.setUpdatedAt(LocalDateTime.now());
         if (sources.updateById(source) == 0)
             throw new ConflictException("data source was modified by another user");
         return detail(entity(id));
@@ -137,7 +135,6 @@ public class DataSourceManagementService {
         }
         source.setLastCheckedAt(LocalDateTime.now());
         source.setLastLatencyMs(response.latencyMs());
-        source.setUpdatedAt(LocalDateTime.now());
         sources.updateById(source);
         return response;
     }
@@ -170,15 +167,13 @@ public class DataSourceManagementService {
     public void delete(UUID id) {
         DataSourceEntity source = mutable(id);
         source.setStatus(DataSourceStatus.DELETED.name());
-        source.setDeletedAt(LocalDateTime.now());
-        source.setUpdatedAt(LocalDateTime.now());
         sources.updateById(source);
+        sources.softDeleteById(id);
     }
 
     private DataSourceDetail changeStatus(UUID id, DataSourceStatus status) {
         DataSourceEntity source = mutable(id);
         source.setStatus(status.name());
-        source.setUpdatedAt(LocalDateTime.now());
         sources.updateById(source);
         return detail(entity(id));
     }

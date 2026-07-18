@@ -9,14 +9,15 @@ import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Select;
 
 @Mapper
-public interface DatasetRelationshipFieldPairMapper {
+public interface DatasetRelationshipFieldPairMapper
+        extends AuditableBaseMapper<DatasetRelationshipFieldPairEntity> {
     @Insert(
             """
             INSERT INTO dataset_relationship_field_pair
                 (relationship_id, ordinal, source_field_id, target_field_id)
             VALUES (#{relationshipId}, #{ordinal}, #{sourceFieldId}, #{targetFieldId})
             """)
-    int insert(DatasetRelationshipFieldPairEntity pair);
+    int insertPair(DatasetRelationshipFieldPairEntity pair);
 
     @Select(
             """

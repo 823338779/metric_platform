@@ -3,12 +3,14 @@ package com.metricplatform.persistence.entity;
 import com.baomidou.mybatisplus.annotation.TableId;
 import com.baomidou.mybatisplus.annotation.TableName;
 import com.baomidou.mybatisplus.annotation.Version;
+
 import java.time.LocalDateTime;
 import java.util.UUID;
 
 @TableName("data_source")
-public class DataSourceEntity {
-    @TableId private UUID id;
+public class DataSourceEntity extends BaseAuditEntity {
+    @TableId
+    private UUID id;
     private String name;
     private String description;
     private String databaseType;
@@ -23,10 +25,8 @@ public class DataSourceEntity {
     private String healthStatus;
     private LocalDateTime lastCheckedAt;
     private Long lastLatencyMs;
-    private LocalDateTime createdAt;
-    private LocalDateTime updatedAt;
-    private LocalDateTime deletedAt;
-    @Version private long version;
+    @Version
+    private long version;
 
     public UUID getId() {
         return id;
@@ -100,9 +100,12 @@ public class DataSourceEntity {
         password = value;
     }
 
-    /** Source-compatible fixture hook; secret references are no longer persisted or used. */
+    /**
+     * Source-compatible fixture hook; secret references are no longer persisted or used.
+     */
     @Deprecated(forRemoval = true)
-    public void setSecretReference(String ignored) {}
+    public void setSecretReference(String ignored) {
+    }
 
     public String getDefaultCatalog() {
         return defaultCatalog;
@@ -150,30 +153,6 @@ public class DataSourceEntity {
 
     public void setLastLatencyMs(Long value) {
         lastLatencyMs = value;
-    }
-
-    public LocalDateTime getCreatedAt() {
-        return createdAt;
-    }
-
-    public void setCreatedAt(LocalDateTime value) {
-        createdAt = value;
-    }
-
-    public LocalDateTime getUpdatedAt() {
-        return updatedAt;
-    }
-
-    public void setUpdatedAt(LocalDateTime value) {
-        updatedAt = value;
-    }
-
-    public LocalDateTime getDeletedAt() {
-        return deletedAt;
-    }
-
-    public void setDeletedAt(LocalDateTime value) {
-        deletedAt = value;
     }
 
     public long getVersion() {

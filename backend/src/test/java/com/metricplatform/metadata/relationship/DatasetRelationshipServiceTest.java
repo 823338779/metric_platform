@@ -41,6 +41,19 @@ class DatasetRelationshipServiceTest {
     @Mock RelationshipCardinalityValidator cardinalityValidator;
 
     @Test
+    void deletesRelationshipThroughTheAuditedMapper() {
+        UUID relationshipId = UUID.randomUUID();
+        DatasetRelationshipEntity relationship = new DatasetRelationshipEntity();
+        relationship.setId(relationshipId);
+        when(relationships.selectById(relationshipId)).thenReturn(relationship);
+
+        service().delete(relationshipId);
+
+        verify(pairs).deleteByRelationshipId(relationshipId);
+        verify(relationships).softDeleteById(relationshipId);
+    }
+
+    @Test
     void persistsAValidatedCompositeRelationship() {
         when(datasets.selectById(SOURCE_DATASET)).thenReturn(dataset(SOURCE_DATASET, DATA_SOURCE));
         when(datasets.selectById(TARGET_DATASET)).thenReturn(dataset(TARGET_DATASET, DATA_SOURCE));
@@ -66,7 +79,7 @@ class DatasetRelationshipServiceTest {
         assertThat(response.joinType()).isEqualTo("LEFT");
         assertThat(response.fieldPairs()).hasSize(1);
         verify(relationships).insert(any(DatasetRelationshipEntity.class));
-        verify(pairs).insert(any());
+        verify(pairs).insertPair(any());
         verify(cardinalityValidator).validate(any(), any(), any());
     }
 

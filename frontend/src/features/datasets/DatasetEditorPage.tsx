@@ -11,6 +11,7 @@ import type {
 } from '../../api/types';
 import { FieldTable } from './FieldTable';
 import { FilterBuilder } from './FilterBuilder';
+import { PhysicalFieldSelector } from './PhysicalFieldSelector';
 const emptyFilter: FilterExpression = { logicalOperator: 'AND', children: [] };
 
 export function DatasetEditorPage() {
@@ -25,8 +26,10 @@ export function DatasetEditorPage() {
   const [loadingObjects, setLoadingObjects] = useState(false);
   const [loadingColumns, setLoadingColumns] = useState(false);
   const [form] = Form.useForm();
-  const dataSourceId = Form.useWatch('dataSourceId', form) as string | undefined;
-  const sourceObjectKey = Form.useWatch('sourceObjectKey', form) as string | undefined;
+  const dataSourceId = Form.useWatch('dataSourceId', { form, preserve: true }) as
+    string | undefined;
+  const sourceObjectKey = Form.useWatch('sourceObjectKey', { form, preserve: true }) as
+    string | undefined;
   useEffect(() => {
     void metricPlatformApi
       .listDataSources()
@@ -97,7 +100,10 @@ export function DatasetEditorPage() {
     [objects],
   );
   const save = async () => {
-    const values = await form.validateFields();
+    await form.validateFields(
+      id ? ['name'] : ['name', 'dataSourceId', 'sourceObjectKey', 'selectedPhysicalFields'],
+    );
+    const values = form.getFieldsValue(true);
     if (id && dataset)
       await metricPlatformApi.updateDataset(id, {
         name: values.name,
@@ -195,20 +201,9 @@ export function DatasetEditorPage() {
         <Form.Item
           name="selectedPhysicalFields"
           label="字段"
-          rules={[{ required: true, message: '请至少选择一个字段' }]}
+          rules={[{ required: true, type: 'array', min: 1, message: '请至少选择一个字段' }]}
         >
-          <Select
-            mode="multiple"
-            showSearch
-            optionFilterProp="label"
-            loading={loadingColumns}
-            disabled={!sourceObjectKey}
-            placeholder={sourceObjectKey ? '选择需要纳入数据集的字段' : '请先选择表或视图'}
-            options={columns.map((column) => ({
-              value: column.physicalName,
-              label: `${column.physicalName}（${column.physicalType}）`,
-            }))}
-          />
+          <PhysicalFieldSelector columns={columns} loading={loadingColumns} />
         </Form.Item>
       </Form>
     );
@@ -228,7 +223,9 @@ export function DatasetEditorPage() {
     filters,
     <Card type="inner" title="预览确认">
       <p>系统将基于已选择的物理对象和字段创建逻辑数据集，不保存自定义 SQL。</p>
-      <pre>{JSON.stringify({ values: form.getFieldsValue(), filter }, null, 2)}</pre>
+      <pre style={{ maxWidth: '100%', maxHeight: 400, overflow: 'auto', marginBottom: 0 }}>
+        {JSON.stringify({ values: form.getFieldsValue(true), filter }, null, 2)}
+      </pre>
     </Card>,
   ][step];
   return (
@@ -237,7 +234,7 @@ export function DatasetEditorPage() {
         current={step}
         items={['基本信息', '字段配置', '固定筛选', '预览确认'].map((title) => ({ title }))}
       />
-      <div style={{ margin: '28px 0' }}>{content}</div>
+      <div style={{ margin: '28px 0', minWidth: 0 }}>{content}</div>
       <Space>
         <Button disabled={!step} onClick={() => setStep((current) => current - 1)}>
           上一步

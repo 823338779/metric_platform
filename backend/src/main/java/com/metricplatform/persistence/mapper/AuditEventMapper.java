@@ -2,7 +2,6 @@ package com.metricplatform.persistence.mapper;
 
 import com.baomidou.mybatisplus.core.batch.BatchSqlSession;
 import com.baomidou.mybatisplus.core.conditions.Wrapper;
-import com.baomidou.mybatisplus.core.mapper.BaseMapper;
 import com.metricplatform.persistence.entity.AuditEventEntity;
 import java.io.Serializable;
 import java.util.Collection;
@@ -13,7 +12,7 @@ import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.executor.BatchResult;
 
 @Mapper
-public interface AuditEventMapper extends BaseMapper<AuditEventEntity> {
+public interface AuditEventMapper extends AuditableBaseMapper<AuditEventEntity> {
     @Override
     default int deleteById(Serializable id) {
         throw immutable();

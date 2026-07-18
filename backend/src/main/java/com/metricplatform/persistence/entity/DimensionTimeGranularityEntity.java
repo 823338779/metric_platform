@@ -4,7 +4,7 @@ import com.baomidou.mybatisplus.annotation.TableName;
 import java.util.UUID;
 
 @TableName("dimension_time_granularity")
-public class DimensionTimeGranularityEntity {
+public class DimensionTimeGranularityEntity extends BaseAuditEntity {
     private UUID dimensionId;
     private String granularity;
 

@@ -137,7 +137,7 @@ public class SchemaDriftService {
                 fields(datasetId).stream()
                         .collect(Collectors.toMap(DatasetFieldEntity::getId, field -> field));
         for (FieldChange removed : diff.removed()) {
-            fields.deleteById(removed.fieldId());
+            fields.softDeleteById(removed.fieldId());
         }
         for (FieldChange changed : diff.typeChanged()) {
             DatasetFieldEntity field = persistedById.get(changed.fieldId());

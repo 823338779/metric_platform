@@ -1,0 +1,161 @@
+.semantic-builder {
+  display: grid;
+  grid-template-columns: minmax(240px, 2fr) minmax(320px, 3fr);
+  gap: 16px;
+  min-width: 0;
+}
+
+.semantic-library,
+.semantic-drop-zone {
+  min-width: 0;
+  border: 1px solid #f0f0f0;
+  border-radius: 8px;
+  background: #fafafa;
+  padding: 14px;
+}
+
+.semantic-panel-heading,
+.semantic-zone-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.semantic-heading-help {
+  display: block;
+  margin-top: 2px;
+  font-size: 12px;
+}
+
+.semantic-library-error {
+  margin-top: 10px;
+}
+
+.semantic-object-list {
+  max-height: 356px;
+  overflow: auto;
+  margin-top: 10px;
+  padding-right: 4px;
+}
+
+.semantic-object,
+.semantic-selected-object {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  border: 1px solid #e8e8e8;
+  border-radius: 7px;
+  background: #fff;
+  padding: 9px 10px;
+}
+
+.semantic-object + .semantic-object,
+.semantic-selected-object + .semantic-selected-object {
+  margin-top: 8px;
+}
+
+.semantic-object.is-selected {
+  background: #f6ffed;
+  border-color: #b7eb8f;
+}
+
+.semantic-object[draggable='true'],
+.semantic-selected-object[draggable='true'] {
+  cursor: grab;
+}
+
+.semantic-object[draggable='true']:active,
+.semantic-selected-object[draggable='true']:active {
+  cursor: grabbing;
+}
+
+.semantic-drag-handle {
+  flex: 0 0 auto;
+  color: #8c8c8c;
+}
+
+.semantic-object-copy {
+  flex: 1;
+  min-width: 0;
+}
+
+.semantic-object-name {
+  overflow: hidden;
+  color: #262626;
+  font-weight: 500;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.semantic-object-meta {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  margin-top: 4px;
+}
+
+.semantic-object-meta .ant-tag {
+  flex: 0 0 auto;
+  margin-inline-end: 0;
+}
+
+.semantic-query-canvas {
+  display: grid;
+  gap: 12px;
+  min-width: 0;
+}
+
+.semantic-drop-zone {
+  transition:
+    border-color 0.15s ease,
+    background 0.15s ease;
+}
+
+.semantic-drop-zone.is-drag-over {
+  border-color: #1677ff;
+  background: #e6f4ff;
+}
+
+.semantic-required {
+  color: #ff4d4f;
+}
+
+.semantic-selected-list {
+  min-height: 74px;
+  max-height: 154px;
+  overflow: auto;
+  padding-right: 4px;
+}
+
+.semantic-zone-empty {
+  display: grid;
+  min-height: 72px;
+  place-items: center;
+  border: 1px dashed #d9d9d9;
+  border-radius: 7px;
+  color: #8c8c8c;
+  background: #fff;
+}
+
+.semantic-item-actions {
+  display: flex;
+  flex: 0 0 auto;
+}
+
+@media (max-width: 900px) {
+  .semantic-builder {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .semantic-object-list {
+    max-height: 220px;
+  }
+
+  .semantic-selected-list {
+    max-height: 116px;
+  }
+}

@@ -227,7 +227,7 @@ public class DatasetService {
         if (!cascade) {
             throw new ConflictException("dataset deletion requires cascade confirmation");
         }
-        datasets.deleteById(id);
+        datasets.softDeleteById(id);
     }
 
     public List<DatasetFieldResponse> fields(UUID datasetId) {

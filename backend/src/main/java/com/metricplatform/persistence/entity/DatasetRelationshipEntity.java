@@ -7,7 +7,7 @@ import java.time.LocalDateTime;
 import java.util.UUID;
 
 @TableName("dataset_relationship")
-public class DatasetRelationshipEntity {
+public class DatasetRelationshipEntity extends BaseAuditEntity {
     @TableId private UUID id;
     private String name;
     private UUID sourceDatasetId;
@@ -16,8 +16,6 @@ public class DatasetRelationshipEntity {
     private LocalDateTime lastValidatedAt;
     private String lastValidationStatus;
     @Version private long version;
-    private LocalDateTime createdAt;
-    private LocalDateTime updatedAt;
 
     public UUID getId() {
         return id;
@@ -83,19 +81,4 @@ public class DatasetRelationshipEntity {
         version = v;
     }
 
-    public LocalDateTime getCreatedAt() {
-        return createdAt;
-    }
-
-    public void setCreatedAt(LocalDateTime v) {
-        createdAt = v;
-    }
-
-    public LocalDateTime getUpdatedAt() {
-        return updatedAt;
-    }
-
-    public void setUpdatedAt(LocalDateTime v) {
-        updatedAt = v;
-    }
 }

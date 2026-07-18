@@ -9,10 +9,11 @@ import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Select;
 
 @Mapper
-public interface DimensionTimeGranularityMapper {
+public interface DimensionTimeGranularityMapper
+        extends AuditableBaseMapper<DimensionTimeGranularityEntity> {
     @Insert(
             "INSERT INTO dimension_time_granularity (dimension_id, granularity) VALUES (#{dimensionId}, #{granularity})")
-    int insert(DimensionTimeGranularityEntity granularity);
+    int insertGranularity(DimensionTimeGranularityEntity granularity);
 
     @Select(
             "SELECT dimension_id, granularity FROM dimension_time_granularity WHERE dimension_id = #{dimensionId} ORDER BY granularity")

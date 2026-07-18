@@ -2,17 +2,15 @@ package com.metricplatform.persistence.entity;
 
 import com.baomidou.mybatisplus.annotation.TableId;
 import com.baomidou.mybatisplus.annotation.TableName;
-import java.time.LocalDateTime;
 import java.util.UUID;
 
 @TableName("audit_event")
-public class AuditEventEntity {
+public class AuditEventEntity extends BaseAuditEntity {
     @TableId private UUID id;
     private String actorId;
     private String action;
     private String resourceType;
     private UUID resourceId;
-    private LocalDateTime createdAt;
 
     public UUID getId() {
         return id;
@@ -54,11 +52,4 @@ public class AuditEventEntity {
         this.resourceId = resourceId;
     }
 
-    public LocalDateTime getCreatedAt() {
-        return createdAt;
-    }
-
-    public void setCreatedAt(LocalDateTime createdAt) {
-        this.createdAt = createdAt;
-    }
 }

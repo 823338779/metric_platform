@@ -2,6 +2,7 @@ import { App as AntApp, ConfigProvider } from 'antd';
 import zhCN from 'antd/locale/zh_CN';
 import { createRoot } from 'react-dom/client';
 import App from './App';
+import './global.css';
 
 createRoot(document.getElementById('root')!).render(
   <ConfigProvider

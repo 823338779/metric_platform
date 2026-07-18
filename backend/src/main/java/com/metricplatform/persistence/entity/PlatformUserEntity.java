@@ -2,15 +2,13 @@ package com.metricplatform.persistence.entity;
 
 import com.baomidou.mybatisplus.annotation.TableId;
 import com.baomidou.mybatisplus.annotation.TableName;
-import java.time.LocalDateTime;
 import java.util.UUID;
 
 @TableName("platform_user")
-public class PlatformUserEntity {
+public class PlatformUserEntity extends BaseAuditEntity {
     @TableId private UUID id;
     private String username;
     private String roleCode;
-    private LocalDateTime createdAt;
 
     public UUID getId() {
         return id;
@@ -36,11 +34,4 @@ public class PlatformUserEntity {
         this.roleCode = roleCode;
     }
 
-    public LocalDateTime getCreatedAt() {
-        return createdAt;
-    }
-
-    public void setCreatedAt(LocalDateTime createdAt) {
-        this.createdAt = createdAt;
-    }
 }

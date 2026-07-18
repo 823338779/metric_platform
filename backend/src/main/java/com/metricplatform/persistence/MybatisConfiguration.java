@@ -2,6 +2,7 @@ package com.metricplatform.persistence;
 
 import com.baomidou.mybatisplus.extension.plugins.MybatisPlusInterceptor;
 import com.baomidou.mybatisplus.extension.plugins.inner.OptimisticLockerInnerInterceptor;
+import java.time.Clock;
 import java.util.UUID;
 import org.apache.ibatis.session.SqlSessionFactory;
 import org.springframework.beans.BeansException;
@@ -11,6 +12,16 @@ import org.springframework.context.annotation.Configuration;
 
 @Configuration
 public class MybatisConfiguration {
+    @Bean
+    Clock clock() {
+        return Clock.systemUTC();
+    }
+
+    @Bean
+    AuditMetaObjectHandler auditMetaObjectHandler(Clock clock) {
+        return new AuditMetaObjectHandler(clock);
+    }
+
     @Bean
     static BeanPostProcessor uuidHandler() {
         return new BeanPostProcessor() {

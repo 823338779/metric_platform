@@ -48,7 +48,7 @@ export function PlatformLayout() {
           ]}
         />
       </Layout.Sider>
-      <Layout>
+      <Layout style={{ minWidth: 0 }}>
         <Layout.Header
           style={{ background: '#fff', padding: '0 24px', borderBottom: '1px solid #f0f0f0' }}
         >
@@ -56,7 +56,7 @@ export function PlatformLayout() {
             语义指标平台
           </Typography.Title>
         </Layout.Header>
-        <Layout.Content style={{ padding: 24, background: '#f5f7fa' }}>
+        <Layout.Content style={{ padding: 24, background: '#f5f7fa', minWidth: 0 }}>
           <Outlet />
         </Layout.Content>
       </Layout>

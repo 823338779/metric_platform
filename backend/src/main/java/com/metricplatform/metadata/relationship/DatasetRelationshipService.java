@@ -61,8 +61,6 @@ public class DatasetRelationshipService {
         relationship.setCardinality(request.cardinality().name());
         relationship.setLastValidationStatus("VALID");
         relationship.setLastValidatedAt(now);
-        relationship.setCreatedAt(now);
-        relationship.setUpdatedAt(now);
         relationships.insert(relationship);
         insertPairs(relationship.getId(), request.fieldPairs());
         return response(relationship, request.fieldPairs());
@@ -101,7 +99,6 @@ public class DatasetRelationshipService {
         relationship.setCardinality(request.cardinality().name());
         relationship.setLastValidationStatus("VALID");
         relationship.setLastValidatedAt(LocalDateTime.now());
-        relationship.setUpdatedAt(LocalDateTime.now());
         if (relationships.updateById(relationship) == 0) {
             throw new ConflictException("dataset relationship version is stale");
         }
@@ -121,7 +118,6 @@ public class DatasetRelationshipService {
         cardinalityValidator.validate(resolved.source(), resolved.target(), cardinality);
         relationship.setLastValidationStatus("VALID");
         relationship.setLastValidatedAt(LocalDateTime.now());
-        relationship.setUpdatedAt(LocalDateTime.now());
         if (relationships.updateById(relationship) == 0) {
             throw new ConflictException("dataset relationship changed during validation");
         }
@@ -132,7 +128,7 @@ public class DatasetRelationshipService {
     public void delete(UUID id) {
         relationship(id);
         pairs.deleteByRelationshipId(id);
-        relationships.deleteById(id);
+        relationships.softDeleteById(id);
     }
 
     private ResolvedPairs validateDefinition(
@@ -253,7 +249,7 @@ public class DatasetRelationshipService {
             pair.setOrdinal(index);
             pair.setSourceFieldId(request.sourceFieldId());
             pair.setTargetFieldId(request.targetFieldId());
-            pairs.insert(pair);
+            pairs.insertPair(pair);
         }
     }
 

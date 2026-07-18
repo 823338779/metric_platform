@@ -4,7 +4,7 @@ import com.baomidou.mybatisplus.annotation.TableName;
 import java.util.UUID;
 
 @TableName("dataset_relationship_field_pair")
-public class DatasetRelationshipFieldPairEntity {
+public class DatasetRelationshipFieldPairEntity extends BaseAuditEntity {
     private UUID relationshipId;
     private int ordinal;
     private UUID sourceFieldId;

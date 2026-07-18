@@ -113,7 +113,7 @@ class SemanticDefinitionServiceTest {
                                 TIME,
                                 Set.of(DAY, MONTH)));
         assertThat(response.allowedGranularities()).containsExactlyInAnyOrder(DAY, MONTH);
-        verify(granularities, org.mockito.Mockito.times(2)).insert(any());
+        verify(granularities, org.mockito.Mockito.times(2)).insertGranularity(any());
     }
 
     @Test

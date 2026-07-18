@@ -11,8 +11,10 @@ export function FieldTable({
     onChange?.(fields.map((f) => (f.id === id ? { ...f, ...patch } : f)));
   return (
     <Table
+      sticky
       rowKey="id"
       pagination={false}
+      scroll={{ x: 720, y: 400 }}
       dataSource={fields}
       columns={[
         { title: '物理字段', dataIndex: 'physicalName' },

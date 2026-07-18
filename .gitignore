@@ -1,4 +1,5 @@
 /.idea/
+/.superpowers/
 /.env
 /.mvn/wrapper/maven-wrapper.jar
 **/target/

@@ -6,7 +6,7 @@ import com.baomidou.mybatisplus.annotation.Version;
 import java.util.UUID;
 
 @TableName("metric")
-public class MetricEntity {
+public class MetricEntity extends BaseAuditEntity {
     @TableId private UUID id;
     private UUID datasetId, datasetFieldId;
     private String name, displayName, aggregation;

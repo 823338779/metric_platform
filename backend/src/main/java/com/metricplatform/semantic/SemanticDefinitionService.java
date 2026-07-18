@@ -125,7 +125,7 @@ public class SemanticDefinitionService {
 
     public void deleteMetric(UUID id) {
         metric(id);
-        metrics.deleteById(id);
+        metrics.softDeleteById(id);
     }
 
     public PageResponse<DimensionResponse> listDimensions(
@@ -203,7 +203,7 @@ public class SemanticDefinitionService {
     public void deleteDimension(UUID id) {
         dimension(id);
         granularities.deleteByDimensionId(id);
-        dimensions.deleteById(id);
+        dimensions.softDeleteById(id);
     }
 
     public MetricEntity createMetric(UUID datasetId, MetricRequest request) {
@@ -310,7 +310,7 @@ public class SemanticDefinitionService {
             DimensionTimeGranularityEntity entity = new DimensionTimeGranularityEntity();
             entity.setDimensionId(dimensionId);
             entity.setGranularity(value.name());
-            granularities.insert(entity);
+            granularities.insertGranularity(entity);
         }
     }
 
