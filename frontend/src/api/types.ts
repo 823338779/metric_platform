@@ -368,6 +368,19 @@ export type CapabilitiesResponse = {
   timePresets: TimePreset[];
   planTokenSupported: boolean;
 };
+export type ConnectivityPathStatus = 'UNIQUE_PATH' | 'AMBIGUOUS_PATH';
+export type DatasetConnectivity = { datasetId: UUID; dataSourceId: UUID };
+export type ConnectivityPath = {
+  sourceDatasetId: UUID;
+  targetDatasetId: UUID;
+  status: ConnectivityPathStatus;
+  relationshipIds: UUID[];
+};
+export type QueryConnectivityResponse = {
+  catalogVersion: string;
+  datasets: DatasetConnectivity[];
+  paths: ConnectivityPath[];
+};
 export type DimensionMemberSearchRequest = {
   query: string;
   mode?: 'AUTO' | 'EXACT' | 'PREFIX' | 'CONTAINS';

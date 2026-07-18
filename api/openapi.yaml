@@ -415,6 +415,14 @@ paths:
           description: Supported features and limits
           content:
             application/json: { schema: { $ref: '#/components/schemas/CapabilitiesResponse' } }
+  /api/v1/query-connectivity:
+    get:
+      summary: Read the semantic dataset connectivity snapshot
+      responses:
+        '200':
+          description: Directed unique and ambiguous relationship paths
+          content:
+            application/json: { schema: { $ref: '#/components/schemas/QueryConnectivityResponse' } }
   /api/v1/semantic-objects:search:
     post:
       {
@@ -982,6 +990,33 @@ components:
         limits: { type: object, additionalProperties: { type: integer } }
         timePresets: { type: array, items: { type: string } }
         planTokenSupported: { type: boolean }
+    QueryConnectivityResponse:
+      type: object
+      required: [catalogVersion, datasets, paths]
+      properties:
+        catalogVersion: { type: string }
+        datasets:
+          type: array
+          items: { $ref: '#/components/schemas/DatasetConnectivity' }
+        paths:
+          type: array
+          items: { $ref: '#/components/schemas/ConnectivityPath' }
+    DatasetConnectivity:
+      type: object
+      required: [datasetId, dataSourceId]
+      properties:
+        datasetId: { $ref: '#/components/schemas/Uuid' }
+        dataSourceId: { $ref: '#/components/schemas/Uuid' }
+    ConnectivityPath:
+      type: object
+      required: [sourceDatasetId, targetDatasetId, status, relationshipIds]
+      properties:
+        sourceDatasetId: { $ref: '#/components/schemas/Uuid' }
+        targetDatasetId: { $ref: '#/components/schemas/Uuid' }
+        status: { type: string, enum: [UNIQUE_PATH, AMBIGUOUS_PATH] }
+        relationshipIds:
+          type: array
+          items: { $ref: '#/components/schemas/Uuid' }
     DimensionMemberSearchRequest:
       type: object
       required: [query]

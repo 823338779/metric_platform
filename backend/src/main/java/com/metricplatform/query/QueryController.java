@@ -22,12 +22,18 @@ public class QueryController {
     private final SemanticCatalogService catalog;
     private final DimensionMemberService members;
     private final QueryService queries;
+    private final QueryConnectivityService connectivity;
     private final QueryDatasetResolver datasetResolver;
     private final MetricQueryAuditWriter audit;
 
     @GetMapping("/capabilities")
     public QueryDtos.CapabilitiesResponse capabilities() {
         return catalog.capabilities();
+    }
+
+    @GetMapping("/query-connectivity")
+    public QueryDtos.QueryConnectivityResponse connectivity() {
+        return connectivity.connectivity();
     }
 
     @GetMapping("/datasets/{id}/semantic-model")

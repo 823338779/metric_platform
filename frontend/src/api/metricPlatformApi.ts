@@ -95,6 +95,7 @@ export function createMetricPlatformApi(fetcher?: Fetcher) {
       request<T.Dimension>(`/dimensions/${id}`, { method: 'PATCH', body: JSON.stringify(body) }),
     deleteDimension: (id: string) => request<void>(`/dimensions/${id}`, { method: 'DELETE' }),
     getCapabilities: () => request<T.CapabilitiesResponse>('/capabilities'),
+    getQueryConnectivity: () => request<T.QueryConnectivityResponse>('/query-connectivity'),
     searchSemantic: (query: string) =>
       request<T.SemanticSearchResult[]>('/semantic-objects:search', {
         method: 'POST',

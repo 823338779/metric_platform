@@ -221,6 +221,25 @@ public final class QueryDtos {
             Set<TimePreset> timePresets,
             boolean planTokenSupported) {}
 
+    public enum ConnectivityPathStatus { UNIQUE_PATH, AMBIGUOUS_PATH }
+
+    public record DatasetConnectivity(UUID datasetId, UUID dataSourceId) {}
+
+    public record ConnectivityPath(
+            UUID sourceDatasetId,
+            UUID targetDatasetId,
+            ConnectivityPathStatus status,
+            List<UUID> relationshipIds) {
+        public ConnectivityPath {
+            relationshipIds = relationshipIds == null ? List.of() : List.copyOf(relationshipIds);
+        }
+    }
+
+    public record QueryConnectivityResponse(
+            String catalogVersion,
+            List<DatasetConnectivity> datasets,
+            List<ConnectivityPath> paths) {}
+
     public enum MemberMatchMode { AUTO, EXACT, PREFIX, CONTAINS }
 
     public record DimensionMemberSearchRequest(

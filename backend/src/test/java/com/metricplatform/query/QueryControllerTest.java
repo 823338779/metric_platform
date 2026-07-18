@@ -1,10 +1,12 @@
 package com.metricplatform.query;
 
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import com.metricplatform.identity.PlatformAuthenticationService;
 import com.metricplatform.security.PlatformPrincipal;
+import java.util.List;
 import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -22,11 +24,15 @@ import org.springframework.test.web.servlet.MockMvc;
 class QueryControllerTest {
     @Autowired MockMvc mvc;
     @MockitoBean PlatformAuthenticationService authentication;
+    @MockitoBean QueryConnectivityService connectivity;
 
     @BeforeEach
     void authenticateTokens() {
         org.mockito.Mockito.when(authentication.authenticate("query-token"))
                 .thenReturn(principal());
+        org.mockito.Mockito.when(connectivity.connectivity())
+                .thenReturn(new QueryDtos.QueryConnectivityResponse(
+                        "catalog-test", List.of(), List.of()));
     }
 
     @Test
@@ -67,6 +73,22 @@ class QueryControllerTest {
                                 .content(
                                         "{\"datasetId\":\"00000000-0000-0000-0000-000000000001\",\"metricIds\":[],\"dimensionIds\":[]}"))
                 .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    void anonymousCannotReadQueryConnectivity() throws Exception {
+        mvc.perform(get("/api/v1/query-connectivity"))
+                .andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    void authenticatedAccountCanReadQueryConnectivity() throws Exception {
+        mvc.perform(get("/api/v1/query-connectivity")
+                        .header("Authorization", "Bearer query-token"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.catalogVersion").value("catalog-test"))
+                .andExpect(jsonPath("$.datasets").isArray())
+                .andExpect(jsonPath("$.paths").isArray());
     }
 
     private static PlatformPrincipal principal() {
