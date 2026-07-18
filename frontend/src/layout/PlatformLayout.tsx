@@ -6,8 +6,9 @@ import {
   LineChartOutlined,
   PlayCircleOutlined,
 } from '@ant-design/icons';
-import { Layout, Menu, Typography } from 'antd';
+import { Button, Layout, Menu, Space, Typography } from 'antd';
 import { Outlet, useLocation, useNavigate } from 'react-router-dom';
+import { clearAuthSession, getAuthSession } from '../api/auth';
 
 export function PlatformLayout() {
   const navigate = useNavigate();
@@ -16,6 +17,11 @@ export function PlatformLayout() {
     ['/data-sources', '/datasets', '/metrics', '/dimensions', '/query'].find((path) =>
       pathname.startsWith(path),
     ) ?? '/data-sources';
+  const displayName = getAuthSession()?.identity.displayName;
+  const handleLogout = () => {
+    clearAuthSession();
+    navigate('/login?reason=required', { replace: true });
+  };
   return (
     <Layout style={{ minHeight: '100vh' }}>
       <Layout.Sider breakpoint="lg" collapsedWidth="0" theme="dark">
@@ -50,11 +56,22 @@ export function PlatformLayout() {
       </Layout.Sider>
       <Layout style={{ minWidth: 0 }}>
         <Layout.Header
-          style={{ background: '#fff', padding: '0 24px', borderBottom: '1px solid #f0f0f0' }}
+          style={{
+            background: '#fff',
+            padding: '0 24px',
+            borderBottom: '1px solid #f0f0f0',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+          }}
         >
-          <Typography.Title level={4} style={{ margin: 0, lineHeight: '64px' }}>
+          <Typography.Title level={4} style={{ margin: 0 }}>
             语义指标平台
           </Typography.Title>
+          <Space>
+            {displayName ? <Typography.Text>{displayName}</Typography.Text> : null}
+            <Button onClick={handleLogout}>登出</Button>
+          </Space>
         </Layout.Header>
         <Layout.Content style={{ padding: 24, background: '#f5f7fa', minWidth: 0 }}>
           <Outlet />

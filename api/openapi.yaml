@@ -26,74 +26,10 @@ paths:
       summary: Resolve the canonical identity represented by the current token
       responses:
         '200':
-          description: Effective identity, roles, scopes, and workspace memberships
+          description: Effective account identity
           content:
             application/json: { schema: { $ref: '#/components/schemas/IdentitySummary' } }
         '401': { $ref: '#/components/responses/Problem' }
-  /api/v1/admin/platform-users:
-    post:
-      summary: Create a Metric Platform identity
-      x-required-roles: [PLATFORM_ADMIN]
-      requestBody:
-        required: true
-        content:
-          application/json: { schema: { $ref: '#/components/schemas/CreatePlatformUserRequest' } }
-      responses:
-        '201':
-          description: Created identity
-          content:
-            application/json: { schema: { $ref: '#/components/schemas/IdentitySummary' } }
-        '403': { $ref: '#/components/responses/Problem' }
-  /api/v1/admin/platform-users/{identityId}:replace-password:
-    post:
-      summary: Replace an identity password and revoke all existing tokens
-      x-required-roles: [PLATFORM_ADMIN]
-      parameters: [{ $ref: '#/components/parameters/IdentityId' }]
-      requestBody:
-        required: true
-        content:
-          application/json:
-            { schema: { $ref: '#/components/schemas/ReplacePlatformPasswordRequest' } }
-      responses:
-        '200':
-          description: Updated identity
-          content:
-            application/json: { schema: { $ref: '#/components/schemas/IdentitySummary' } }
-        '403': { $ref: '#/components/responses/Problem' }
-  /api/v1/admin/platform-users/{identityId}:set-status:
-    post:
-      summary: Activate or disable an identity and revoke tokens when its status changes
-      x-required-roles: [PLATFORM_ADMIN]
-      parameters: [{ $ref: '#/components/parameters/IdentityId' }]
-      requestBody:
-        required: true
-        content:
-          application/json:
-            { schema: { $ref: '#/components/schemas/SetPlatformUserStatusRequest' } }
-      responses:
-        '200':
-          description: Updated identity
-          content:
-            application/json: { schema: { $ref: '#/components/schemas/IdentitySummary' } }
-        '403': { $ref: '#/components/responses/Problem' }
-  /api/v1/admin/platform-users/{identityId}/dataset-grants:
-    put:
-      summary: Replace an identity's dataset discovery and query grants
-      x-required-roles: [PLATFORM_ADMIN]
-      parameters: [{ $ref: '#/components/parameters/IdentityId' }]
-      requestBody:
-        required: true
-        content:
-          application/json: { schema: { $ref: '#/components/schemas/ReplaceDatasetGrantsRequest' } }
-      responses:
-        '200':
-          description: Effective dataset grants
-          content:
-            application/json:
-              schema:
-                type: array
-                items: { $ref: '#/components/schemas/DatasetGrantRequest' }
-        '403': { $ref: '#/components/responses/Problem' }
   /api/v1/data-sources:
     get:
       {
@@ -379,7 +315,6 @@ paths:
     get:
       {
         summary: Get dataset semantic model,
-        x-required-scopes: [metric.catalog.read],
         parameters: [{ $ref: '#/components/parameters/Id' }],
         responses: { '200': { description: Semantic model } },
       }
@@ -475,7 +410,6 @@ paths:
   /api/v1/capabilities:
     get:
       summary: Describe the agent-safe semantic query capabilities
-      x-required-scopes: [metric.catalog.read]
       responses:
         '200':
           description: Supported features and limits
@@ -485,7 +419,6 @@ paths:
     post:
       {
         summary: Search semantic objects,
-        x-required-scopes: [metric.catalog.read],
         requestBody:
           {
             required: true,
@@ -517,7 +450,6 @@ paths:
   /api/v1/semantic-objects:resolve:
     post:
       summary: Resolve semantic objects and agent-safe relationship context
-      x-required-scopes: [metric.catalog.read]
       requestBody:
         required: true
         content:
@@ -531,7 +463,6 @@ paths:
   /api/v1/dimensions/{id}/members:search:
     post:
       summary: Search governed members for one dimension
-      x-required-scopes: [metric.member.read]
       parameters:
         [
           {
@@ -552,12 +483,10 @@ paths:
           content:
             application/json:
               { schema: { $ref: '#/components/schemas/DimensionMemberSearchResponse' } }
-        '403': { $ref: '#/components/responses/Problem' }
   /api/v1/queries:validate:
     post:
       {
         summary: Validate query,
-        x-required-scopes: [metric.query.validate],
         requestBody: { $ref: '#/components/requestBodies/Query' },
         responses:
           {
@@ -577,7 +506,6 @@ paths:
     post:
       {
         summary: Execute query,
-        x-required-scopes: [metric.query.execute],
         requestBody: { $ref: '#/components/requestBodies/Query' },
         responses:
           {
@@ -595,8 +523,6 @@ components:
     bearerAuth: { type: http, scheme: bearer }
   parameters:
     Id: { name: id, in: path, required: true, schema: { $ref: '#/components/schemas/Uuid' } }
-    IdentityId:
-      { name: identityId, in: path, required: true, schema: { $ref: '#/components/schemas/Uuid' } }
     Page: { name: page, in: query, schema: { type: integer, minimum: 0, default: 0 } }
     Size:
       { name: size, in: query, schema: { type: integer, minimum: 1, maximum: 200, default: 20 } }
@@ -630,16 +556,11 @@ components:
         password: { type: string, format: password, writeOnly: true, maxLength: 1024 }
     IdentitySummary:
       type: object
-      required: [identityId, subject, tenantId, workspaceIds, roles, scopes, authVersion]
+      required: [identityId, subject, displayName, authVersion]
       properties:
         identityId: { $ref: '#/components/schemas/Uuid' }
         subject: { type: string }
         displayName: { type: string }
-        tenantId: { $ref: '#/components/schemas/Uuid' }
-        workspaceIds:
-          { type: array, uniqueItems: true, items: { $ref: '#/components/schemas/Uuid' } }
-        roles: { type: array, uniqueItems: true, items: { type: string } }
-        scopes: { type: array, uniqueItems: true, items: { type: string } }
         authVersion: { type: integer, format: int64, minimum: 0 }
     AuthTokenResponse:
       type: object
@@ -649,39 +570,6 @@ components:
         tokenType: { type: string, enum: [Bearer] }
         expiresIn: { type: integer, format: int64, example: 36000 }
         identity: { $ref: '#/components/schemas/IdentitySummary' }
-    CreatePlatformUserRequest:
-      type: object
-      required: [tenantKey, username, displayName, password, roleCode]
-      properties:
-        tenantKey: { type: string }
-        username: { type: string }
-        displayName: { type: string }
-        password: { type: string, format: password, writeOnly: true, maxLength: 1024 }
-        roleCode: { enum: [METRIC_QUERY_CLIENT, SEMANTIC_EDITOR, PLATFORM_ADMIN] }
-        workspaceIds:
-          { type: array, uniqueItems: true, items: { $ref: '#/components/schemas/Uuid' } }
-    ReplacePlatformPasswordRequest:
-      type: object
-      required: [password]
-      properties:
-        password: { type: string, format: password, writeOnly: true, maxLength: 1024 }
-    SetPlatformUserStatusRequest:
-      type: object
-      required: [status]
-      properties:
-        status: { enum: [ACTIVE, DISABLED] }
-    DatasetGrantRequest:
-      type: object
-      required: [datasetId, discoverAllowed, queryAllowed]
-      properties:
-        datasetId: { $ref: '#/components/schemas/Uuid' }
-        discoverAllowed: { type: boolean }
-        queryAllowed: { type: boolean }
-    ReplaceDatasetGrantsRequest:
-      type: object
-      required: [grants]
-      properties:
-        grants: { type: array, items: { $ref: '#/components/schemas/DatasetGrantRequest' } }
     Version: { type: integer, format: int64, minimum: 0 }
     DatabaseType: { type: string, enum: [STARROCKS, MYSQL, POSTGRESQL] }
     ConnectionSettings:
