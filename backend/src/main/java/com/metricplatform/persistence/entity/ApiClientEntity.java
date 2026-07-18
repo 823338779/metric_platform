@@ -42,5 +42,4 @@ public class ApiClientEntity extends BaseAuditEntity {
     public void setRoleCode(String roleCode) {
         this.roleCode = roleCode;
     }
-
 }

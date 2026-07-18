@@ -39,9 +39,17 @@ class AuditEntityContractTest {
     void everyEntityInheritsTheAuditedFields() throws Exception {
         assertThat(ENTITIES).allMatch(BaseAuditEntity.class::isAssignableFrom);
 
-        assertThat(BaseAuditEntity.class.getDeclaredField("createdAt").getAnnotation(TableField.class).fill())
+        assertThat(
+                        BaseAuditEntity.class
+                                .getDeclaredField("createdAt")
+                                .getAnnotation(TableField.class)
+                                .fill())
                 .isEqualTo(FieldFill.INSERT);
-        assertThat(BaseAuditEntity.class.getDeclaredField("updatedAt").getAnnotation(TableField.class).fill())
+        assertThat(
+                        BaseAuditEntity.class
+                                .getDeclaredField("updatedAt")
+                                .getAnnotation(TableField.class)
+                                .fill())
                 .isEqualTo(FieldFill.INSERT_UPDATE);
         TableLogic logic =
                 BaseAuditEntity.class.getDeclaredField("deleted").getAnnotation(TableLogic.class);
@@ -53,5 +61,11 @@ class AuditEntityContractTest {
                                 .getAnnotation(TableField.class)
                                 .value())
                 .isEqualTo("deleted_at");
+        assertThat(
+                        BaseAuditEntity.class
+                                .getDeclaredField("deletedAt")
+                                .getAnnotation(TableField.class)
+                                .fill())
+                .isEqualTo(FieldFill.UPDATE);
     }
 }

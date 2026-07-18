@@ -35,7 +35,8 @@ public class AuditMetaObjectHandler implements MetaObjectHandler {
         if (metaObject.getOriginalObject() instanceof BaseAuditEntity entity) {
             return entity;
         }
-        if (metaObject.hasGetter("et") && metaObject.getValue("et") instanceof BaseAuditEntity entity) {
+        if (metaObject.hasGetter("et")
+                && metaObject.getValue("et") instanceof BaseAuditEntity entity) {
             return entity;
         }
         return null;

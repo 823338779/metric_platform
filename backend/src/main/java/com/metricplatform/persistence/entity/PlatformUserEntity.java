@@ -33,5 +33,4 @@ public class PlatformUserEntity extends BaseAuditEntity {
     public void setRoleCode(String roleCode) {
         this.roleCode = roleCode;
     }
-
 }

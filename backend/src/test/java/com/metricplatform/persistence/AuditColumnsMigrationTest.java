@@ -26,12 +26,9 @@ class AuditColumnsMigrationTest {
     void migrationAddsEveryAuditColumnToEveryBusinessTable() throws Exception {
         String sql;
         try (var input =
-                getClass()
-                        .getResourceAsStream("/db/migration/V6__standardize_audit_columns.sql")) {
+                getClass().getResourceAsStream("/db/migration/V6__standardize_audit_columns.sql")) {
             sql =
-                    new String(
-                                    Objects.requireNonNull(input).readAllBytes(),
-                                    StandardCharsets.UTF_8)
+                    new String(Objects.requireNonNull(input).readAllBytes(), StandardCharsets.UTF_8)
                             .toLowerCase();
         }
 

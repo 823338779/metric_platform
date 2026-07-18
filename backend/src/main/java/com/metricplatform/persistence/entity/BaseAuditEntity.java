@@ -16,7 +16,7 @@ public abstract class BaseAuditEntity {
     @TableLogic(value = "false", delval = "true")
     private boolean deleted;
 
-    @TableField("deleted_at")
+    @TableField(value = "deleted_at", fill = FieldFill.UPDATE)
     private Instant deletedAt;
 
     public Instant getCreatedAt() {

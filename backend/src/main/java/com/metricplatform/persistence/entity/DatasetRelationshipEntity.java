@@ -80,5 +80,4 @@ public class DatasetRelationshipEntity extends BaseAuditEntity {
     public void setVersion(long v) {
         version = v;
     }
-
 }

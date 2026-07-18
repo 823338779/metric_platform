@@ -3,14 +3,12 @@ package com.metricplatform.persistence.entity;
 import com.baomidou.mybatisplus.annotation.TableId;
 import com.baomidou.mybatisplus.annotation.TableName;
 import com.baomidou.mybatisplus.annotation.Version;
-
 import java.time.LocalDateTime;
 import java.util.UUID;
 
 @TableName("data_source")
 public class DataSourceEntity extends BaseAuditEntity {
-    @TableId
-    private UUID id;
+    @TableId private UUID id;
     private String name;
     private String description;
     private String databaseType;
@@ -25,8 +23,7 @@ public class DataSourceEntity extends BaseAuditEntity {
     private String healthStatus;
     private LocalDateTime lastCheckedAt;
     private Long lastLatencyMs;
-    @Version
-    private long version;
+    @Version private long version;
 
     public UUID getId() {
         return id;
@@ -100,12 +97,9 @@ public class DataSourceEntity extends BaseAuditEntity {
         password = value;
     }
 
-    /**
-     * Source-compatible fixture hook; secret references are no longer persisted or used.
-     */
+    /** Source-compatible fixture hook; secret references are no longer persisted or used. */
     @Deprecated(forRemoval = true)
-    public void setSecretReference(String ignored) {
-    }
+    public void setSecretReference(String ignored) {}
 
     public String getDefaultCatalog() {
         return defaultCatalog;

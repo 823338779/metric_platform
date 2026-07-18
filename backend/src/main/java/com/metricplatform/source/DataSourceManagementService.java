@@ -43,10 +43,7 @@ public class DataSourceManagementService {
                         : sources.selectList(
                                 new LambdaQueryWrapper<DataSourceEntity>()
                                         .orderByAsc(DataSourceEntity::getName));
-        return selected
-                .stream()
-                .map(this::summary)
-                .toList();
+        return selected.stream().map(this::summary).toList();
     }
 
     public DataSourceDetail get(UUID id) {

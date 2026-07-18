@@ -51,5 +51,4 @@ public class AuditEventEntity extends BaseAuditEntity {
     public void setResourceId(UUID resourceId) {
         this.resourceId = resourceId;
     }
-
 }
