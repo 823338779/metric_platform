@@ -7,4 +7,8 @@ import org.springframework.stereotype.Service;
 
 @Service
 public class MetricEntityPersistenceService
-        extends ServiceImpl<MetricMapper, MetricEntity> {}
+        extends ServiceImpl<MetricMapper, MetricEntity> {
+    public boolean softDeleteById(Object id) {
+        return baseMapper.softDeleteById((java.io.Serializable) id) > 0;
+    }
+}

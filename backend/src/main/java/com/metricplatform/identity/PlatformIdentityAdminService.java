@@ -98,7 +98,7 @@ public class PlatformIdentityAdminService {
         try {
             users.save(user);
         } catch (DuplicateKeyException duplicate) {
-            throw new ConflictException("Platform username already exists in this tenant");
+            throw new ConflictException("Platform username already exists");
         }
         for (UUID workspaceId : workspaceIds) {
             PlatformUserWorkspaceEntity membership = new PlatformUserWorkspaceEntity();

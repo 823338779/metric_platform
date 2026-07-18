@@ -6,7 +6,7 @@ security: [{ bearerAuth: [] }]
 paths:
   /api/v1/auth/token:
     post:
-      summary: Exchange one Metric Platform username and password for a short-lived access token
+      summary: Exchange one Metric Platform username and password for an access token
       security: []
       requestBody:
         required: true
@@ -14,7 +14,7 @@ paths:
           application/json: { schema: { $ref: '#/components/schemas/AuthTokenRequest' } }
       responses:
         '200':
-          description: Ten-minute bearer token and canonical effective identity
+          description: Ten-hour bearer token and canonical effective identity
           headers:
             Cache-Control: { schema: { type: string, example: no-store } }
           content:
@@ -624,12 +624,10 @@ components:
     Uuid: { type: string, format: uuid }
     AuthTokenRequest:
       type: object
-      required: [tenantKey, username, password, audience]
+      required: [username, password]
       properties:
-        tenantKey: { type: string }
         username: { type: string }
         password: { type: string, format: password, writeOnly: true, maxLength: 1024 }
-        audience: { type: string, enum: [data-agent] }
     IdentitySummary:
       type: object
       required: [identityId, subject, tenantId, workspaceIds, roles, scopes, authVersion]
@@ -649,7 +647,7 @@ components:
       properties:
         accessToken: { type: string, writeOnly: true }
         tokenType: { type: string, enum: [Bearer] }
-        expiresIn: { type: integer, format: int64, example: 600 }
+        expiresIn: { type: integer, format: int64, example: 36000 }
         identity: { $ref: '#/components/schemas/IdentitySummary' }
     CreatePlatformUserRequest:
       type: object

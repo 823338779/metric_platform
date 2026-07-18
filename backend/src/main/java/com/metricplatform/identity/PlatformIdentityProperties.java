@@ -19,7 +19,7 @@ import org.springframework.validation.annotation.Validated;
 @ConfigurationProperties("metric-platform.identity-auth")
 public class PlatformIdentityProperties {
     private boolean enabled = true;
-    @NotNull private Duration tokenTtl = Duration.ofMinutes(10);
+    @NotNull private Duration tokenTtl = Duration.ofHours(10);
 
     @Min(1)
     @Max(20)
@@ -34,9 +34,9 @@ public class PlatformIdentityProperties {
     @NotNull private Duration rateWindow = Duration.ofMinutes(1);
     @Valid private Bootstrap bootstrap = new Bootstrap();
 
-    @AssertTrue(message = "Metric Platform access tokens must expire after exactly 10 minutes")
+    @AssertTrue(message = "Metric Platform access tokens must expire after exactly 10 hours")
     public boolean isSupportedTokenTtl() {
-        return Duration.ofMinutes(10).equals(tokenTtl);
+        return Duration.ofHours(10).equals(tokenTtl);
     }
 
     @Getter

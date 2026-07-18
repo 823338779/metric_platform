@@ -38,8 +38,7 @@ class LombokBoilerplateArchitectureTest {
                     "DimensionEntity.java",
                     "DimensionTimeGranularityEntity.java",
                     "MetricEntity.java",
-                    "PlatformUserEntity.java",
-                    "SemanticAliasEntity.java");
+                    "PlatformUserEntity.java");
 
     private static final Map<String, String> REQUIRED_CONSTRUCTORS =
             Map.ofEntries(

@@ -1,7 +1,12 @@
 package com.metricplatform.metadata;
 
 import com.metricplatform.persistence.entity.*;
-import com.metricplatform.persistence.mapper.*;
+import com.metricplatform.persistence.service.AuditEventPersistenceService;
+import com.metricplatform.persistence.service.DataSourcePersistenceService;
+import com.metricplatform.persistence.service.DatasetEntityPersistenceService;
+import com.metricplatform.persistence.service.DatasetFieldPersistenceService;
+import com.metricplatform.persistence.service.DimensionEntityPersistenceService;
+import com.metricplatform.persistence.service.MetricEntityPersistenceService;
 import com.metricplatform.security.PlatformPrincipal;
 import java.util.*;
 import lombok.RequiredArgsConstructor;
@@ -12,16 +17,16 @@ import org.springframework.transaction.annotation.Transactional;
 @Service
 @RequiredArgsConstructor
 public class MetadataService {
-    private final DataSourceMapper sources;
-    private final DatasetMapper datasets;
-    private final DatasetFieldMapper fields;
-    private final DimensionMapper dimensions;
-    private final MetricMapper metrics;
-    private final AuditEventMapper audit;
+    private final DataSourcePersistenceService sources;
+    private final DatasetEntityPersistenceService datasets;
+    private final DatasetFieldPersistenceService fields;
+    private final DimensionEntityPersistenceService dimensions;
+    private final MetricEntityPersistenceService metrics;
+    private final AuditEventPersistenceService audit;
 
     @Transactional
     public DatasetEntity createDataset(MetadataDtos.CreateDatasetRequest r, Authentication auth) {
-        if (sources.selectById(r.dataSourceId()) == null)
+        if (sources.getById(r.dataSourceId()) == null)
             throw new NoSuchElementException("data source not found");
         if (r.fields().stream()
                         .map(f -> f.physicalName().toLowerCase(Locale.ROOT))
@@ -35,7 +40,7 @@ public class MetadataService {
         d.setName(r.name());
         d.setSchemaName(r.schemaName());
         d.setObjectName(r.objectName());
-        datasets.insert(d);
+        datasets.save(d);
         for (var request : r.fields()) {
             DatasetFieldEntity f = new DatasetFieldEntity();
             f.setId(UUID.randomUUID());
@@ -45,14 +50,14 @@ public class MetadataService {
             f.setStarrocksType(request.starrocksType());
             f.setDimensionEnabled(request.dimensionEnabled());
             f.setMetricEnabled(request.metricEnabled());
-            fields.insert(f);
+            fields.save(f);
         }
         audit(auth, "CREATE_DATASET", d.getId());
         return d;
     }
 
     public List<DatasetEntity> datasets() {
-        return datasets.selectList(null);
+        return datasets.list();
     }
 
     private void audit(Authentication auth, String action, UUID resource) {
@@ -65,6 +70,6 @@ public class MetadataService {
         e.setAction(action);
         e.setResourceType("dataset");
         e.setResourceId(resource);
-        audit.insert(e);
+        audit.save(e);
     }
 }

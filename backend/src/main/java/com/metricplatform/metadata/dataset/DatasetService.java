@@ -9,12 +9,12 @@ import com.metricplatform.api.ConflictException;
 import com.metricplatform.persistence.entity.DatasetEntity;
 import com.metricplatform.persistence.entity.DatasetFieldEntity;
 import com.metricplatform.persistence.entity.DatasetRelationshipEntity;
-import com.metricplatform.persistence.mapper.DataSourceMapper;
-import com.metricplatform.persistence.mapper.DatasetFieldMapper;
-import com.metricplatform.persistence.mapper.DatasetMapper;
-import com.metricplatform.persistence.mapper.DatasetRelationshipMapper;
-import com.metricplatform.persistence.mapper.DimensionMapper;
-import com.metricplatform.persistence.mapper.MetricMapper;
+import com.metricplatform.persistence.service.DataSourcePersistenceService;
+import com.metricplatform.persistence.service.DatasetFieldPersistenceService;
+import com.metricplatform.persistence.service.DatasetEntityPersistenceService;
+import com.metricplatform.persistence.service.DatasetRelationshipEntityPersistenceService;
+import com.metricplatform.persistence.service.DimensionEntityPersistenceService;
+import com.metricplatform.persistence.service.MetricEntityPersistenceService;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.LinkedHashSet;
@@ -31,19 +31,19 @@ import org.springframework.transaction.annotation.Transactional;
 @Service
 @RequiredArgsConstructor
 public class DatasetService {
-    private final DataSourceMapper sources;
-    private final DatasetMapper datasets;
-    private final DatasetFieldMapper fields;
-    private final MetricMapper metrics;
-    private final DimensionMapper dimensions;
-    private final DatasetRelationshipMapper relationships;
+    private final DataSourcePersistenceService sources;
+    private final DatasetEntityPersistenceService datasets;
+    private final DatasetFieldPersistenceService fields;
+    private final MetricEntityPersistenceService metrics;
+    private final DimensionEntityPersistenceService dimensions;
+    private final DatasetRelationshipEntityPersistenceService relationships;
     private final SourceMetadataInspector sourceMetadata;
     private final FilterValidator filterValidator;
     private final ObjectMapper objectMapper;
 
     @Transactional
     public DatasetResponse create(CreateDatasetRequest request) {
-        var source = sources.selectById(request.dataSourceId());
+        var source = sources.getById(request.dataSourceId());
         if (source == null) {
             throw new NoSuchElementException("data source not found");
         }
@@ -80,7 +80,7 @@ public class DatasetService {
                 request.owner(), request.status(), request.certificationStatus());
         if (request.aliases() != null) dataset.setAliases(writeAliases(request.aliases()));
         dataset.setVersion(0);
-        datasets.insert(dataset);
+        datasets.save(dataset);
 
         for (String key : selected) {
             SourceMetadataInspector.SourceColumn column = available.get(key);
@@ -95,14 +95,14 @@ public class DatasetService {
             field.setSelected(true);
             field.setSensitivityLevel("INTERNAL");
             field.setVersion(0);
-            fields.insert(field);
+            fields.save(field);
         }
         return response(dataset);
     }
 
     public PageResponse<DatasetResponse> list(String q, UUID dataSourceId, int page, int size) {
         List<DatasetEntity> matching =
-                datasets.selectList(null).stream()
+                datasets.list().stream()
                         .filter(
                                 dataset ->
                                         dataSourceId == null
@@ -150,7 +150,7 @@ public class DatasetService {
             field.setSelected(fieldUpdate.selected());
             field.setDescription(trimToNull(fieldUpdate.description()));
             field.setSensitivityLevel(defaultValue(fieldUpdate.sensitivityLevel(), "INTERNAL"));
-            if (fields.updateById(field) == 0) {
+            if (!fields.updateById(field)) {
                 throw new ConflictException("dataset field was modified by another user");
             }
         }
@@ -162,7 +162,7 @@ public class DatasetService {
                 request.freshnessPolicy(), request.qualityStatus(), request.domain(),
                 request.owner(), request.status(), request.certificationStatus());
         if (request.aliases() != null) dataset.setAliases(writeAliases(request.aliases()));
-        if (datasets.updateById(dataset) == 0) {
+        if (!datasets.updateById(dataset)) {
             throw new ConflictException("dataset was modified by another user");
         }
         return response(entity(id));
@@ -172,18 +172,18 @@ public class DatasetService {
         entity(id);
         int fieldCount = fieldEntities(id).size();
         int metricCount =
-                metrics.selectCount(
+                Math.toIntExact(
+                        metrics.count(
                                 new LambdaQueryWrapper<
                                                 com.metricplatform.persistence.entity
                                                         .MetricEntity>()
                                         .eq(
                                                 com.metricplatform.persistence.entity.MetricEntity
                                                         ::getDatasetId,
-                                                id))
-                        .intValue();
+                                                 id)));
         int dimensionCount =
-                dimensions
-                        .selectCount(
+                Math.toIntExact(
+                        dimensions.count(
                                 new LambdaQueryWrapper<
                                                 com.metricplatform.persistence.entity
                                                         .DimensionEntity>()
@@ -191,11 +191,10 @@ public class DatasetService {
                                                 com.metricplatform.persistence.entity
                                                                 .DimensionEntity
                                                         ::getDatasetId,
-                                                id))
-                        .intValue();
+                                                 id)));
         int relationshipCount =
-                relationships
-                        .selectCount(
+                Math.toIntExact(
+                        relationships.count(
                                 new LambdaQueryWrapper<DatasetRelationshipEntity>()
                                         .and(
                                                 wrapper ->
@@ -207,8 +206,7 @@ public class DatasetService {
                                                                 .eq(
                                                                         DatasetRelationshipEntity
                                                                                 ::getTargetDatasetId,
-                                                                        id)))
-                        .intValue();
+                                                                         id))));
         return new DeletionImpactResponse(
                 fieldCount, metricCount, dimensionCount, relationshipCount);
     }
@@ -228,7 +226,7 @@ public class DatasetService {
     }
 
     private DatasetEntity entity(UUID id) {
-        DatasetEntity dataset = datasets.selectById(id);
+        DatasetEntity dataset = datasets.getById(id);
         if (dataset == null) {
             throw new NoSuchElementException("dataset not found");
         }
@@ -236,7 +234,7 @@ public class DatasetService {
     }
 
     private List<DatasetFieldEntity> fieldEntities(UUID datasetId) {
-        return fields.selectList(
+        return fields.list(
                 new LambdaQueryWrapper<DatasetFieldEntity>()
                         .eq(DatasetFieldEntity::getDatasetId, datasetId)
                         .orderByAsc(DatasetFieldEntity::getPhysicalName));

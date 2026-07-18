@@ -11,10 +11,7 @@ public final class IdentityDtos {
     private IdentityDtos() {}
 
     public record AuthTokenRequest(
-            @NotBlank String tenantKey,
-            @NotBlank String username,
-            @NotBlank @Size(max = 1024) String password,
-            @NotBlank String audience) {}
+            @NotBlank String username, @NotBlank @Size(max = 1024) String password) {}
 
     public record IdentitySummary(
             UUID identityId,

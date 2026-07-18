@@ -7,4 +7,8 @@ import org.springframework.stereotype.Service;
 
 @Service
 public class DimensionEntityPersistenceService
-        extends ServiceImpl<DimensionMapper, DimensionEntity> {}
+        extends ServiceImpl<DimensionMapper, DimensionEntity> {
+    public boolean softDeleteById(Object id) {
+        return baseMapper.softDeleteById((java.io.Serializable) id) > 0;
+    }
+}

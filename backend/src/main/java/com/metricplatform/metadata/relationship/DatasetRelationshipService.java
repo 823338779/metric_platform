@@ -8,10 +8,10 @@ import com.metricplatform.persistence.entity.DatasetEntity;
 import com.metricplatform.persistence.entity.DatasetFieldEntity;
 import com.metricplatform.persistence.entity.DatasetRelationshipEntity;
 import com.metricplatform.persistence.entity.DatasetRelationshipFieldPairEntity;
-import com.metricplatform.persistence.mapper.DatasetFieldMapper;
-import com.metricplatform.persistence.mapper.DatasetMapper;
-import com.metricplatform.persistence.mapper.DatasetRelationshipFieldPairMapper;
-import com.metricplatform.persistence.mapper.DatasetRelationshipMapper;
+import com.metricplatform.persistence.service.DatasetFieldPersistenceService;
+import com.metricplatform.persistence.service.DatasetEntityPersistenceService;
+import com.metricplatform.persistence.service.DatasetRelationshipFieldPairPersistenceService;
+import com.metricplatform.persistence.service.DatasetRelationshipEntityPersistenceService;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.HashSet;
@@ -27,10 +27,10 @@ import org.springframework.transaction.annotation.Transactional;
 @Service
 @RequiredArgsConstructor
 public class DatasetRelationshipService {
-    private final DatasetMapper datasets;
-    private final DatasetFieldMapper fields;
-    private final DatasetRelationshipMapper relationships;
-    private final DatasetRelationshipFieldPairMapper pairs;
+    private final DatasetEntityPersistenceService datasets;
+    private final DatasetFieldPersistenceService fields;
+    private final DatasetRelationshipEntityPersistenceService relationships;
+    private final DatasetRelationshipFieldPairPersistenceService pairs;
     private final RelationshipCardinalityValidator cardinalityValidator;
 
     @Transactional
@@ -52,7 +52,7 @@ public class DatasetRelationshipService {
                 request.semanticRole(), request.fanoutSafe(), request.status());
         relationship.setLastValidationStatus("VALID");
         relationship.setLastValidatedAt(now);
-        relationships.insert(relationship);
+        relationships.save(relationship);
         insertPairs(relationship.getId(), request.fieldPairs());
         return response(relationship, request.fieldPairs());
     }
@@ -67,7 +67,7 @@ public class DatasetRelationshipService {
                                     .eq(DatasetRelationshipEntity::getTargetDatasetId, datasetId));
         }
         query.orderByAsc(DatasetRelationshipEntity::getName);
-        return relationships.selectList(query).stream().map(this::response).toList();
+        return relationships.list(query).stream().map(this::response).toList();
     }
 
     public RelationshipResponse get(UUID id) {
@@ -92,10 +92,10 @@ public class DatasetRelationshipService {
                 request.semanticRole(), request.fanoutSafe(), request.status());
         relationship.setLastValidationStatus("VALID");
         relationship.setLastValidatedAt(LocalDateTime.now());
-        if (relationships.updateById(relationship) == 0) {
+        if (!relationships.updateById(relationship)) {
             throw new ConflictException("dataset relationship version is stale");
         }
-        pairs.deleteByRelationshipId(id);
+        pairs.removeByRelationshipId(id);
         insertPairs(id, request.fieldPairs());
         return response(relationship, request.fieldPairs());
     }
@@ -111,7 +111,7 @@ public class DatasetRelationshipService {
         cardinalityValidator.validate(resolved.source(), resolved.target(), cardinality);
         relationship.setLastValidationStatus("VALID");
         relationship.setLastValidatedAt(LocalDateTime.now());
-        if (relationships.updateById(relationship) == 0) {
+        if (!relationships.updateById(relationship)) {
             throw new ConflictException("dataset relationship changed during validation");
         }
         return response(relationship, fieldPairs);
@@ -120,7 +120,7 @@ public class DatasetRelationshipService {
     @Transactional
     public void delete(UUID id) {
         relationship(id);
-        pairs.deleteByRelationshipId(id);
+        pairs.removeByRelationshipId(id);
         relationships.softDeleteById(id);
     }
 
@@ -218,18 +218,18 @@ public class DatasetRelationshipService {
     }
 
     private DatasetEntity dataset(UUID id) {
-        return java.util.Optional.ofNullable(datasets.selectById(id))
+        return java.util.Optional.ofNullable(datasets.getById(id))
                 .orElseThrow(() -> new NoSuchElementException("dataset not found: " + id));
     }
 
     private DatasetFieldEntity field(UUID id, String endpoint) {
-        return java.util.Optional.ofNullable(fields.selectById(id))
+        return java.util.Optional.ofNullable(fields.getById(id))
                 .orElseThrow(
                         () -> new NoSuchElementException(endpoint + " field not found: " + id));
     }
 
     private DatasetRelationshipEntity relationship(UUID id) {
-        return java.util.Optional.ofNullable(relationships.selectById(id))
+        return java.util.Optional.ofNullable(relationships.getById(id))
                 .orElseThrow(
                         () -> new NoSuchElementException("dataset relationship not found: " + id));
     }
@@ -242,7 +242,7 @@ public class DatasetRelationshipService {
             pair.setOrdinal(index);
             pair.setSourceFieldId(request.sourceFieldId());
             pair.setTargetFieldId(request.targetFieldId());
-            pairs.insertPair(pair);
+            pairs.savePair(pair);
         }
     }
 
@@ -294,7 +294,7 @@ public class DatasetRelationshipService {
     }
 
     private List<FieldPairRequest> pairRequests(UUID relationshipId) {
-        return pairs.selectByRelationshipId(relationshipId).stream()
+        return pairs.listByRelationshipId(relationshipId).stream()
                 .map(pair -> new FieldPairRequest(pair.getSourceFieldId(), pair.getTargetFieldId()))
                 .toList();
     }

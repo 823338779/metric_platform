@@ -11,10 +11,10 @@ import static org.mockito.Mockito.when;
 import com.metricplatform.persistence.entity.DatasetEntity;
 import com.metricplatform.persistence.entity.DatasetFieldEntity;
 import com.metricplatform.persistence.entity.DatasetRelationshipEntity;
-import com.metricplatform.persistence.mapper.DatasetFieldMapper;
-import com.metricplatform.persistence.mapper.DatasetMapper;
-import com.metricplatform.persistence.mapper.DatasetRelationshipFieldPairMapper;
-import com.metricplatform.persistence.mapper.DatasetRelationshipMapper;
+import com.metricplatform.persistence.service.DatasetEntityPersistenceService;
+import com.metricplatform.persistence.service.DatasetFieldPersistenceService;
+import com.metricplatform.persistence.service.DatasetRelationshipEntityPersistenceService;
+import com.metricplatform.persistence.service.DatasetRelationshipFieldPairPersistenceService;
 import java.util.List;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
@@ -34,32 +34,32 @@ class DatasetRelationshipServiceTest {
     private static final UUID TARGET_FIELD =
             UUID.fromString("50000000-0000-0000-0000-000000000005");
 
-    @Mock DatasetMapper datasets;
-    @Mock DatasetFieldMapper fields;
-    @Mock DatasetRelationshipMapper relationships;
-    @Mock DatasetRelationshipFieldPairMapper pairs;
+    @Mock DatasetEntityPersistenceService datasets;
+    @Mock DatasetFieldPersistenceService fields;
+    @Mock DatasetRelationshipEntityPersistenceService relationships;
+    @Mock DatasetRelationshipFieldPairPersistenceService pairs;
     @Mock RelationshipCardinalityValidator cardinalityValidator;
 
     @Test
-    void deletesRelationshipThroughTheAuditedMapper() {
+    void deletesRelationshipThroughThePersistenceService() {
         UUID relationshipId = UUID.randomUUID();
         DatasetRelationshipEntity relationship = new DatasetRelationshipEntity();
         relationship.setId(relationshipId);
-        when(relationships.selectById(relationshipId)).thenReturn(relationship);
+        when(relationships.getById(relationshipId)).thenReturn(relationship);
 
         service().delete(relationshipId);
 
-        verify(pairs).deleteByRelationshipId(relationshipId);
+        verify(pairs).removeByRelationshipId(relationshipId);
         verify(relationships).softDeleteById(relationshipId);
     }
 
     @Test
     void persistsAValidatedCompositeRelationship() {
-        when(datasets.selectById(SOURCE_DATASET)).thenReturn(dataset(SOURCE_DATASET, DATA_SOURCE));
-        when(datasets.selectById(TARGET_DATASET)).thenReturn(dataset(TARGET_DATASET, DATA_SOURCE));
-        when(fields.selectById(SOURCE_FIELD))
+        when(datasets.getById(SOURCE_DATASET)).thenReturn(dataset(SOURCE_DATASET, DATA_SOURCE));
+        when(datasets.getById(TARGET_DATASET)).thenReturn(dataset(TARGET_DATASET, DATA_SOURCE));
+        when(fields.getById(SOURCE_FIELD))
                 .thenReturn(field(SOURCE_FIELD, SOURCE_DATASET, "BIGINT"));
-        when(fields.selectById(TARGET_FIELD))
+        when(fields.getById(TARGET_FIELD))
                 .thenReturn(field(TARGET_FIELD, TARGET_DATASET, "BIGINT"));
 
         DatasetRelationshipService service = service();
@@ -78,15 +78,15 @@ class DatasetRelationshipServiceTest {
         assertThat(response.targetDatasetId()).isEqualTo(TARGET_DATASET);
         assertThat(response.joinType()).isEqualTo("LEFT");
         assertThat(response.fieldPairs()).hasSize(1);
-        verify(relationships).insert(any(DatasetRelationshipEntity.class));
-        verify(pairs).insertPair(any());
+        verify(relationships).save(any(DatasetRelationshipEntity.class));
+        verify(pairs).savePair(any());
         verify(cardinalityValidator).validate(any(), any(), any());
     }
 
     @Test
     void rejectsCrossSourceAndWrongEndpointFieldsBeforeWriting() {
-        when(datasets.selectById(SOURCE_DATASET)).thenReturn(dataset(SOURCE_DATASET, DATA_SOURCE));
-        when(datasets.selectById(TARGET_DATASET))
+        when(datasets.getById(SOURCE_DATASET)).thenReturn(dataset(SOURCE_DATASET, DATA_SOURCE));
+        when(datasets.getById(TARGET_DATASET))
                 .thenReturn(dataset(TARGET_DATASET, UUID.randomUUID()));
 
         DatasetRelationshipService service = service();
@@ -101,12 +101,12 @@ class DatasetRelationshipServiceTest {
         assertThatThrownBy(() -> service.create(request))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("same data source");
-        verify(relationships, never()).insert(any(DatasetRelationshipEntity.class));
+        verify(relationships, never()).save(any(DatasetRelationshipEntity.class));
     }
 
     @Test
     void rejectsSameEndpointAndEmptyPairs() {
-        when(datasets.selectById(SOURCE_DATASET)).thenReturn(dataset(SOURCE_DATASET, DATA_SOURCE));
+        when(datasets.getById(SOURCE_DATASET)).thenReturn(dataset(SOURCE_DATASET, DATA_SOURCE));
 
         assertThatThrownBy(
                         () ->
@@ -125,7 +125,7 @@ class DatasetRelationshipServiceTest {
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("different datasets");
 
-        when(datasets.selectById(TARGET_DATASET)).thenReturn(dataset(TARGET_DATASET, DATA_SOURCE));
+        when(datasets.getById(TARGET_DATASET)).thenReturn(dataset(TARGET_DATASET, DATA_SOURCE));
         assertThatThrownBy(
                         () ->
                                 service()
@@ -142,11 +142,11 @@ class DatasetRelationshipServiceTest {
 
     @Test
     void rejectsWrongEndpointIncompatibleAndDuplicateFields() {
-        when(datasets.selectById(SOURCE_DATASET)).thenReturn(dataset(SOURCE_DATASET, DATA_SOURCE));
-        when(datasets.selectById(TARGET_DATASET)).thenReturn(dataset(TARGET_DATASET, DATA_SOURCE));
-        when(fields.selectById(SOURCE_FIELD))
+        when(datasets.getById(SOURCE_DATASET)).thenReturn(dataset(SOURCE_DATASET, DATA_SOURCE));
+        when(datasets.getById(TARGET_DATASET)).thenReturn(dataset(TARGET_DATASET, DATA_SOURCE));
+        when(fields.getById(SOURCE_FIELD))
                 .thenReturn(field(SOURCE_FIELD, TARGET_DATASET, "BIGINT"));
-        when(fields.selectById(TARGET_FIELD))
+        when(fields.getById(TARGET_FIELD))
                 .thenReturn(field(TARGET_FIELD, TARGET_DATASET, "BIGINT"));
 
         assertThatThrownBy(
@@ -159,7 +159,7 @@ class DatasetRelationshipServiceTest {
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("source field");
 
-        when(fields.selectById(SOURCE_FIELD))
+        when(fields.getById(SOURCE_FIELD))
                 .thenReturn(field(SOURCE_FIELD, SOURCE_DATASET, "DATE"));
         assertThatThrownBy(
                         () ->
@@ -171,7 +171,7 @@ class DatasetRelationshipServiceTest {
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("incompatible");
 
-        when(fields.selectById(SOURCE_FIELD))
+        when(fields.getById(SOURCE_FIELD))
                 .thenReturn(field(SOURCE_FIELD, SOURCE_DATASET, "BIGINT"));
         assertThatThrownBy(
                         () ->

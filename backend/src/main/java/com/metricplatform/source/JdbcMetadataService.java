@@ -3,7 +3,7 @@ package com.metricplatform.source;
 import static com.metricplatform.source.DataSourceDtos.*;
 
 import com.metricplatform.persistence.entity.DataSourceEntity;
-import com.metricplatform.persistence.mapper.DataSourceMapper;
+import com.metricplatform.persistence.service.DataSourcePersistenceService;
 import java.sql.Blob;
 import java.sql.Clob;
 import java.sql.Connection;
@@ -26,7 +26,7 @@ import org.springframework.stereotype.Service;
 @RequiredArgsConstructor
 public class JdbcMetadataService {
     private static final Set<Integer> PREVIEW_LIMITS = Set.of(20, 50, 100);
-    private final DataSourceMapper sources;
+    private final DataSourcePersistenceService sources;
     private final JdbcConnectionService connections;
     private final JdbcDialectRegistry dialects;
 
@@ -201,7 +201,7 @@ public class JdbcMetadataService {
 
     private DataSourceEntity active(UUID id) {
         DataSourceEntity source =
-                java.util.Optional.ofNullable(sources.selectById(id))
+                java.util.Optional.ofNullable(sources.getById(id))
                         .orElseThrow(() -> new NoSuchElementException("data source not found"));
         if (!"ACTIVE".equals(source.getStatus()) && !"ENABLED".equals(source.getStatus()))
             throw new IllegalStateException("data source is not active");

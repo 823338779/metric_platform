@@ -5,13 +5,13 @@ import com.metricplatform.persistence.entity.DatasetFieldEntity;
 import com.metricplatform.persistence.entity.DatasetRelationshipEntity;
 import com.metricplatform.persistence.entity.DimensionEntity;
 import com.metricplatform.persistence.entity.MetricEntity;
-import com.metricplatform.persistence.mapper.DatasetFieldMapper;
-import com.metricplatform.persistence.mapper.DatasetMapper;
-import com.metricplatform.persistence.mapper.DatasetRelationshipFieldPairMapper;
-import com.metricplatform.persistence.mapper.DatasetRelationshipMapper;
-import com.metricplatform.persistence.mapper.DimensionMapper;
-import com.metricplatform.persistence.mapper.DimensionTimeGranularityMapper;
-import com.metricplatform.persistence.mapper.MetricMapper;
+import com.metricplatform.persistence.service.DatasetFieldPersistenceService;
+import com.metricplatform.persistence.service.DatasetEntityPersistenceService;
+import com.metricplatform.persistence.service.DatasetRelationshipFieldPairPersistenceService;
+import com.metricplatform.persistence.service.DatasetRelationshipEntityPersistenceService;
+import com.metricplatform.persistence.service.DimensionEntityPersistenceService;
+import com.metricplatform.persistence.service.DimensionTimeGranularityPersistenceService;
+import com.metricplatform.persistence.service.MetricEntityPersistenceService;
 import com.metricplatform.query.planner.DatasetRelationshipGraph;
 import com.metricplatform.semantic.SemanticDtos.TimeGranularity;
 import java.util.List;
@@ -24,13 +24,13 @@ import org.springframework.stereotype.Component;
 @Component
 @RequiredArgsConstructor
 public class SemanticCatalogReader {
-    private final DatasetMapper datasets;
-    private final DatasetFieldMapper fields;
-    private final MetricMapper metrics;
-    private final DimensionMapper dimensions;
-    private final DimensionTimeGranularityMapper granularities;
-    private final DatasetRelationshipMapper relationships;
-    private final DatasetRelationshipFieldPairMapper relationshipPairs;
+    private final DatasetEntityPersistenceService datasets;
+    private final DatasetFieldPersistenceService fields;
+    private final MetricEntityPersistenceService metrics;
+    private final DimensionEntityPersistenceService dimensions;
+    private final DimensionTimeGranularityPersistenceService granularities;
+    private final DatasetRelationshipEntityPersistenceService relationships;
+    private final DatasetRelationshipFieldPairPersistenceService relationshipPairs;
 
     public record MetricDefinition(
             MetricEntity metric, DatasetEntity dataset, DatasetFieldEntity field) {}
@@ -62,7 +62,7 @@ public class SemanticCatalogReader {
     }
 
     public MetricDefinition metric(UUID id) {
-        MetricEntity metric = required(metrics.selectById(id), "metric", id);
+        MetricEntity metric = required(metrics.getById(id), "metric", id);
         return new MetricDefinition(
                 metric,
                 dataset(metric.getDatasetId()),
@@ -70,9 +70,9 @@ public class SemanticCatalogReader {
     }
 
     public DimensionDefinition dimension(UUID id) {
-        DimensionEntity dimension = required(dimensions.selectById(id), "dimension", id);
+        DimensionEntity dimension = required(dimensions.getById(id), "dimension", id);
         Set<TimeGranularity> allowed =
-                granularities.selectByDimensionId(id).stream()
+                granularities.listByDimensionId(id).stream()
                         .map(value -> TimeGranularity.valueOf(value.getGranularity()))
                         .collect(java.util.stream.Collectors.toUnmodifiableSet());
         return new DimensionDefinition(
@@ -83,7 +83,7 @@ public class SemanticCatalogReader {
     }
 
     public List<RelationshipDefinition> relationships() {
-        return relationships.selectList(null).stream()
+        return relationships.list().stream()
                 .filter(entity -> "VALID".equals(entity.getLastValidationStatus()))
                 .map(this::relationship)
                 .toList();
@@ -91,7 +91,7 @@ public class SemanticCatalogReader {
 
     private RelationshipDefinition relationship(DatasetRelationshipEntity entity) {
         List<FieldPair> pairs =
-                relationshipPairs.selectByRelationshipId(entity.getId()).stream()
+                relationshipPairs.listByRelationshipId(entity.getId()).stream()
                         .map(
                                 pair ->
                                         new FieldPair(
@@ -109,11 +109,11 @@ public class SemanticCatalogReader {
     }
 
     private DatasetEntity dataset(UUID id) {
-        return required(datasets.selectById(id), "dataset", id);
+        return required(datasets.getById(id), "dataset", id);
     }
 
     private DatasetFieldEntity field(UUID id) {
-        return required(fields.selectById(id), "dataset field", id);
+        return required(fields.getById(id), "dataset field", id);
     }
 
     private static <T> T required(T value, String type, UUID id) {

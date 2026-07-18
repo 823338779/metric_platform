@@ -23,9 +23,9 @@ public final class LoginRateLimiter {
         this.clock = clock;
     }
 
-    public void checkAllowed(String remoteAddress, String tenantKey, String username) {
+    public void checkAllowed(String remoteAddress, String username) {
         Instant now = clock.instant();
-        String key = key(remoteAddress, tenantKey, username);
+        String key = key(remoteAddress, username);
         AttemptWindow window = attempts.get(key);
         if (window != null && expired(window, now)) {
             attempts.remove(key, window);
@@ -40,31 +40,26 @@ public final class LoginRateLimiter {
         }
     }
 
-    public void recordFailure(String remoteAddress, String tenantKey, String username) {
+    public void recordFailure(String remoteAddress, String username) {
         Instant now = clock.instant();
         attempts.compute(
-                key(remoteAddress, tenantKey, username),
+                key(remoteAddress, username),
                 (ignored, current) ->
                         current == null || expired(current, now)
                                 ? new AttemptWindow(now, 1)
                                 : new AttemptWindow(current.startedAt(), current.failures() + 1));
     }
 
-    public void recordSuccess(String remoteAddress, String tenantKey, String username) {
-        attempts.remove(key(remoteAddress, tenantKey, username));
+    public void recordSuccess(String remoteAddress, String username) {
+        attempts.remove(key(remoteAddress, username));
     }
 
     private boolean expired(AttemptWindow window, Instant now) {
         return !window.startedAt().plus(properties.getRateWindow()).isAfter(now);
     }
 
-    private static String key(String remoteAddress, String tenantKey, String username) {
-        String material =
-                normalized(remoteAddress)
-                        + "\n"
-                        + normalized(tenantKey)
-                        + "\n"
-                        + normalized(username);
+    private static String key(String remoteAddress, String username) {
+        String material = normalized(remoteAddress) + "\n" + normalized(username);
         try {
             return HexFormat.of()
                     .formatHex(

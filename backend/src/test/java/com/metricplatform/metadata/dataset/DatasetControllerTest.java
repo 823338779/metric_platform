@@ -11,10 +11,13 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.metricplatform.identity.PlatformAuthenticationService;
 import com.metricplatform.persistence.entity.DataSourceEntity;
 import com.metricplatform.persistence.mapper.DataSourceMapper;
 import com.metricplatform.persistence.mapper.DatasetMapper;
+import com.metricplatform.security.PlatformPrincipal;
 import java.util.List;
+import java.util.Set;
 import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -37,12 +40,16 @@ class DatasetControllerTest {
     @Autowired DatasetMapper datasets;
     @Autowired DataSourceMapper sources;
     @MockitoBean SourceMetadataInspector sourceMetadata;
+    @MockitoBean PlatformAuthenticationService authentication;
 
     @BeforeEach
     void setUp() {
         datasets.delete(null);
-        sources.deleteById(SOURCE_ID);
-        DataSourceEntity source = new DataSourceEntity();
+        DataSourceEntity source =
+                sources.selectAllIncludingDeleted().stream()
+                        .filter(value -> SOURCE_ID.equals(value.getId()))
+                        .findFirst()
+                        .orElseGet(DataSourceEntity::new);
         source.setId(SOURCE_ID);
         source.setName("dataset-test-warehouse");
         source.setJdbcUrl("jdbc:mysql://starrocks:9030/dw");
@@ -50,7 +57,42 @@ class DatasetControllerTest {
         source.setUsername("readonly");
         source.setSecretReference("STARROCKS_PASSWORD");
         source.setStatus("ENABLED");
-        sources.insert(source);
+        source.setDeleted(false);
+        if (sources.selectAllIncludingDeleted().stream()
+                .anyMatch(value -> SOURCE_ID.equals(value.getId()))) {
+            sources.updateById(source);
+        } else {
+            sources.insert(source);
+        }
+
+        when(authentication.authenticate("admin-token"))
+                .thenReturn(
+                        new PlatformPrincipal(
+                                UUID.randomUUID(),
+                                "test-admin",
+                                "Test Admin",
+                                UUID.randomUUID(),
+                                Set.of(),
+                                Set.of("PLATFORM_ADMIN"),
+                                Set.of(),
+                                null,
+                                "TEST",
+                                null,
+                                1));
+        when(authentication.authenticate("query-token"))
+                .thenReturn(
+                        new PlatformPrincipal(
+                                UUID.randomUUID(),
+                                "test-editor",
+                                "Test Editor",
+                                UUID.randomUUID(),
+                                Set.of(),
+                                Set.of("SEMANTIC_EDITOR"),
+                                Set.of("metric.catalog.read"),
+                                null,
+                                "TEST",
+                                null,
+                                1));
 
         when(sourceMetadata.inspectObject(eq(SOURCE_ID), eq("dw"), eq("fact_order")))
                 .thenReturn(

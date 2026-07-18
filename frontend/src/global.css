@@ -7,3 +7,39 @@ body,
 body {
   margin: 0;
 }
+
+.login-page,
+.authentication-loading {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  padding: 32px 20px;
+  background: radial-gradient(circle at top, rgba(22, 119, 255, 0.12), transparent 38%), #f5f7fa;
+}
+
+.login-card {
+  width: min(100%, 420px);
+  border-radius: 16px;
+  box-shadow: 0 18px 48px rgba(31, 56, 88, 0.12);
+}
+
+.login-brand {
+  margin-bottom: 28px;
+  text-align: center;
+}
+
+.login-brand .ant-typography {
+  margin-bottom: 4px;
+}
+
+.login-alert {
+  margin-bottom: 20px;
+}
+
+.authentication-loading-content {
+  display: block;
+  width: 160px;
+  height: 48px;
+}

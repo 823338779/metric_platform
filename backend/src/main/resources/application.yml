@@ -14,7 +14,7 @@ server:
 metric-platform:
   identity-auth:
     enabled: ${METRIC_PLATFORM_IDENTITY_AUTH_ENABLED:true}
-    token-ttl: PT10M
+    token-ttl: PT10H
     lock-threshold: 5
     lock-duration: PT15M
     rate-limit: 10

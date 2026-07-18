@@ -6,8 +6,8 @@ import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.metricplatform.api.ConflictException;
 import com.metricplatform.persistence.entity.DataSourceEntity;
 import com.metricplatform.persistence.entity.DatasetEntity;
-import com.metricplatform.persistence.mapper.DataSourceMapper;
-import com.metricplatform.persistence.mapper.DatasetMapper;
+import com.metricplatform.persistence.service.DataSourcePersistenceService;
+import com.metricplatform.persistence.service.DatasetEntityPersistenceService;
 import java.sql.Connection;
 import java.sql.SQLException;
 import java.time.LocalDateTime;
@@ -22,16 +22,16 @@ import org.springframework.transaction.annotation.Transactional;
 @Service
 @RequiredArgsConstructor
 public class DataSourceManagementService {
-    private final DataSourceMapper sources;
-    private final DatasetMapper datasets;
+    private final DataSourcePersistenceService sources;
+    private final DatasetEntityPersistenceService datasets;
     private final JdbcDialectRegistry dialects;
     private final JdbcConnectionService connections;
 
     public List<DataSourceSummary> list(boolean includeDeleted) {
         List<DataSourceEntity> selected =
                 includeDeleted
-                        ? sources.selectAllIncludingDeleted()
-                        : sources.selectList(
+                        ? sources.listIncludingDeleted()
+                        : sources.list(
                                 new LambdaQueryWrapper<DataSourceEntity>()
                                         .orderByAsc(DataSourceEntity::getName));
         return selected.stream().map(this::summary).toList();
@@ -64,7 +64,7 @@ public class DataSourceManagementService {
         source.setHealthStatus(HealthStatus.UNKNOWN.name());
         source.setVersion(0);
         try {
-            sources.insert(source);
+            sources.save(source);
         } catch (DuplicateKeyException exception) {
             throw new ConflictException("data source name already exists");
         }
@@ -95,7 +95,7 @@ public class DataSourceManagementService {
                 request.defaultSchema());
         source.setDriverClass(dialect.driverClass());
         source.setPassword(request.password());
-        if (sources.updateById(source) == 0)
+        if (!sources.updateById(source))
             throw new ConflictException("data source was modified by another user");
         return detail(entity(id));
     }
@@ -141,7 +141,7 @@ public class DataSourceManagementService {
         entity(id);
         List<DependentDataset> impacted =
                 datasets
-                        .selectList(
+                        .list(
                                 new LambdaQueryWrapper<DatasetEntity>()
                                         .eq(DatasetEntity::getDataSourceId, id)
                                         .orderByAsc(DatasetEntity::getName))
@@ -196,7 +196,7 @@ public class DataSourceManagementService {
     }
 
     private DataSourceEntity entity(UUID id) {
-        return java.util.Optional.ofNullable(sources.selectById(id))
+        return java.util.Optional.ofNullable(sources.getById(id))
                 .orElseThrow(() -> new NoSuchElementException("data source not found"));
     }
 
@@ -210,7 +210,7 @@ public class DataSourceManagementService {
     private void ensureUniqueName(String name, UUID excludedId) {
         boolean exists =
                 sources
-                        .selectList(
+                        .list(
                                 new LambdaQueryWrapper<DataSourceEntity>()
                                         .eq(DataSourceEntity::getName, name.trim()))
                         .stream()
@@ -274,7 +274,7 @@ public class DataSourceManagementService {
 
     private static ConnectionTestResponse success(long started) {
         long ms = (System.nanoTime() - started) / 1_000_000;
-        return new ConnectionTestResponse(true, ms, "连接成功");
+        return new ConnectionTestResponse(true, ms, "杩炴帴鎴愬姛");
     }
 
     private static ConnectionTestResponse failure(long started, Exception exception) {
@@ -283,8 +283,8 @@ public class DataSourceManagementService {
                 exception instanceof SQLException sql
                                 && sql.getSQLState() != null
                                 && sql.getSQLState().startsWith("28")
-                        ? "认证失败"
-                        : "连接失败，请检查地址、网络和凭据";
+                        ? "璁よ瘉澶辫触"
+                        : "杩炴帴澶辫触锛岃妫€鏌ュ湴鍧€銆佺綉缁滃拰鍑嵁";
         return new ConnectionTestResponse(false, ms, message);
     }
 }

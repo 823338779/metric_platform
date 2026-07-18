@@ -1,7 +1,7 @@
 package com.metricplatform.metadata.dataset;
 
 import com.metricplatform.persistence.entity.DataSourceEntity;
-import com.metricplatform.persistence.mapper.DataSourceMapper;
+import com.metricplatform.persistence.service.DataSourcePersistenceService;
 import com.metricplatform.source.JdbcMetadataService;
 import java.sql.SQLException;
 import java.util.Comparator;
@@ -13,13 +13,13 @@ import org.springframework.stereotype.Component;
 @Component
 @RequiredArgsConstructor
 public class JdbcSourceMetadataInspector implements SourceMetadataInspector {
-    private final DataSourceMapper sources;
+    private final DataSourcePersistenceService sources;
     private final JdbcMetadataService metadata;
 
     @Override
     public SourceObjectDefinition inspectObject(UUID sourceId, String schema, String objectName) {
         DataSourceEntity source =
-                java.util.Optional.ofNullable(sources.selectById(sourceId))
+                java.util.Optional.ofNullable(sources.getById(sourceId))
                         .orElseThrow(() -> new NoSuchElementException("data source not found"));
         boolean postgres = "POSTGRESQL".equals(source.getDatabaseType());
         String catalog =

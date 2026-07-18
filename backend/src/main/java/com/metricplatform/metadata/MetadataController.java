@@ -5,7 +5,7 @@ import static com.metricplatform.metadata.MetadataDtos.*;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.metricplatform.persistence.entity.DatasetEntity;
 import com.metricplatform.persistence.entity.DatasetFieldEntity;
-import com.metricplatform.persistence.mapper.DatasetFieldMapper;
+import com.metricplatform.persistence.service.DatasetFieldPersistenceService;
 import com.metricplatform.semantic.SemanticDefinitionService;
 import jakarta.validation.Valid;
 import java.util.List;
@@ -21,7 +21,7 @@ import org.springframework.web.bind.annotation.*;
 public class MetadataController {
     private final MetadataService service;
     private final SemanticDefinitionService semantic;
-    private final DatasetFieldMapper fields;
+    private final DatasetFieldPersistenceService fields;
 
     @PostMapping("/datasets")
     public ResponseEntity<DatasetEntity> createDataset(
@@ -31,7 +31,7 @@ public class MetadataController {
 
     @GetMapping("/datasets/{id}/fields")
     public List<DatasetFieldEntity> fields(@PathVariable UUID id) {
-        return fields.selectList(
+        return fields.list(
                 new LambdaQueryWrapper<DatasetFieldEntity>()
                         .eq(DatasetFieldEntity::getDatasetId, id));
     }

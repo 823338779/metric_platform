@@ -1,7 +1,7 @@
 package com.metricplatform.query;
 
 import com.metricplatform.persistence.entity.DataSourceEntity;
-import com.metricplatform.persistence.mapper.DataSourceMapper;
+import com.metricplatform.persistence.service.DataSourcePersistenceService;
 import com.metricplatform.query.compiler.CompiledQuery;
 import com.metricplatform.query.compiler.SemanticSqlCompiler;
 import com.metricplatform.query.planner.QueryPlan;
@@ -31,7 +31,7 @@ public class QueryService {
 
     private final QueryPlanner planner;
     private final SemanticSqlCompiler compiler;
-    private final DataSourceMapper sources;
+    private final DataSourcePersistenceService sources;
     private final JdbcConnectionService connections;
 
     public QueryDtos.ValidationResponse validate(QueryDtos.QueryRequest request) {
@@ -214,7 +214,7 @@ public class QueryService {
     }
 
     private DataSourceEntity activeSource(QueryPlan plan) {
-        return java.util.Optional.ofNullable(sources.selectById(
+        return java.util.Optional.ofNullable(sources.getById(
                         plan.metrics().getFirst().definition().dataset().getDataSourceId()))
                 .filter(value -> "ACTIVE".equals(value.getStatus())
                         || "ENABLED".equals(value.getStatus()))

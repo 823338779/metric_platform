@@ -12,11 +12,11 @@ import com.metricplatform.api.ConflictException;
 import com.metricplatform.persistence.entity.DatasetEntity;
 import com.metricplatform.persistence.entity.DatasetFieldEntity;
 import com.metricplatform.persistence.entity.DimensionEntity;
-import com.metricplatform.persistence.mapper.DatasetFieldMapper;
-import com.metricplatform.persistence.mapper.DatasetMapper;
-import com.metricplatform.persistence.mapper.DatasetRelationshipFieldPairMapper;
-import com.metricplatform.persistence.mapper.DimensionMapper;
-import com.metricplatform.persistence.mapper.MetricMapper;
+import com.metricplatform.persistence.service.DatasetEntityPersistenceService;
+import com.metricplatform.persistence.service.DatasetFieldPersistenceService;
+import com.metricplatform.persistence.service.DatasetRelationshipFieldPairPersistenceService;
+import com.metricplatform.persistence.service.DimensionEntityPersistenceService;
+import com.metricplatform.persistence.service.MetricEntityPersistenceService;
 import java.util.List;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
@@ -31,11 +31,11 @@ class SchemaDriftServiceTest {
     private static final UUID REMOVED_ID = UUID.fromString("40000000-0000-0000-0000-000000000003");
     private static final UUID CHANGED_ID = UUID.fromString("40000000-0000-0000-0000-000000000004");
 
-    @Mock DatasetMapper datasets;
-    @Mock DatasetFieldMapper fields;
-    @Mock DimensionMapper dimensions;
-    @Mock MetricMapper metrics;
-    @Mock DatasetRelationshipFieldPairMapper relationshipPairs;
+    @Mock DatasetEntityPersistenceService datasets;
+    @Mock DatasetFieldPersistenceService fields;
+    @Mock DimensionEntityPersistenceService dimensions;
+    @Mock MetricEntityPersistenceService metrics;
+    @Mock DatasetRelationshipFieldPairPersistenceService relationshipPairs;
     @Mock SourceMetadataInspector inspector;
 
     @Test
@@ -49,10 +49,21 @@ class SchemaDriftServiceTest {
         dimension.setDatasetFieldId(REMOVED_ID);
         dimension.setName("legacy");
 
-        when(datasets.selectById(DATASET_ID)).thenReturn(dataset);
-        when(fields.selectList(any())).thenReturn(List.of(removed, changed));
-        when(dimensions.selectList(any())).thenReturn(List.of(dimension));
-        when(metrics.selectList(any())).thenReturn(List.of());
+        when(datasets.getById(DATASET_ID)).thenReturn(dataset);
+        when(fields.list(
+                        org.mockito.ArgumentMatchers
+                                .<com.baomidou.mybatisplus.core.conditions.Wrapper<
+                                                DatasetFieldEntity>>any()))
+                .thenReturn(List.of(removed, changed));
+        when(dimensions.list(
+                        org.mockito.ArgumentMatchers
+                                .<com.baomidou.mybatisplus.core.conditions.Wrapper<DimensionEntity>>any()))
+                .thenReturn(List.of(dimension));
+        when(metrics.list(
+                        org.mockito.ArgumentMatchers
+                                .<com.baomidou.mybatisplus.core.conditions.Wrapper<
+                                                com.metricplatform.persistence.entity.MetricEntity>>any()))
+                .thenReturn(List.of());
         when(inspector.inspectObject(SOURCE_ID, "dw", "fact_order"))
                 .thenReturn(
                         new SourceMetadataInspector.SourceObjectDefinition(
@@ -100,9 +111,9 @@ class SchemaDriftServiceTest {
                 .isInstanceOf(ConflictException.class)
                 .hasMessageContaining("dependent semantic objects");
 
-        verify(fields, never()).insert(any(DatasetFieldEntity.class));
+        verify(fields, never()).save(any(DatasetFieldEntity.class));
         verify(fields, never()).updateById(any(DatasetFieldEntity.class));
-        verify(fields, never()).deleteById(any(UUID.class));
+        verify(fields, never()).softDeleteById(any(UUID.class));
     }
 
     private static DatasetEntity dataset() {

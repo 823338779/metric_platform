@@ -9,9 +9,10 @@ import static org.mockito.Mockito.when;
 import com.metricplatform.persistence.entity.DataSourceEntity;
 import com.metricplatform.persistence.entity.DatasetEntity;
 import com.metricplatform.persistence.entity.DatasetFieldEntity;
-import com.metricplatform.persistence.mapper.DataSourceMapper;
+import com.metricplatform.persistence.service.DataSourcePersistenceService;
 import com.metricplatform.source.StarRocksDataSourceFactory;
 import java.sql.Connection;
+import java.sql.DatabaseMetaData;
 import java.sql.ResultSet;
 import java.sql.Statement;
 import java.util.UUID;
@@ -23,9 +24,10 @@ import org.mockito.junit.jupiter.MockitoExtension;
 
 @ExtendWith(MockitoExtension.class)
 class RelationshipCardinalityValidatorTest {
-    @Mock DataSourceMapper sources;
+    @Mock DataSourcePersistenceService sources;
     @Mock StarRocksDataSourceFactory connections;
     @Mock Connection connection;
+    @Mock DatabaseMetaData metadata;
     @Mock Statement statement;
     @Mock ResultSet resultSet;
 
@@ -34,8 +36,10 @@ class RelationshipCardinalityValidatorTest {
         UUID sourceId = UUID.randomUUID();
         DataSourceEntity source = new DataSourceEntity();
         source.setId(sourceId);
-        when(sources.selectById(sourceId)).thenReturn(source);
+        when(sources.getById(sourceId)).thenReturn(source);
         when(connections.openReadOnly(source)).thenReturn(connection);
+        when(connection.getMetaData()).thenReturn(metadata);
+        when(metadata.getIdentifierQuoteString()).thenReturn("`");
         when(connection.createStatement()).thenReturn(statement);
         when(statement.executeQuery(org.mockito.ArgumentMatchers.anyString()))
                 .thenReturn(resultSet);
@@ -61,8 +65,10 @@ class RelationshipCardinalityValidatorTest {
         UUID sourceId = UUID.randomUUID();
         DataSourceEntity source = new DataSourceEntity();
         source.setId(sourceId);
-        when(sources.selectById(sourceId)).thenReturn(source);
+        when(sources.getById(sourceId)).thenReturn(source);
         when(connections.openReadOnly(source)).thenReturn(connection);
+        when(connection.getMetaData()).thenReturn(metadata);
+        when(metadata.getIdentifierQuoteString()).thenReturn("`");
         when(connection.createStatement()).thenReturn(statement);
         when(statement.executeQuery(org.mockito.ArgumentMatchers.anyString()))
                 .thenReturn(resultSet);

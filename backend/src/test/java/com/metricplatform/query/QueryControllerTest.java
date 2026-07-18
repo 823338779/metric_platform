@@ -3,12 +3,18 @@ package com.metricplatform.query;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import com.metricplatform.identity.PlatformAuthenticationService;
+import com.metricplatform.security.PlatformPrincipal;
+import java.util.Set;
+import java.util.UUID;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.http.MediaType;
 import org.springframework.test.context.ActiveProfiles;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
 @SpringBootTest
@@ -16,6 +22,19 @@ import org.springframework.test.web.servlet.MockMvc;
 @ActiveProfiles("test")
 class QueryControllerTest {
     @Autowired MockMvc mvc;
+    @MockitoBean PlatformAuthenticationService authentication;
+
+    @BeforeEach
+    void authenticateTokens() {
+        org.mockito.Mockito.when(authentication.authenticate("query-token"))
+                .thenReturn(
+                        principal(
+                                Set.of("SEMANTIC_EDITOR"),
+                                Set.of(
+                                        "metric.catalog.read",
+                                        "metric.query.validate",
+                                        "metric.query.execute")));
+    }
 
     @Test
     void anonymousCannotListDatasets() throws Exception {
@@ -29,13 +48,13 @@ class QueryControllerTest {
     }
 
     @Test
-    void everyAuthenticatedUserCanAdminister() throws Exception {
+    void semanticEditorCannotAdminister() throws Exception {
         mvc.perform(
                         post("/api/v1/admin/data-sources")
                                 .header("Authorization", "Bearer query-token")
                                 .contentType(MediaType.APPLICATION_JSON)
                                 .content("{}"))
-                .andExpect(status().isBadRequest());
+                .andExpect(status().isForbidden());
     }
 
     @Test
@@ -55,5 +74,20 @@ class QueryControllerTest {
                                 .content(
                                         "{\"datasetId\":\"00000000-0000-0000-0000-000000000001\",\"metricIds\":[],\"dimensionIds\":[]}"))
                 .andExpect(status().isBadRequest());
+    }
+
+    private static PlatformPrincipal principal(Set<String> roles, Set<String> scopes) {
+        return new PlatformPrincipal(
+                UUID.randomUUID(),
+                "test-user",
+                "Test User",
+                UUID.randomUUID(),
+                Set.of(),
+                roles,
+                scopes,
+                null,
+                "TEST",
+                null,
+                1);
     }
 }

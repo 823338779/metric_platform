@@ -9,11 +9,11 @@ import com.metricplatform.api.ConflictException;
 import com.metricplatform.persistence.entity.DatasetEntity;
 import com.metricplatform.persistence.entity.DatasetFieldEntity;
 import com.metricplatform.persistence.entity.DatasetRelationshipFieldPairEntity;
-import com.metricplatform.persistence.mapper.DatasetFieldMapper;
-import com.metricplatform.persistence.mapper.DatasetMapper;
-import com.metricplatform.persistence.mapper.DatasetRelationshipFieldPairMapper;
-import com.metricplatform.persistence.mapper.DimensionMapper;
-import com.metricplatform.persistence.mapper.MetricMapper;
+import com.metricplatform.persistence.service.DatasetFieldPersistenceService;
+import com.metricplatform.persistence.service.DatasetEntityPersistenceService;
+import com.metricplatform.persistence.service.DatasetRelationshipFieldPairPersistenceService;
+import com.metricplatform.persistence.service.DimensionEntityPersistenceService;
+import com.metricplatform.persistence.service.MetricEntityPersistenceService;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.ArrayList;
@@ -32,11 +32,11 @@ import org.springframework.transaction.annotation.Transactional;
 @Service
 @RequiredArgsConstructor
 public class SchemaDriftService {
-    private final DatasetMapper datasets;
-    private final DatasetFieldMapper fields;
-    private final DimensionMapper dimensions;
-    private final MetricMapper metrics;
-    private final DatasetRelationshipFieldPairMapper relationshipPairs;
+    private final DatasetEntityPersistenceService datasets;
+    private final DatasetFieldPersistenceService fields;
+    private final DimensionEntityPersistenceService dimensions;
+    private final MetricEntityPersistenceService metrics;
+    private final DatasetRelationshipFieldPairPersistenceService relationshipPairs;
     private final SourceMetadataInspector inspector;
     private final ObjectMapper objectMapper;
 
@@ -127,7 +127,7 @@ public class SchemaDriftService {
         for (FieldChange changed : diff.typeChanged()) {
             DatasetFieldEntity field = persistedById.get(changed.fieldId());
             field.setStarrocksType(changed.currentType());
-            if (fields.updateById(field) == 0) {
+            if (!fields.updateById(field)) {
                 throw new ConflictException("dataset field was modified by another user");
             }
         }
@@ -142,9 +142,9 @@ public class SchemaDriftService {
             field.setMetricEnabled(true);
             field.setSelected(false);
             field.setVersion(0);
-            fields.insert(field);
+            fields.save(field);
         }
-        if (datasets.updateById(dataset) == 0) {
+        if (!datasets.updateById(dataset)) {
             throw new ConflictException("dataset was modified by another user");
         }
         return detect(datasetId);
@@ -153,18 +153,18 @@ public class SchemaDriftService {
     private List<String> impacts(Set<UUID> invalidatedFieldIds) {
         if (invalidatedFieldIds.isEmpty()) return List.of();
         List<String> impacts = new ArrayList<>();
-        dimensions.selectList(new LambdaQueryWrapper<>()).stream()
+        dimensions.list(new LambdaQueryWrapper<>()).stream()
                 .filter(dimension -> invalidatedFieldIds.contains(dimension.getDatasetFieldId()))
                 .map(dimension -> "dimension:" + dimension.getName())
                 .forEach(impacts::add);
-        metrics.selectList(new LambdaQueryWrapper<>()).stream()
+        metrics.list(new LambdaQueryWrapper<>()).stream()
                 .filter(
                         metric ->
                                 metric.getDatasetFieldId() != null
                                         && invalidatedFieldIds.contains(metric.getDatasetFieldId()))
                 .map(metric -> "metric:" + metric.getName())
                 .forEach(impacts::add);
-        relationshipPairs.selectAll().stream()
+        relationshipPairs.listAllOrdered().stream()
                 .filter(
                         pair ->
                                 invalidatedFieldIds.contains(pair.getSourceFieldId())
@@ -187,13 +187,13 @@ public class SchemaDriftService {
     }
 
     private DatasetEntity dataset(UUID id) {
-        DatasetEntity dataset = datasets.selectById(id);
+        DatasetEntity dataset = datasets.getById(id);
         if (dataset == null) throw new NoSuchElementException("dataset not found");
         return dataset;
     }
 
     private List<DatasetFieldEntity> fields(UUID datasetId) {
-        return fields.selectList(
+        return fields.list(
                 new LambdaQueryWrapper<DatasetFieldEntity>()
                         .eq(DatasetFieldEntity::getDatasetId, datasetId)
                         .orderByAsc(DatasetFieldEntity::getPhysicalName));

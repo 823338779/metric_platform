@@ -15,7 +15,9 @@ import com.metricplatform.persistence.mapper.DimensionTimeGranularityMapper;
 import com.metricplatform.persistence.mapper.MetricMapper;
 import com.metricplatform.persistence.mapper.PlatformUserMapper;
 import java.io.Serializable;
+import java.lang.annotation.Annotation;
 import java.util.List;
+import java.util.Set;
 import org.junit.jupiter.api.Test;
 
 class AuditableMapperContractTest {
@@ -37,5 +39,49 @@ class AuditableMapperContractTest {
                 .allMatch(AuditableBaseMapper.class::isAssignableFrom);
         assertThat(AuditableBaseMapper.class.getMethod("softDeleteById", Serializable.class))
                 .isNotNull();
+    }
+
+    @Test
+    void mapperSqlIsDeclaredInXmlInsteadOfAnnotations() {
+        Set<String> sqlAnnotations = Set.of("Select", "Insert", "Update", "Delete");
+        List<Class<?>> mappers =
+                List.of(
+                        ApiClientMapper.class,
+                        AuditEventMapper.class,
+                        DataSourceMapper.class,
+                        DatasetFieldMapper.class,
+                        DatasetMapper.class,
+                        DatasetRelationshipFieldPairMapper.class,
+                        DatasetRelationshipMapper.class,
+                        DimensionMapper.class,
+                        DimensionTimeGranularityMapper.class,
+                        MetricMapper.class,
+                        PlatformUserMapper.class);
+
+        List<String> violations =
+                mappers.stream()
+                        .flatMap(mapper -> java.util.Arrays.stream(mapper.getDeclaredMethods()))
+                        .flatMap(
+                                method ->
+                                        java.util.Arrays.stream(method.getAnnotations())
+                                                .filter(
+                                                        annotation ->
+                                                                sqlAnnotations.contains(
+                                                                        annotation
+                                                                                .annotationType()
+                                                                                .getSimpleName()))
+                                                .map(
+                                                        Annotation::annotationType)
+                                                .map(
+                                                        annotation ->
+                                                                method.getDeclaringClass()
+                                                                                .getSimpleName()
+                                                                        + "#"
+                                                                        + method.getName()
+                                                                        + " @"
+                                                                        + annotation.getSimpleName()))
+                        .toList();
+
+        assertThat(violations).isEmpty();
     }
 }

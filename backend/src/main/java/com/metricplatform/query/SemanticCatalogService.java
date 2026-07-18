@@ -10,11 +10,11 @@ import com.metricplatform.persistence.entity.DatasetEntity;
 import com.metricplatform.persistence.entity.DatasetRelationshipEntity;
 import com.metricplatform.persistence.entity.DimensionEntity;
 import com.metricplatform.persistence.entity.MetricEntity;
-import com.metricplatform.persistence.mapper.DatasetMapper;
-import com.metricplatform.persistence.mapper.DatasetRelationshipMapper;
-import com.metricplatform.persistence.mapper.DimensionMapper;
-import com.metricplatform.persistence.mapper.DimensionTimeGranularityMapper;
-import com.metricplatform.persistence.mapper.MetricMapper;
+import com.metricplatform.persistence.service.DatasetEntityPersistenceService;
+import com.metricplatform.persistence.service.DatasetRelationshipEntityPersistenceService;
+import com.metricplatform.persistence.service.DimensionEntityPersistenceService;
+import com.metricplatform.persistence.service.DimensionTimeGranularityPersistenceService;
+import com.metricplatform.persistence.service.MetricEntityPersistenceService;
 import com.metricplatform.semantic.SemanticDtos.TimeGranularity;
 import java.time.Instant;
 import java.util.ArrayList;
@@ -33,20 +33,20 @@ public class SemanticCatalogService {
     private static final String API_VERSION = "v1";
     private static final int DATABASE_CANDIDATE_LIMIT = 500;
 
-    private final DatasetMapper datasets;
-    private final MetricMapper metrics;
-    private final DimensionMapper dimensions;
+    private final DatasetEntityPersistenceService datasets;
+    private final MetricEntityPersistenceService metrics;
+    private final DimensionEntityPersistenceService dimensions;
     private final ObjectMapper objectMapper;
-    private final DimensionTimeGranularityMapper granularities;
-    private final DatasetRelationshipMapper relationships;
+    private final DimensionTimeGranularityPersistenceService granularities;
+    private final DatasetRelationshipEntityPersistenceService relationships;
 
     public SemanticCatalogService(
-            DatasetMapper datasets,
-            MetricMapper metrics,
-            DimensionMapper dimensions,
+            DatasetEntityPersistenceService datasets,
+            MetricEntityPersistenceService metrics,
+            DimensionEntityPersistenceService dimensions,
             ObjectMapper objectMapper,
-            DimensionTimeGranularityMapper granularities,
-            DatasetRelationshipMapper relationships) {
+            DimensionTimeGranularityPersistenceService granularities,
+            DatasetRelationshipEntityPersistenceService relationships) {
         this.datasets = datasets;
         this.metrics = metrics;
         this.dimensions = dimensions;
@@ -139,7 +139,7 @@ public class SemanticCatalogService {
         Set<UUID> datasetIds = new HashSet<>();
         resolved.forEach(value -> datasetIds.add(value.datasetId()));
         List<RelationshipPathSummary> paths =
-                relationships.selectList(null).stream()
+                relationships.list().stream()
                         .filter(value -> "ACTIVE".equals(defaultValue(value.getStatus(), "ACTIVE")))
                         .filter(
                                 value ->
@@ -163,12 +163,12 @@ public class SemanticCatalogService {
     }
 
     public Object semanticModel(UUID id) {
-        DatasetEntity dataset = required(datasets.selectById(id), "dataset", id);
+        DatasetEntity dataset = required(datasets.getById(id), "dataset", id);
         return Map.of(
                 "dataset", resolveDataset(dataset),
                 "metrics",
                         metrics
-                                .selectList(
+                                .list(
                                         new LambdaQueryWrapper<MetricEntity>()
                                                 .eq(MetricEntity::getDatasetId, id))
                                 .stream()
@@ -176,7 +176,7 @@ public class SemanticCatalogService {
                                 .toList(),
                 "dimensions",
                         dimensions
-                                .selectList(
+                                .list(
                                         new LambdaQueryWrapper<DimensionEntity>()
                                                 .eq(DimensionEntity::getDatasetId, id))
                                 .stream()
@@ -186,11 +186,11 @@ public class SemanticCatalogService {
 
     public String catalogVersion() {
         Instant latest = Instant.EPOCH;
-        for (DatasetEntity value : datasets.selectList(null))
+        for (DatasetEntity value : datasets.list())
             latest = later(latest, value.getUpdatedAt());
-        for (MetricEntity value : metrics.selectList(null))
+        for (MetricEntity value : metrics.list())
             latest = later(latest, value.getUpdatedAt());
-        for (DimensionEntity value : dimensions.selectList(null))
+        for (DimensionEntity value : dimensions.list())
             latest = later(latest, value.getUpdatedAt());
         return "catalog-" + latest.toEpochMilli();
     }
@@ -213,7 +213,7 @@ public class SemanticCatalogService {
                                     .or()
                                     .like(DatasetEntity::getAliases, needle));
         }
-        return datasets.selectList(query.last("LIMIT " + DATABASE_CANDIDATE_LIMIT));
+        return datasets.list(query.last("LIMIT " + DATABASE_CANDIDATE_LIMIT));
     }
 
     private List<MetricEntity> metricCandidates(
@@ -237,7 +237,7 @@ public class SemanticCatalogService {
                                     .or()
                                     .like(MetricEntity::getAliases, needle));
         }
-        return metrics.selectList(query.last("LIMIT " + DATABASE_CANDIDATE_LIMIT));
+        return metrics.list(query.last("LIMIT " + DATABASE_CANDIDATE_LIMIT));
     }
 
     private List<DimensionEntity> dimensionCandidates(
@@ -262,7 +262,7 @@ public class SemanticCatalogService {
                                     .or()
                                     .like(DimensionEntity::getAliases, needle));
         }
-        return dimensions.selectList(query.last("LIMIT " + DATABASE_CANDIDATE_LIMIT));
+        return dimensions.list(query.last("LIMIT " + DATABASE_CANDIDATE_LIMIT));
     }
 
     private SemanticSearchResult datasetResult(DatasetEntity value, String needle) {
@@ -370,27 +370,27 @@ public class SemanticCatalogService {
             case DATASET ->
                     resolveDataset(
                             required(
-                                    datasets.selectById(reference.id()),
+                                    datasets.getById(reference.id()),
                                     "dataset",
                                     reference.id()));
             case METRIC -> {
                 MetricEntity metric =
-                        required(metrics.selectById(reference.id()), "metric", reference.id());
+                        required(metrics.getById(reference.id()), "metric", reference.id());
                 yield resolveMetric(
                         metric,
                         required(
-                                datasets.selectById(metric.getDatasetId()),
+                                datasets.getById(metric.getDatasetId()),
                                 "dataset",
                                 metric.getDatasetId()));
             }
             case DIMENSION -> {
                 DimensionEntity dimension =
                         required(
-                                dimensions.selectById(reference.id()), "dimension", reference.id());
+                                dimensions.getById(reference.id()), "dimension", reference.id());
                 yield resolveDimension(
                         dimension,
                         required(
-                                datasets.selectById(dimension.getDatasetId()),
+                                datasets.getById(dimension.getDatasetId()),
                                 "dataset",
                                 dimension.getDatasetId()));
             }
@@ -447,7 +447,7 @@ public class SemanticCatalogService {
 
     private ResolvedSemanticObject resolveDimension(DimensionEntity value, DatasetEntity dataset) {
         Set<TimeGranularity> allowed =
-                granularities.selectByDimensionId(value.getId()).stream()
+                granularities.listByDimensionId(value.getId()).stream()
                         .map(item -> TimeGranularity.valueOf(item.getGranularity()))
                         .collect(java.util.stream.Collectors.toSet());
         return new ResolvedSemanticObject(

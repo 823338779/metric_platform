@@ -7,4 +7,8 @@ import org.springframework.stereotype.Service;
 
 @Service
 public class DatasetRelationshipEntityPersistenceService
-        extends ServiceImpl<DatasetRelationshipMapper, DatasetRelationshipEntity> {}
+        extends ServiceImpl<DatasetRelationshipMapper, DatasetRelationshipEntity> {
+    public boolean softDeleteById(Object id) {
+        return baseMapper.softDeleteById((java.io.Serializable) id) > 0;
+    }
+}

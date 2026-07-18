@@ -76,24 +76,17 @@ public class PlatformAuthenticationService {
 
     @Transactional(noRollbackFor = BadCredentialsException.class)
     public AuthTokenResponse login(AuthTokenRequest request, String remoteAddress) {
-        if (!properties.isEnabled() || !AUDIENCE.equals(request.audience())) {
+        if (!properties.isEnabled()) {
             throw invalidCredentials();
         }
-        String tenantKey = normalize(request.tenantKey());
         String username = normalize(request.username());
-        rateLimiter.checkAllowed(remoteAddress, tenantKey, username);
+        rateLimiter.checkAllowed(remoteAddress, username);
 
-        PlatformTenantEntity tenant =
-                tenants.getOne(
-                        new LambdaQueryWrapper<PlatformTenantEntity>()
-                                .eq(PlatformTenantEntity::getTenantKey, tenantKey));
         PlatformUserEntity user =
-                tenant == null
-                        ? null
-                        : users.getOne(
-                                new LambdaQueryWrapper<PlatformUserEntity>()
-                                        .eq(PlatformUserEntity::getTenantId, tenant.getId())
-                                        .eq(PlatformUserEntity::getUsername, username));
+                users.getOne(
+                        new LambdaQueryWrapper<PlatformUserEntity>()
+                                .eq(PlatformUserEntity::getUsername, username));
+        PlatformTenantEntity tenant = user == null ? null : tenants.getById(user.getTenantId());
 
         Instant now = clock.instant();
         String storedHash =
@@ -108,7 +101,7 @@ public class PlatformAuthenticationService {
                         && "ACTIVE".equals(user.getStatus())
                         && (user.getLockedUntil() == null || !user.getLockedUntil().isAfter(now));
         if (!eligible || !passwordMatches || user == null) {
-            rateLimiter.recordFailure(remoteAddress, tenantKey, username);
+            rateLimiter.recordFailure(remoteAddress, username);
             recordFailedLogin(user, now);
             throw invalidCredentials();
         }
@@ -117,7 +110,7 @@ public class PlatformAuthenticationService {
         user.setLockedUntil(null);
         user.setLastLoginAt(now);
         users.updateById(user);
-        rateLimiter.recordSuccess(remoteAddress, tenantKey, username);
+        rateLimiter.recordSuccess(remoteAddress, username);
 
         String rawToken = newToken();
         PlatformAccessTokenEntity token = new PlatformAccessTokenEntity();

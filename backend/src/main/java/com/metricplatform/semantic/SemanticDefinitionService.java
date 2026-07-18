@@ -14,11 +14,11 @@ import com.metricplatform.persistence.entity.DatasetFieldEntity;
 import com.metricplatform.persistence.entity.DimensionEntity;
 import com.metricplatform.persistence.entity.DimensionTimeGranularityEntity;
 import com.metricplatform.persistence.entity.MetricEntity;
-import com.metricplatform.persistence.mapper.DatasetFieldMapper;
-import com.metricplatform.persistence.mapper.DatasetMapper;
-import com.metricplatform.persistence.mapper.DimensionMapper;
-import com.metricplatform.persistence.mapper.DimensionTimeGranularityMapper;
-import com.metricplatform.persistence.mapper.MetricMapper;
+import com.metricplatform.persistence.service.DatasetFieldPersistenceService;
+import com.metricplatform.persistence.service.DatasetEntityPersistenceService;
+import com.metricplatform.persistence.service.DimensionEntityPersistenceService;
+import com.metricplatform.persistence.service.DimensionTimeGranularityPersistenceService;
+import com.metricplatform.persistence.service.MetricEntityPersistenceService;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
@@ -49,18 +49,18 @@ public class SemanticDefinitionService {
                     "DECIMAL128");
     private static final Set<String> TEMPORAL_TYPES = Set.of("DATE", "DATETIME", "TIMESTAMP");
 
-    private final DatasetMapper datasets;
-    private final DatasetFieldMapper fields;
-    private final DimensionMapper dimensions;
-    private final DimensionTimeGranularityMapper granularities;
-    private final MetricMapper metrics;
+    private final DatasetEntityPersistenceService datasets;
+    private final DatasetFieldPersistenceService fields;
+    private final DimensionEntityPersistenceService dimensions;
+    private final DimensionTimeGranularityPersistenceService granularities;
+    private final MetricEntityPersistenceService metrics;
     private final ObjectMapper objectMapper;
 
     public PageResponse<MetricResponse> listMetrics(String q, UUID datasetId, int page, int size) {
         validatePage(page, size);
         List<MetricResponse> matches =
                 metrics
-                        .selectList(
+                        .list(
                                 new LambdaQueryWrapper<MetricEntity>()
                                         .orderByAsc(MetricEntity::getName))
                         .stream()
@@ -106,7 +106,7 @@ public class SemanticDefinitionService {
                 request.owner(), request.certificationStatus(), request.aggregationBehavior(),
                 request.additivity(), request.metricType(), request.defaultTimeDimensionId());
         if (request.aliases() != null) metric.setAliases(writeAliases(request.aliases()));
-        metrics.insert(metric);
+        metrics.save(metric);
         return metricResponse(metric);
     }
 
@@ -129,7 +129,7 @@ public class SemanticDefinitionService {
                 request.owner(), request.certificationStatus(), request.aggregationBehavior(),
                 request.additivity(), request.metricType(), request.defaultTimeDimensionId());
         if (request.aliases() != null) metric.setAliases(writeAliases(request.aliases()));
-        if (metrics.updateById(metric) == 0) {
+        if (!metrics.updateById(metric)) {
             throw new ConflictException("metric version is stale");
         }
         return metricResponse(metric);
@@ -146,7 +146,7 @@ public class SemanticDefinitionService {
         validatePage(page, size);
         List<DimensionResponse> matches =
                 dimensions
-                        .selectList(
+                        .list(
                                 new LambdaQueryWrapper<DimensionEntity>()
                                         .orderByAsc(DimensionEntity::getName))
                         .stream()
@@ -195,7 +195,7 @@ public class SemanticDefinitionService {
                 request.certificationStatus(), request.semanticType(), request.valueType(),
                 request.defaultGranularity(), request.sensitivityLevel());
         if (request.aliases() != null) dimension.setAliases(writeAliases(request.aliases()));
-        dimensions.insert(dimension);
+        dimensions.save(dimension);
         replaceGranularities(dimension.getId(), request.allowedGranularities());
         return dimensionResponse(dimension, request.allowedGranularities());
     }
@@ -222,7 +222,7 @@ public class SemanticDefinitionService {
                 request.certificationStatus(), request.semanticType(), request.valueType(),
                 request.defaultGranularity(), request.sensitivityLevel());
         if (request.aliases() != null) dimension.setAliases(writeAliases(request.aliases()));
-        if (dimensions.updateById(dimension) == 0) {
+        if (!dimensions.updateById(dimension)) {
             throw new ConflictException("dimension version is stale");
         }
         replaceGranularities(id, request.allowedGranularities());
@@ -232,7 +232,7 @@ public class SemanticDefinitionService {
     @Transactional
     public void deleteDimension(UUID id) {
         dimension(id);
-        granularities.deleteByDimensionId(id);
+        granularities.removeByDimensionId(id);
         dimensions.softDeleteById(id);
     }
 
@@ -246,7 +246,7 @@ public class SemanticDefinitionService {
                                 request.displayName(),
                                 Aggregation.valueOf(
                                         request.aggregation().toUpperCase(Locale.ROOT))));
-        return metrics.selectById(response.id());
+        return metrics.getById(response.id());
     }
 
     public DimensionEntity createDimension(UUID datasetId, DimensionRequest request) {
@@ -259,7 +259,7 @@ public class SemanticDefinitionService {
                                 request.displayName(),
                                 DimensionType.STANDARD,
                                 Set.of()));
-        return dimensions.selectById(response.id());
+        return dimensions.getById(response.id());
     }
 
     private DatasetFieldEntity validateMetricField(
@@ -308,7 +308,7 @@ public class SemanticDefinitionService {
 
     private void validateUniqueMetricName(UUID datasetId, String name, UUID excludedId) {
         MetricEntity existing =
-                metrics.selectOne(
+                metrics.getOne(
                         new LambdaQueryWrapper<MetricEntity>()
                                 .eq(MetricEntity::getDatasetId, datasetId)
                                 .eq(MetricEntity::getName, name.trim()));
@@ -320,7 +320,7 @@ public class SemanticDefinitionService {
     private void validateUniqueDimension(
             UUID datasetId, UUID fieldId, String name, UUID excludedId) {
         for (DimensionEntity existing :
-                dimensions.selectList(
+                dimensions.list(
                         new LambdaQueryWrapper<DimensionEntity>()
                                 .eq(DimensionEntity::getDatasetId, datasetId))) {
             if (!existing.getId().equals(excludedId)
@@ -332,7 +332,7 @@ public class SemanticDefinitionService {
     }
 
     private void replaceGranularities(UUID dimensionId, Set<TimeGranularity> values) {
-        granularities.deleteByDimensionId(dimensionId);
+        granularities.removeByDimensionId(dimensionId);
         if (values == null) {
             return;
         }
@@ -340,7 +340,7 @@ public class SemanticDefinitionService {
             DimensionTimeGranularityEntity entity = new DimensionTimeGranularityEntity();
             entity.setDimensionId(dimensionId);
             entity.setGranularity(value.name());
-            granularities.insertGranularity(entity);
+            granularities.saveGranularity(entity);
         }
     }
 
@@ -371,7 +371,7 @@ public class SemanticDefinitionService {
     private DimensionResponse dimensionResponse(DimensionEntity dimension) {
         Set<TimeGranularity> values = new HashSet<>();
         granularities
-                .selectByDimensionId(dimension.getId())
+                .listByDimensionId(dimension.getId())
                 .forEach(entity -> values.add(TimeGranularity.valueOf(entity.getGranularity())));
         return dimensionResponse(dimension, values);
     }
@@ -479,13 +479,13 @@ public class SemanticDefinitionService {
     }
 
     private DatasetEntity dataset(UUID id) {
-        return java.util.Optional.ofNullable(datasets.selectById(id))
+        return java.util.Optional.ofNullable(datasets.getById(id))
                 .orElseThrow(() -> new NoSuchElementException("dataset not found: " + id));
     }
 
     private DatasetFieldEntity field(UUID datasetId, UUID id) {
         DatasetFieldEntity field =
-                java.util.Optional.ofNullable(fields.selectById(id))
+                java.util.Optional.ofNullable(fields.getById(id))
                         .orElseThrow(
                                 () -> new NoSuchElementException("dataset field not found: " + id));
         if (!datasetId.equals(field.getDatasetId())) {
@@ -496,12 +496,12 @@ public class SemanticDefinitionService {
     }
 
     private MetricEntity metric(UUID id) {
-        return java.util.Optional.ofNullable(metrics.selectById(id))
+        return java.util.Optional.ofNullable(metrics.getById(id))
                 .orElseThrow(() -> new NoSuchElementException("metric not found: " + id));
     }
 
     private DimensionEntity dimension(UUID id) {
-        return java.util.Optional.ofNullable(dimensions.selectById(id))
+        return java.util.Optional.ofNullable(dimensions.getById(id))
                 .orElseThrow(() -> new NoSuchElementException("dimension not found: " + id));
     }
 

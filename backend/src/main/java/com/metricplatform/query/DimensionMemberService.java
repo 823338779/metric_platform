@@ -4,10 +4,10 @@ import com.metricplatform.persistence.entity.DataSourceEntity;
 import com.metricplatform.persistence.entity.DatasetEntity;
 import com.metricplatform.persistence.entity.DatasetFieldEntity;
 import com.metricplatform.persistence.entity.DimensionEntity;
-import com.metricplatform.persistence.mapper.DataSourceMapper;
-import com.metricplatform.persistence.mapper.DatasetFieldMapper;
-import com.metricplatform.persistence.mapper.DatasetMapper;
-import com.metricplatform.persistence.mapper.DimensionMapper;
+import com.metricplatform.persistence.service.DataSourcePersistenceService;
+import com.metricplatform.persistence.service.DatasetFieldPersistenceService;
+import com.metricplatform.persistence.service.DatasetEntityPersistenceService;
+import com.metricplatform.persistence.service.DimensionEntityPersistenceService;
 import com.metricplatform.source.ExternalSqlLogger;
 import com.metricplatform.source.JdbcConnectionService;
 import java.sql.Connection;
@@ -26,17 +26,17 @@ import org.springframework.stereotype.Service;
 public class DimensionMemberService {
     private static final int QUERY_TIMEOUT_SECONDS = 5;
 
-    private final DimensionMapper dimensions;
-    private final DatasetFieldMapper fields;
-    private final DatasetMapper datasets;
-    private final DataSourceMapper sources;
+    private final DimensionEntityPersistenceService dimensions;
+    private final DatasetFieldPersistenceService fields;
+    private final DatasetEntityPersistenceService datasets;
+    private final DataSourcePersistenceService sources;
     private final JdbcConnectionService connections;
 
     public DimensionMemberService(
-            DimensionMapper dimensions,
-            DatasetFieldMapper fields,
-            DatasetMapper datasets,
-            DataSourceMapper sources,
+            DimensionEntityPersistenceService dimensions,
+            DatasetFieldPersistenceService fields,
+            DatasetEntityPersistenceService datasets,
+            DataSourcePersistenceService sources,
             JdbcConnectionService connections) {
         this.dimensions = dimensions;
         this.fields = fields;
@@ -47,15 +47,15 @@ public class DimensionMemberService {
 
     public QueryDtos.DimensionMemberSearchResponse search(
             UUID dimensionId, QueryDtos.DimensionMemberSearchRequest request) throws SQLException {
-        DimensionEntity dimension = required(dimensions.selectById(dimensionId), "dimension");
+        DimensionEntity dimension = required(dimensions.getById(dimensionId), "dimension");
         rejectRestricted(dimension);
-        DatasetFieldEntity field = required(fields.selectById(dimension.getDatasetFieldId()), "field");
+        DatasetFieldEntity field = required(fields.getById(dimension.getDatasetFieldId()), "field");
         rejectRestricted(field);
         if (!field.isSelected() || !field.isDimensionEnabled()) {
             throw new IllegalArgumentException("dimension field is unavailable for member search");
         }
-        DatasetEntity dataset = required(datasets.selectById(dimension.getDatasetId()), "dataset");
-        DataSourceEntity source = required(sources.selectById(dataset.getDataSourceId()), "data source");
+        DatasetEntity dataset = required(datasets.getById(dimension.getDatasetId()), "dataset");
+        DataSourceEntity source = required(sources.getById(dataset.getDataSourceId()), "data source");
         QueryParts query = query(dataset, field, request, source.getDatabaseType());
         int fetchLimit = request.topK() + 1;
         List<QueryDtos.DimensionMember> members = new ArrayList<>();

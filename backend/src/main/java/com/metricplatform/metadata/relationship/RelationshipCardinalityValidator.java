@@ -5,7 +5,7 @@ import static com.metricplatform.metadata.relationship.RelationshipDtos.Cardinal
 import com.metricplatform.persistence.entity.DataSourceEntity;
 import com.metricplatform.persistence.entity.DatasetEntity;
 import com.metricplatform.persistence.entity.DatasetFieldEntity;
-import com.metricplatform.persistence.mapper.DataSourceMapper;
+import com.metricplatform.persistence.service.DataSourcePersistenceService;
 import com.metricplatform.source.ExternalSqlLogger;
 import com.metricplatform.source.JdbcConnectionService;
 import com.metricplatform.source.JdbcDialectRegistry;
@@ -23,13 +23,13 @@ import org.springframework.stereotype.Component;
 @Component
 public class RelationshipCardinalityValidator {
     private static final int QUERY_TIMEOUT_SECONDS = 10;
-    private final DataSourceMapper sources;
+    private final DataSourcePersistenceService sources;
     private final ConnectionOpener connections;
     private final JdbcDialectRegistry dialects;
 
     @Autowired
     public RelationshipCardinalityValidator(
-            DataSourceMapper sources,
+            DataSourcePersistenceService sources,
             JdbcConnectionService connections,
             JdbcDialectRegistry dialects) {
         this.sources = sources;
@@ -38,7 +38,7 @@ public class RelationshipCardinalityValidator {
     }
 
     RelationshipCardinalityValidator(
-            DataSourceMapper sources, StarRocksDataSourceFactory connections) {
+            DataSourcePersistenceService sources, StarRocksDataSourceFactory connections) {
         this.sources = sources;
         this.connections = connections::openReadOnly;
         this.dialects = new JdbcDialectRegistry();
@@ -50,7 +50,7 @@ public class RelationshipCardinalityValidator {
             Endpoint source, Endpoint target, RelationshipDtos.Cardinality cardinality) {
         DataSourceEntity dataSource =
                 java.util.Optional.ofNullable(
-                                sources.selectById(source.dataset().getDataSourceId()))
+                                sources.getById(source.dataset().getDataSourceId()))
                         .orElseThrow(() -> new NoSuchElementException("data source not found"));
         try (Connection connection = connections.open(dataSource)) {
             if (cardinality == ONE_TO_ONE && hasDuplicates(connection, dataSource, source))

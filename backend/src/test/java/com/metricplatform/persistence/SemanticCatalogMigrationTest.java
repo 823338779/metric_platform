@@ -15,8 +15,8 @@ class SemanticCatalogMigrationTest {
 
     @Test
     void createsRelationshipAndGranularityTables() {
-        assertThat(tableCount("DATASET_RELATIONSHIP")).isEqualTo(1);
-        assertThat(tableCount("DIMENSION_TIME_GRANULARITY")).isEqualTo(1);
+        assertThat(tableCount("dataset_relationship")).isEqualTo(1);
+        assertThat(tableCount("dimension_time_granularity")).isEqualTo(1);
     }
 
     private int tableCount(String tableName) {
