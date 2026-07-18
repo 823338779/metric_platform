@@ -1,0 +1,13 @@
+spring:
+  application:
+    name: metric-platform
+  datasource:
+    url: ${METRIC_PLATFORM_DB_URL:jdbc:postgresql://localhost:5432/metric_platform}
+    username: ${METRIC_PLATFORM_DB_USERNAME:${POSTGRES_USERNAME:data_agent}}
+    password: ${METRIC_PLATFORM_DB_PASSWORD:${POSTGRES_PASSWORD:data_agent_local_dev}}
+  flyway:
+    enabled: true
+mybatis-plus:
+  type-handlers-package: com.metricplatform.persistence
+server:
+  port: ${METRIC_PLATFORM_PORT:8090}

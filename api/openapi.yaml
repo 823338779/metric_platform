@@ -1,0 +1,677 @@
+openapi: 3.1.0
+info:
+  title: Metric Platform API
+  version: v1
+security: [{ bearerAuth: [] }]
+paths:
+  /api/v1/data-sources:
+    get:
+      {
+        summary: List JDBC data sources,
+        responses:
+          {
+            '200':
+              {
+                description: Safe data source summaries,
+                content:
+                  {
+                    application/json:
+                      {
+                        schema:
+                          {
+                            type: array,
+                            items: { $ref: '#/components/schemas/DataSourceSummary' },
+                          },
+                      },
+                  },
+              },
+          },
+      }
+    post:
+      {
+        summary: Create a JDBC data source,
+        requestBody: { $ref: '#/components/requestBodies/CreateDataSource' },
+        responses:
+          {
+            '201':
+              {
+                description: Created,
+                content:
+                  {
+                    application/json: { schema: { $ref: '#/components/schemas/DataSourceDetail' } },
+                  },
+              },
+            '409': { $ref: '#/components/responses/Problem' },
+          },
+      }
+  /api/v1/data-sources:validate-connection:
+    post:
+      {
+        summary: Test unsaved JDBC settings,
+        requestBody:
+          {
+            required: true,
+            content:
+              { application/json: { schema: { $ref: '#/components/schemas/ConnectionSettings' } } },
+          },
+        responses: { '200': { description: Test result } },
+      }
+  /api/v1/data-sources/{id}:
+    parameters: [{ $ref: '#/components/parameters/Id' }]
+    get:
+      {
+        summary: Get safe data source configuration,
+        responses:
+          {
+            '200':
+              {
+                description: Data source,
+                content:
+                  {
+                    application/json: { schema: { $ref: '#/components/schemas/DataSourceDetail' } },
+                  },
+              },
+          },
+      }
+    patch:
+      {
+        summary: Update a data source,
+        responses:
+          { '200': { description: Updated }, '409': { $ref: '#/components/responses/Problem' } },
+      }
+    delete:
+      { summary: Logically delete a data source, responses: { '204': { description: Deleted } } }
+  /api/v1/data-sources/{id}:test:
+    post:
+      {
+        summary: Test a saved data source,
+        parameters: [{ $ref: '#/components/parameters/Id' }],
+        responses: { '200': { description: Test result } },
+      }
+  /api/v1/data-sources/{id}:activate:
+    post:
+      {
+        summary: Activate a data source,
+        parameters: [{ $ref: '#/components/parameters/Id' }],
+        responses: { '200': { description: Activated } },
+      }
+  /api/v1/data-sources/{id}:deactivate:
+    post:
+      {
+        summary: Deactivate a data source,
+        parameters: [{ $ref: '#/components/parameters/Id' }],
+        responses: { '200': { description: Deactivated } },
+      }
+  /api/v1/data-sources/{id}/deletion-impact:
+    get:
+      {
+        summary: List dependent datasets,
+        parameters: [{ $ref: '#/components/parameters/Id' }],
+        responses: { '200': { description: Deletion impact } },
+      }
+  /api/v1/data-sources/{id}/catalogs:
+    get:
+      {
+        summary: Discover catalogs,
+        parameters: [{ $ref: '#/components/parameters/Id' }],
+        responses: { '200': { description: Catalogs } },
+      }
+  /api/v1/data-sources/{id}/schemas:
+    get:
+      {
+        summary: Discover schemas,
+        parameters: [{ $ref: '#/components/parameters/Id' }],
+        responses: { '200': { description: Schemas } },
+      }
+  /api/v1/data-sources/{id}/objects:
+    get:
+      {
+        summary: Discover selectable tables and views,
+        parameters: [{ $ref: '#/components/parameters/Id' }],
+        responses:
+          {
+            '200':
+              {
+                description: Source objects,
+                content:
+                  {
+                    application/json:
+                      {
+                        schema:
+                          { type: array, items: { $ref: '#/components/schemas/SourceObject' } },
+                      },
+                  },
+              },
+            '404': { $ref: '#/components/responses/Problem' },
+          },
+      }
+  /api/v1/data-sources/{id}/fields:
+    get:
+      summary: Discover selectable fields for a source object
+      parameters:
+        - { $ref: '#/components/parameters/Id' }
+        - { name: catalogName, in: query, schema: { type: string } }
+        - { name: schemaName, in: query, schema: { type: string } }
+        - { name: objectName, in: query, required: true, schema: { type: string } }
+      responses:
+        {
+          '200':
+            {
+              description: Source fields,
+              content:
+                {
+                  application/json:
+                    {
+                      schema: { type: array, items: { $ref: '#/components/schemas/SourceColumn' } },
+                    },
+                },
+            },
+          '404': { $ref: '#/components/responses/Problem' },
+        }
+  /api/v1/data-sources/{id}/preview:
+    get:
+      {
+        summary: Preview 20,
+        50,
+        or 100 read-only rows,
+        parameters: [{ $ref: '#/components/parameters/Id' }],
+        responses:
+          {
+            '200': { description: Preview rows },
+            '504': { $ref: '#/components/responses/Problem' },
+          },
+      }
+  /api/v1/datasets:
+    get:
+      {
+        summary: List datasets,
+        parameters:
+          [{ $ref: '#/components/parameters/Page' }, { $ref: '#/components/parameters/Size' }],
+        responses:
+          {
+            '200':
+              {
+                description: Dataset page,
+                content:
+                  { application/json: { schema: { $ref: '#/components/schemas/DatasetPage' } } },
+              },
+          },
+      }
+    post:
+      {
+        summary: Create dataset,
+        requestBody:
+          {
+            required: true,
+            content:
+              {
+                application/json: { schema: { $ref: '#/components/schemas/CreateDatasetRequest' } },
+              },
+          },
+        responses:
+          {
+            '201':
+              {
+                description: Created,
+                content: { application/json: { schema: { $ref: '#/components/schemas/Dataset' } } },
+              },
+            '422': { $ref: '#/components/responses/Problem' },
+          },
+      }
+  /api/v1/datasets/{id}:
+    parameters: [{ $ref: '#/components/parameters/Id' }]
+    get:
+      {
+        summary: Get dataset,
+        responses:
+          {
+            '200':
+              {
+                description: Dataset,
+                content: { application/json: { schema: { $ref: '#/components/schemas/Dataset' } } },
+              },
+            '404': { $ref: '#/components/responses/Problem' },
+          },
+      }
+    patch:
+      {
+        summary: Update dataset,
+        requestBody:
+          {
+            required: true,
+            content:
+              {
+                application/json: { schema: { $ref: '#/components/schemas/UpdateDatasetRequest' } },
+              },
+          },
+        responses:
+          { '200': { description: Dataset }, '409': { $ref: '#/components/responses/Problem' } },
+      }
+    delete:
+      {
+        summary: Delete dataset,
+        responses:
+          { '204': { description: Deleted }, '409': { $ref: '#/components/responses/Problem' } },
+      }
+  /api/v1/datasets/{id}/fields:
+    get:
+      {
+        summary: List dataset fields,
+        parameters: [{ $ref: '#/components/parameters/Id' }],
+        responses: { '200': { description: Fields } },
+      }
+  /api/v1/datasets/{id}/deletion-impact:
+    get:
+      {
+        summary: Inspect deletion impact,
+        parameters: [{ $ref: '#/components/parameters/Id' }],
+        responses: { '200': { description: Impact } },
+      }
+  /api/v1/datasets/{id}:detect-field-changes:
+    post:
+      {
+        summary: Detect physical schema changes,
+        parameters: [{ $ref: '#/components/parameters/Id' }],
+        responses: { '200': { description: Schema diff } },
+      }
+  /api/v1/datasets/{id}:sync-fields:
+    post:
+      {
+        summary: Synchronize physical fields,
+        parameters: [{ $ref: '#/components/parameters/Id' }],
+        responses:
+          {
+            '200': { description: Schema diff },
+            '409': { $ref: '#/components/responses/Problem' },
+          },
+      }
+  /api/v1/datasets/{id}/semantic-model:
+    get:
+      {
+        summary: Get dataset semantic model,
+        parameters: [{ $ref: '#/components/parameters/Id' }],
+        responses: { '200': { description: Semantic model } },
+      }
+  /api/v1/dataset-relationships:
+    get:
+      { summary: List dataset relationships, responses: { '200': { description: Relationships } } }
+    post:
+      {
+        summary: Create dataset relationship,
+        requestBody:
+          {
+            required: true,
+            content:
+              {
+                application/json:
+                  { schema: { $ref: '#/components/schemas/CreateRelationshipRequest' } },
+              },
+          },
+        responses:
+          { '201': { description: Created }, '422': { $ref: '#/components/responses/Problem' } },
+      }
+  /api/v1/dataset-relationships/{id}:
+    parameters: [{ $ref: '#/components/parameters/Id' }]
+    get: { summary: Get relationship, responses: { '200': { description: Relationship } } }
+    patch:
+      {
+        summary: Update relationship,
+        responses:
+          {
+            '200': { description: Relationship },
+            '409': { $ref: '#/components/responses/Problem' },
+          },
+      }
+    delete: { summary: Delete relationship, responses: { '204': { description: Deleted } } }
+  /api/v1/dataset-relationships/{id}:revalidate:
+    post:
+      {
+        summary: Revalidate relationship cardinality,
+        parameters: [{ $ref: '#/components/parameters/Id' }],
+        responses: { '200': { description: Relationship } },
+      }
+  /api/v1/metrics:
+    get: { summary: List metrics, responses: { '200': { description: Metric page } } }
+    post:
+      {
+        summary: Create metric,
+        requestBody:
+          {
+            required: true,
+            content:
+              {
+                application/json: { schema: { $ref: '#/components/schemas/CreateMetricRequest' } },
+              },
+          },
+        responses: { '201': { description: Created } },
+      }
+  /api/v1/metrics/{id}:
+    parameters: [{ $ref: '#/components/parameters/Id' }]
+    get: { summary: Get metric, responses: { '200': { description: Metric } } }
+    patch:
+      {
+        summary: Update metric,
+        responses:
+          { '200': { description: Metric }, '409': { $ref: '#/components/responses/Problem' } },
+      }
+    delete: { summary: Delete metric, responses: { '204': { description: Deleted } } }
+  /api/v1/dimensions:
+    get: { summary: List dimensions, responses: { '200': { description: Dimension page } } }
+    post:
+      {
+        summary: Create dimension,
+        requestBody:
+          {
+            required: true,
+            content:
+              {
+                application/json:
+                  { schema: { $ref: '#/components/schemas/CreateDimensionRequest' } },
+              },
+          },
+        responses: { '201': { description: Created } },
+      }
+  /api/v1/dimensions/{id}:
+    parameters: [{ $ref: '#/components/parameters/Id' }]
+    get: { summary: Get dimension, responses: { '200': { description: Dimension } } }
+    patch:
+      {
+        summary: Update dimension,
+        responses:
+          { '200': { description: Dimension }, '409': { $ref: '#/components/responses/Problem' } },
+      }
+    delete: { summary: Delete dimension, responses: { '204': { description: Deleted } } }
+  /api/v1/semantic-objects:search:
+    post:
+      {
+        summary: Search semantic objects,
+        requestBody:
+          {
+            required: true,
+            content:
+              {
+                application/json:
+                  { schema: { $ref: '#/components/schemas/SemanticSearchRequest' } },
+              },
+          },
+        responses: { '200': { description: Search results } },
+      }
+  /api/v1/queries:validate:
+    post:
+      {
+        summary: Validate query,
+        requestBody: { $ref: '#/components/requestBodies/Query' },
+        responses:
+          {
+            '200':
+              {
+                description: Validation summary,
+                content:
+                  {
+                    application/json:
+                      { schema: { $ref: '#/components/schemas/ValidationResponse' } },
+                  },
+              },
+            '422': { $ref: '#/components/responses/Problem' },
+          },
+      }
+  /api/v1/queries:
+    post:
+      {
+        summary: Execute query,
+        requestBody: { $ref: '#/components/requestBodies/Query' },
+        responses:
+          {
+            '200':
+              {
+                description: Query result,
+                content:
+                  { application/json: { schema: { $ref: '#/components/schemas/QueryResponse' } } },
+              },
+            '502': { $ref: '#/components/responses/Problem' },
+          },
+      }
+components:
+  securitySchemes:
+    bearerAuth: { type: http, scheme: bearer }
+  parameters:
+    Id: { name: id, in: path, required: true, schema: { $ref: '#/components/schemas/Uuid' } }
+    Page: { name: page, in: query, schema: { type: integer, minimum: 0, default: 0 } }
+    Size:
+      { name: size, in: query, schema: { type: integer, minimum: 1, maximum: 200, default: 20 } }
+  responses:
+    Problem:
+      {
+        description: Problem Details,
+        content: { application/problem+json: { schema: { $ref: '#/components/schemas/Problem' } } },
+      }
+  requestBodies:
+    Query:
+      {
+        required: true,
+        content: { application/json: { schema: { $ref: '#/components/schemas/QueryRequest' } } },
+      }
+    CreateDataSource:
+      {
+        required: true,
+        content:
+          {
+            application/json: { schema: { $ref: '#/components/schemas/CreateDataSourceRequest' } },
+          },
+      }
+  schemas:
+    Uuid: { type: string, format: uuid }
+    Version: { type: integer, format: int64, minimum: 0 }
+    DatabaseType: { type: string, enum: [STARROCKS, MYSQL, POSTGRESQL] }
+    ConnectionSettings:
+      {
+        type: object,
+        required: [databaseType, jdbcUrl, username, password],
+        properties:
+          {
+            databaseType: { $ref: '#/components/schemas/DatabaseType' },
+            jdbcUrl: { type: string },
+            username: { type: string },
+            password: { type: string },
+            defaultCatalog: { type: string },
+            defaultSchema: { type: string },
+          },
+      }
+    CreateDataSourceRequest:
+      {
+        allOf:
+          [
+            { $ref: '#/components/schemas/ConnectionSettings' },
+            {
+              type: object,
+              required: [name],
+              properties: { name: { type: string }, description: { type: string } },
+            },
+          ],
+      }
+    DataSourceSummary:
+      {
+        type: object,
+        required: [id, name, databaseType, status, healthStatus],
+        properties:
+          {
+            id: { $ref: '#/components/schemas/Uuid' },
+            name: { type: string },
+            databaseType: { $ref: '#/components/schemas/DatabaseType' },
+            status: { enum: [ACTIVE, INACTIVE, DELETED] },
+            healthStatus: { enum: [UNKNOWN, HEALTHY, UNHEALTHY] },
+          },
+      }
+    DataSourceDetail:
+      {
+        allOf:
+          [
+            { $ref: '#/components/schemas/DataSourceSummary' },
+            {
+              type: object,
+              properties:
+                {
+                  jdbcUrl: { type: string },
+                  username: { type: string },
+                  password: { type: string },
+                  defaultCatalog: { type: string },
+                  defaultSchema: { type: string },
+                  version: { $ref: '#/components/schemas/Version' },
+                },
+            },
+          ],
+      }
+    SourceObject:
+      {
+        type: object,
+        required: [objectName, objectType],
+        properties:
+          {
+            catalogName: { type: string },
+            schemaName: { type: string },
+            objectName: { type: string },
+            objectType: { enum: [TABLE, VIEW] },
+          },
+      }
+    SourceColumn:
+      {
+        type: object,
+        required: [physicalName, physicalType, jdbcType, ordinal, nullable],
+        properties:
+          {
+            physicalName: { type: string },
+            physicalType: { type: string },
+            jdbcType: { type: integer },
+            ordinal: { type: integer },
+            nullable: { type: boolean },
+          },
+      }
+    PageResponse:
+      {
+        type: object,
+        required: [items, total, page, size],
+        properties:
+          {
+            items: { type: array },
+            total: { type: integer },
+            page: { type: integer },
+            size: { type: integer },
+          },
+      }
+    DatasetPage: { allOf: [{ $ref: '#/components/schemas/PageResponse' }] }
+    DatasetField:
+      { type: object, required: [id, physicalName, displayName, physicalType, selected, version] }
+    Dataset:
+      {
+        type: object,
+        required: [id, dataSourceId, name, schemaName, objectName, objectType, version, fields],
+        properties:
+          {
+            id: { $ref: '#/components/schemas/Uuid' },
+            dataSourceId: { $ref: '#/components/schemas/Uuid' },
+            name: { type: string },
+            filterExpression: { $ref: '#/components/schemas/FilterExpression' },
+            fields: { type: array, items: { $ref: '#/components/schemas/DatasetField' } },
+          },
+      }
+    CreateDatasetRequest:
+      {
+        type: object,
+        required: [dataSourceId, name, schemaName, objectName, selectedPhysicalFields],
+      }
+    UpdateDatasetRequest:
+      {
+        type: object,
+        required: [name, version],
+        properties:
+          {
+            filterExpression: { $ref: '#/components/schemas/FilterExpression' },
+            version: { $ref: '#/components/schemas/Version' },
+          },
+      }
+    FilterExpression:
+      {
+        type: object,
+        properties:
+          {
+            logicalOperator: { enum: [AND, OR] },
+            children: { type: array, items: { $ref: '#/components/schemas/FilterExpression' } },
+            fieldId: { $ref: '#/components/schemas/Uuid' },
+            operator:
+              { enum: [EQ, NE, GT, GTE, LT, LTE, BETWEEN, IN, CONTAINS, IS_NULL, IS_NOT_NULL] },
+            values: { type: array },
+          },
+      }
+    FieldPair: { type: object, required: [sourceFieldId, targetFieldId] }
+    CreateRelationshipRequest:
+      {
+        type: object,
+        required: [name, sourceDatasetId, targetDatasetId, cardinality, fieldPairs],
+        properties: { cardinality: { enum: [ONE_TO_ONE, MANY_TO_ONE] } },
+      }
+    CreateMetricRequest:
+      {
+        type: object,
+        required: [datasetId, name, displayName, aggregation],
+        properties: { aggregation: { enum: [COUNT, COUNT_DISTINCT, SUM, AVG, MIN, MAX] } },
+      }
+    CreateDimensionRequest:
+      {
+        type: object,
+        required: [datasetId, datasetFieldId, name, displayName, type, allowedGranularities],
+        properties:
+          {
+            type: { enum: [STANDARD, TIME] },
+            allowedGranularities:
+              { type: array, items: { enum: [DAY, WEEK, MONTH, QUARTER, YEAR] } },
+          },
+      }
+    DimensionSelection:
+      {
+        type: object,
+        required: [dimensionId],
+        properties:
+          {
+            dimensionId: { $ref: '#/components/schemas/Uuid' },
+            granularity: { enum: [DAY, WEEK, MONTH, QUARTER, YEAR] },
+          },
+      }
+    QueryRequest:
+      type: object
+      required: [metricIds]
+      properties:
+        metricIds: { type: array, minItems: 1, items: { $ref: '#/components/schemas/Uuid' } }
+        dimensions: { type: array, items: { $ref: '#/components/schemas/DimensionSelection' } }
+        relationshipIds:
+          { type: array, uniqueItems: true, items: { $ref: '#/components/schemas/Uuid' } }
+    QueryResponse:
+      type: object
+      required: [columns, rows, metrics, dimensions]
+    ValidationResponse:
+      {
+        type: object,
+        required: [valid, metrics, dimensions, aggregates, resolvedRelationshipIds, parameterCount],
+      }
+    SemanticSearchRequest:
+      {
+        type: object,
+        required: [query],
+        properties:
+          {
+            query: { type: string },
+            datasetIds: { type: array, items: { $ref: '#/components/schemas/Uuid' } },
+            objectTypes: { type: array, items: { enum: [DATASET, METRIC, DIMENSION] } },
+          },
+      }
+    Problem:
+      {
+        type: object,
+        required: [type, title, status, detail],
+        properties:
+          {
+            type: { type: string, format: uri },
+            title: { type: string },
+            status: { type: integer },
+            detail: { type: string },
+          },
+      }

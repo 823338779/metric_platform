@@ -1,0 +1,35 @@
+{
+  "name": "metric-platform-frontend",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "test": "vitest run",
+    "build": "npm run format:check && tsc -b && vite build",
+    "format": "prettier --write --ignore-path ../.prettierignore .",
+    "format:check": "prettier --check --ignore-path ../.prettierignore .",
+    "test:e2e": "playwright test",
+    "test:e2e:install": "playwright install chromium"
+  },
+  "dependencies": {
+    "@ant-design/icons": "^6.3.2",
+    "@vitejs/plugin-react": "^5.0.0",
+    "@xyflow/react": "^12.11.2",
+    "antd": "^6.5.1",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0",
+    "react-router-dom": "^7.18.1",
+    "vite": "^7.0.0"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.61.1",
+    "@testing-library/jest-dom": "^6.6.3",
+    "@testing-library/react": "^16.1.0",
+    "@types/react": "^19.0.0",
+    "@types/react-dom": "^19.0.0",
+    "jsdom": "^25.0.1",
+    "prettier": "3.9.5",
+    "typescript": "^5.8.0",
+    "vitest": "^2.1.8"
+  }
+}

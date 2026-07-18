@@ -1,0 +1,14 @@
+/.idea/
+/.env
+/.mvn/wrapper/maven-wrapper.jar
+**/target/
+/frontend/node_modules/
+/frontend/dist/
+/frontend/coverage/
+/frontend/playwright-report/
+/frontend/test-results/
+**/*.tsbuildinfo
+/test-reports/*
+!/test-reports/.gitkeep
+/testcases/.build/
+*.log

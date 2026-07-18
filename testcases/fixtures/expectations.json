@@ -1,0 +1,8 @@
+{
+  "schema": "ecommerce_dw",
+  "object": "fact_orders",
+  "dimensionField": "order_date",
+  "metricField": "gross_amount",
+  "expectedColumns": ["order_day", "gross_sales"],
+  "maximumRows": 1000
+}
