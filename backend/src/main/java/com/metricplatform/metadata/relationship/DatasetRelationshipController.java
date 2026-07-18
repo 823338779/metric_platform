@@ -3,6 +3,7 @@ package com.metricplatform.metadata.relationship;
 import jakarta.validation.Valid;
 import java.util.List;
 import java.util.UUID;
+import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -16,12 +17,9 @@ import org.springframework.web.bind.annotation.RestController;
 
 @RestController
 @RequestMapping("/api/v1/dataset-relationships")
+@RequiredArgsConstructor
 public class DatasetRelationshipController {
     private final DatasetRelationshipService relationships;
-
-    public DatasetRelationshipController(DatasetRelationshipService relationships) {
-        this.relationships = relationships;
-    }
 
     @GetMapping
     public List<RelationshipDtos.RelationshipResponse> list(

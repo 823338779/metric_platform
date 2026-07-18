@@ -60,10 +60,10 @@ class MetricPlatformApplicationTest {
     }
 
     @Test
-    void testProfileUsesTheH2Datasource() throws SQLException {
+    void testProfileUsesThePostgreSqlDatasource() throws SQLException {
         assertTrue(namedTestProfileLoaded);
         try (Connection connection = dataSource.getConnection()) {
-            assertTrue(connection.getMetaData().getURL().startsWith("jdbc:h2:"));
+            assertTrue(connection.getMetaData().getURL().startsWith("jdbc:postgresql:"));
         }
     }
 

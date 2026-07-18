@@ -3,6 +3,7 @@ package com.metricplatform.api;
 import java.sql.SQLException;
 import java.sql.SQLTimeoutException;
 import java.util.NoSuchElementException;
+import com.metricplatform.query.QueryValidationException;
 import org.springframework.http.*;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.*;
@@ -29,6 +30,26 @@ public class ApiExceptionHandler {
                 HttpStatus.UNPROCESSABLE_ENTITY,
                 "Semantic validation failed",
                 exception.getMessage());
+    }
+
+    @ExceptionHandler(QueryValidationException.class)
+    ResponseEntity<ProblemDetail> queryInvalid(QueryValidationException exception) {
+        ProblemDetail detail =
+                ProblemDetail.forStatusAndDetail(
+                        HttpStatus.UNPROCESSABLE_ENTITY, exception.getMessage());
+        detail.setTitle("Semantic validation failed");
+        detail.setProperty("code", exception.code());
+        detail.setProperty("objectType", exception.objectType());
+        detail.setProperty("objectId", exception.objectId());
+        detail.setProperty("candidatePaths", exception.candidatePaths());
+        return ResponseEntity.unprocessableEntity()
+                .contentType(MediaType.APPLICATION_PROBLEM_JSON)
+                .body(detail);
+    }
+
+    @ExceptionHandler(SecurityException.class)
+    ResponseEntity<ProblemDetail> forbidden(SecurityException exception) {
+        return problem(HttpStatus.FORBIDDEN, "Access denied", exception.getMessage());
     }
 
     @ExceptionHandler(NoSuchElementException.class)

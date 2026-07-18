@@ -5,6 +5,7 @@ import static com.metricplatform.metadata.dataset.DatasetDtos.*;
 import jakarta.validation.Valid;
 import java.util.List;
 import java.util.UUID;
+import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -18,14 +19,10 @@ import org.springframework.web.bind.annotation.RestController;
 
 @RestController
 @RequestMapping("/api/v1/datasets")
+@RequiredArgsConstructor
 public class DatasetController {
     private final DatasetService datasets;
     private final SchemaDriftService schemaDrift;
-
-    public DatasetController(DatasetService datasets, SchemaDriftService schemaDrift) {
-        this.datasets = datasets;
-        this.schemaDrift = schemaDrift;
-    }
 
     @GetMapping
     public PageResponse<DatasetResponse> list(

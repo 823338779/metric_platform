@@ -3,6 +3,9 @@ package com.metricplatform.semantic;
 import static com.metricplatform.semantic.SemanticDtos.*;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.metricplatform.api.ConflictException;
 import com.metricplatform.metadata.MetadataDtos.DimensionRequest;
 import com.metricplatform.metadata.MetadataDtos.MetricRequest;
@@ -22,10 +25,12 @@ import java.util.Locale;
 import java.util.NoSuchElementException;
 import java.util.Set;
 import java.util.UUID;
+import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 @Service
+@RequiredArgsConstructor
 public class SemanticDefinitionService {
     private static final Set<String> NUMERIC_TYPES =
             Set.of(
@@ -49,19 +54,7 @@ public class SemanticDefinitionService {
     private final DimensionMapper dimensions;
     private final DimensionTimeGranularityMapper granularities;
     private final MetricMapper metrics;
-
-    public SemanticDefinitionService(
-            DatasetMapper datasets,
-            DatasetFieldMapper fields,
-            DimensionMapper dimensions,
-            DimensionTimeGranularityMapper granularities,
-            MetricMapper metrics) {
-        this.datasets = datasets;
-        this.fields = fields;
-        this.dimensions = dimensions;
-        this.granularities = granularities;
-        this.metrics = metrics;
-    }
+    private final ObjectMapper objectMapper;
 
     public PageResponse<MetricResponse> listMetrics(String q, UUID datasetId, int page, int size) {
         validatePage(page, size);
@@ -75,7 +68,16 @@ public class SemanticDefinitionService {
                                 metric ->
                                         datasetId == null
                                                 || datasetId.equals(metric.getDatasetId()))
-                        .filter(metric -> matches(q, metric.getName(), metric.getDisplayName()))
+                        .filter(
+                                metric ->
+                                        matches(
+                                                        q,
+                                                        metric.getName(),
+                                                        metric.getDisplayName(),
+                                                        metric.getDescription(),
+                                                        metric.getBusinessDefinition())
+                                                || readAliases(metric.getAliases()).stream()
+                                                        .anyMatch(value -> matches(q, value)))
                         .map(this::metricResponse)
                         .toList();
         return page(matches, page, size);
@@ -99,6 +101,11 @@ public class SemanticDefinitionService {
         metric.setName(request.name().trim());
         metric.setDisplayName(request.displayName().trim());
         metric.setAggregation(request.aggregation().name());
+        applyMetricMetadata(metric, request.description(), request.businessDefinition(),
+                request.unit(), request.formatPattern(), request.status(), request.domain(),
+                request.owner(), request.certificationStatus(), request.aggregationBehavior(),
+                request.additivity(), request.metricType(), request.defaultTimeDimensionId());
+        if (request.aliases() != null) metric.setAliases(writeAliases(request.aliases()));
         metrics.insert(metric);
         return metricResponse(metric);
     }
@@ -117,12 +124,18 @@ public class SemanticDefinitionService {
         metric.setName(request.name().trim());
         metric.setDisplayName(request.displayName().trim());
         metric.setAggregation(request.aggregation().name());
+        applyMetricMetadata(metric, request.description(), request.businessDefinition(),
+                request.unit(), request.formatPattern(), request.status(), request.domain(),
+                request.owner(), request.certificationStatus(), request.aggregationBehavior(),
+                request.additivity(), request.metricType(), request.defaultTimeDimensionId());
+        if (request.aliases() != null) metric.setAliases(writeAliases(request.aliases()));
         if (metrics.updateById(metric) == 0) {
             throw new ConflictException("metric version is stale");
         }
         return metricResponse(metric);
     }
 
+    @Transactional
     public void deleteMetric(UUID id) {
         metric(id);
         metrics.softDeleteById(id);
@@ -143,7 +156,14 @@ public class SemanticDefinitionService {
                                                 || datasetId.equals(dimension.getDatasetId()))
                         .filter(
                                 dimension ->
-                                        matches(q, dimension.getName(), dimension.getDisplayName()))
+                                        matches(
+                                                        q,
+                                                        dimension.getName(),
+                                                        dimension.getDisplayName(),
+                                                        dimension.getDescription(),
+                                                        dimension.getBusinessDefinition())
+                                                || readAliases(dimension.getAliases()).stream()
+                                                        .anyMatch(value -> matches(q, value)))
                         .map(this::dimensionResponse)
                         .toList();
         return page(matches, page, size);
@@ -170,6 +190,11 @@ public class SemanticDefinitionService {
         dimension.setName(request.name().trim());
         dimension.setDisplayName(request.displayName().trim());
         dimension.setDimensionType(request.type().name());
+        applyDimensionMetadata(dimension, request.description(), request.businessDefinition(),
+                request.domain(), request.owner(), request.status(),
+                request.certificationStatus(), request.semanticType(), request.valueType(),
+                request.defaultGranularity(), request.sensitivityLevel());
+        if (request.aliases() != null) dimension.setAliases(writeAliases(request.aliases()));
         dimensions.insert(dimension);
         replaceGranularities(dimension.getId(), request.allowedGranularities());
         return dimensionResponse(dimension, request.allowedGranularities());
@@ -192,6 +217,11 @@ public class SemanticDefinitionService {
         dimension.setName(request.name().trim());
         dimension.setDisplayName(request.displayName().trim());
         dimension.setDimensionType(request.type().name());
+        applyDimensionMetadata(dimension, request.description(), request.businessDefinition(),
+                request.domain(), request.owner(), request.status(),
+                request.certificationStatus(), request.semanticType(), request.valueType(),
+                request.defaultGranularity(), request.sensitivityLevel());
+        if (request.aliases() != null) dimension.setAliases(writeAliases(request.aliases()));
         if (dimensions.updateById(dimension) == 0) {
             throw new ConflictException("dimension version is stale");
         }
@@ -322,7 +352,20 @@ public class SemanticDefinitionService {
                 metric.getName(),
                 metric.getDisplayName(),
                 Aggregation.valueOf(metric.getAggregation()),
-                metric.getVersion());
+                metric.getVersion(),
+                metric.getDescription(),
+                metric.getBusinessDefinition(),
+                readAliases(metric.getAliases()),
+                metric.getUnit(),
+                metric.getFormatPattern(),
+                metric.getStatus(),
+                metric.getDomainName(),
+                metric.getOwnerName(),
+                metric.getCertificationStatus(),
+                metric.getAggregationBehavior(),
+                metric.getAdditivity(),
+                metric.getMetricType(),
+                metric.getDefaultTimeDimensionId());
     }
 
     private DimensionResponse dimensionResponse(DimensionEntity dimension) {
@@ -343,7 +386,96 @@ public class SemanticDefinitionService {
                 dimension.getDisplayName(),
                 DimensionType.valueOf(dimension.getDimensionType()),
                 Set.copyOf(values),
-                dimension.getVersion());
+                dimension.getVersion(),
+                dimension.getDescription(),
+                dimension.getBusinessDefinition(),
+                readAliases(dimension.getAliases()),
+                dimension.getDomainName(),
+                dimension.getOwnerName(),
+                dimension.getStatus(),
+                dimension.getCertificationStatus(),
+                dimension.getSemanticType(),
+                dimension.getValueType(),
+                dimension.getDefaultGranularity() == null
+                        ? null
+                        : TimeGranularity.valueOf(dimension.getDefaultGranularity()),
+                dimension.getSensitivityLevel());
+    }
+
+    private void applyMetricMetadata(
+            MetricEntity metric,
+            String description,
+            String businessDefinition,
+            String unit,
+            String formatPattern,
+            String status,
+            String domain,
+            String owner,
+            String certificationStatus,
+            String aggregationBehavior,
+            String additivity,
+            String metricType,
+            UUID defaultTimeDimensionId) {
+        metric.setDescription(trimToNull(description));
+        metric.setBusinessDefinition(trimToNull(businessDefinition));
+        metric.setUnit(trimToNull(unit));
+        metric.setFormatPattern(trimToNull(formatPattern));
+        metric.setStatus(defaultValue(status, "ACTIVE"));
+        metric.setDomainName(trimToNull(domain));
+        metric.setOwnerName(trimToNull(owner));
+        metric.setCertificationStatus(defaultValue(certificationStatus, "UNCERTIFIED"));
+        metric.setAggregationBehavior(trimToNull(aggregationBehavior));
+        metric.setAdditivity(trimToNull(additivity));
+        metric.setMetricType(defaultValue(metricType, "BASE"));
+        metric.setDefaultTimeDimensionId(defaultTimeDimensionId);
+    }
+
+    private void applyDimensionMetadata(
+            DimensionEntity dimension,
+            String description,
+            String businessDefinition,
+            String domain,
+            String owner,
+            String status,
+            String certificationStatus,
+            String semanticType,
+            String valueType,
+            TimeGranularity defaultGranularity,
+            String sensitivityLevel) {
+        dimension.setDescription(trimToNull(description));
+        dimension.setBusinessDefinition(trimToNull(businessDefinition));
+        dimension.setDomainName(trimToNull(domain));
+        dimension.setOwnerName(trimToNull(owner));
+        dimension.setStatus(defaultValue(status, "ACTIVE"));
+        dimension.setCertificationStatus(defaultValue(certificationStatus, "UNCERTIFIED"));
+        dimension.setSemanticType(trimToNull(semanticType));
+        dimension.setValueType(trimToNull(valueType));
+        dimension.setDefaultGranularity(defaultGranularity == null ? null : defaultGranularity.name());
+        dimension.setSensitivityLevel(defaultValue(sensitivityLevel, "INTERNAL"));
+    }
+
+    private String writeAliases(List<String> values) {
+        List<String> normalized = values == null
+                ? List.of()
+                : values.stream()
+                        .filter(value -> value != null && !value.isBlank())
+                        .map(String::trim)
+                        .distinct()
+                        .toList();
+        try {
+            return objectMapper.writeValueAsString(normalized);
+        } catch (JsonProcessingException exception) {
+            throw new IllegalArgumentException("aliases could not be serialized", exception);
+        }
+    }
+
+    private List<String> readAliases(String json) {
+        if (json == null || json.isBlank()) return List.of();
+        try {
+            return List.copyOf(objectMapper.readValue(json, new TypeReference<List<String>>() {}));
+        } catch (JsonProcessingException exception) {
+            throw new IllegalStateException("stored aliases are invalid", exception);
+        }
     }
 
     private DatasetEntity dataset(UUID id) {
@@ -381,6 +513,14 @@ public class SemanticDefinitionService {
         return (parameters < 0 ? type : type.substring(0, parameters))
                 .trim()
                 .toUpperCase(Locale.ROOT);
+    }
+
+    private static String trimToNull(String value) {
+        return value == null || value.isBlank() ? null : value.trim();
+    }
+
+    private static String defaultValue(String value, String fallback) {
+        return value == null || value.isBlank() ? fallback : value.trim();
     }
 
     private static boolean matches(String q, String... values) {

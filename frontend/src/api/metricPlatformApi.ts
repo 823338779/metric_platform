@@ -94,10 +94,21 @@ export function createMetricPlatformApi(fetcher?: Fetcher) {
     updateDimension: (id: string, body: T.UpdateDimensionRequest) =>
       request<T.Dimension>(`/dimensions/${id}`, { method: 'PATCH', body: JSON.stringify(body) }),
     deleteDimension: (id: string) => request<void>(`/dimensions/${id}`, { method: 'DELETE' }),
+    getCapabilities: () => request<T.CapabilitiesResponse>('/capabilities'),
     searchSemantic: (query: string) =>
       request<T.SemanticSearchResult[]>('/semantic-objects:search', {
         method: 'POST',
         body: JSON.stringify({ query }),
+      }),
+    resolveSemantic: (body: T.SemanticResolveRequest) =>
+      request<T.SemanticResolveResponse>('/semantic-objects:resolve', {
+        method: 'POST',
+        body: JSON.stringify(body),
+      }),
+    searchDimensionMembers: (dimensionId: string, body: T.DimensionMemberSearchRequest) =>
+      request<T.DimensionMemberSearchResponse>(`/dimensions/${dimensionId}/members:search`, {
+        method: 'POST',
+        body: JSON.stringify(body),
       }),
     validateQuery: (body: T.QueryRequest) =>
       request<T.ValidationResponse>('/queries:validate', {

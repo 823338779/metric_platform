@@ -4,15 +4,13 @@ import com.metricplatform.persistence.entity.DataSourceEntity;
 import java.sql.Connection;
 import java.sql.DriverManager;
 import java.sql.SQLException;
+import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
 @Service
+@RequiredArgsConstructor
 public class JdbcConnectionService {
     private final JdbcDialectRegistry dialects;
-
-    public JdbcConnectionService(JdbcDialectRegistry dialects) {
-        this.dialects = dialects;
-    }
 
     public Connection openReadOnly(DataSourceEntity source) throws SQLException {
         if (!"ACTIVE".equals(source.getStatus()) && !"ENABLED".equals(source.getStatus())) {

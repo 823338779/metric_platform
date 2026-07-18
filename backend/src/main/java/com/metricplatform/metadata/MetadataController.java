@@ -10,23 +10,18 @@ import com.metricplatform.semantic.SemanticDefinitionService;
 import jakarta.validation.Valid;
 import java.util.List;
 import java.util.UUID;
+import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 
 @RestController
 @RequestMapping("/api/v1/admin")
+@RequiredArgsConstructor
 public class MetadataController {
     private final MetadataService service;
     private final SemanticDefinitionService semantic;
     private final DatasetFieldMapper fields;
-
-    public MetadataController(
-            MetadataService s, SemanticDefinitionService x, DatasetFieldMapper f) {
-        service = s;
-        semantic = x;
-        fields = f;
-    }
 
     @PostMapping("/datasets")
     public ResponseEntity<DatasetEntity> createDataset(

@@ -7,17 +7,14 @@ import java.sql.SQLException;
 import java.util.Comparator;
 import java.util.NoSuchElementException;
 import java.util.UUID;
+import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 
 @Component
+@RequiredArgsConstructor
 public class JdbcSourceMetadataInspector implements SourceMetadataInspector {
     private final DataSourceMapper sources;
     private final JdbcMetadataService metadata;
-
-    public JdbcSourceMetadataInspector(DataSourceMapper sources, JdbcMetadataService metadata) {
-        this.sources = sources;
-        this.metadata = metadata;
-    }
 
     @Override
     public SourceObjectDefinition inspectObject(UUID sourceId, String schema, String objectName) {

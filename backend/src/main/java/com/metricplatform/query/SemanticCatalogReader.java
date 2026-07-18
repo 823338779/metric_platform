@@ -18,9 +18,11 @@ import java.util.List;
 import java.util.NoSuchElementException;
 import java.util.Set;
 import java.util.UUID;
+import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 
 @Component
+@RequiredArgsConstructor
 public class SemanticCatalogReader {
     private final DatasetMapper datasets;
     private final DatasetFieldMapper fields;
@@ -29,23 +31,6 @@ public class SemanticCatalogReader {
     private final DimensionTimeGranularityMapper granularities;
     private final DatasetRelationshipMapper relationships;
     private final DatasetRelationshipFieldPairMapper relationshipPairs;
-
-    public SemanticCatalogReader(
-            DatasetMapper datasets,
-            DatasetFieldMapper fields,
-            MetricMapper metrics,
-            DimensionMapper dimensions,
-            DimensionTimeGranularityMapper granularities,
-            DatasetRelationshipMapper relationships,
-            DatasetRelationshipFieldPairMapper relationshipPairs) {
-        this.datasets = datasets;
-        this.fields = fields;
-        this.metrics = metrics;
-        this.dimensions = dimensions;
-        this.granularities = granularities;
-        this.relationships = relationships;
-        this.relationshipPairs = relationshipPairs;
-    }
 
     public record MetricDefinition(
             MetricEntity metric, DatasetEntity dataset, DatasetFieldEntity field) {}

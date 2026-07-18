@@ -14,17 +14,16 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.sql.Types;
+import java.sql.Timestamp;
+import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 
 @Component
+@RequiredArgsConstructor
 public class SemanticSqlCompiler {
     private final ObjectMapper objectMapper;
     private final FilterSqlCompiler filters;
-
-    public SemanticSqlCompiler(ObjectMapper objectMapper, FilterSqlCompiler filters) {
-        this.objectMapper = objectMapper;
-        this.filters = filters;
-    }
 
     public CompiledQuery compile(QueryPlan plan) {
         if (plan.aggregates().isEmpty())
@@ -83,6 +82,14 @@ public class SemanticSqlCompiler {
                                 datasets.put(
                                         dimension.definition().dataset().getId(),
                                         dimension.definition().dataset()));
+        plan.filters().forEach(
+                filter -> datasets.put(
+                        filter.definition().dataset().getId(), filter.definition().dataset()));
+        if (plan.timeRange() != null) {
+            datasets.put(
+                    plan.timeRange().definition().dataset().getId(),
+                    plan.timeRange().definition().dataset());
+        }
 
         List<String> select = new ArrayList<>();
         List<String> groupBy = new ArrayList<>();
@@ -134,13 +141,106 @@ public class SemanticSqlCompiler {
                     .append(" ON ")
                     .append(conditions);
         }
-        FilterSqlCompiler.CompiledPredicate predicate = compileFilter(fact, aggregate, "d0");
-        if (!predicate.sql().isBlank()) {
-            sql.append(" WHERE ").append(predicate.sql());
-            parameters.addAll(predicate.parameters());
+        List<String> predicates = new ArrayList<>();
+        FilterSqlCompiler.CompiledPredicate fixed = compileFilter(fact, aggregate, "d0");
+        if (!fixed.sql().isBlank()) {
+            predicates.add(fixed.sql());
+            parameters.addAll(fixed.parameters());
+        }
+        predicates.addAll(compileRuntimePredicates(plan, aliases, parameters));
+        if (!predicates.isEmpty()) {
+            sql.append(" WHERE ").append(String.join(" AND ", predicates));
         }
         if (!groupBy.isEmpty()) sql.append(" GROUP BY ").append(String.join(", ", groupBy));
         return sql.toString();
+    }
+
+    private static List<String> compileRuntimePredicates(
+            QueryPlan plan,
+            Map<UUID, String> aliases,
+            List<CompiledQuery.SqlParameter> parameters) {
+        List<String> predicates = new ArrayList<>();
+        for (QueryPlan.FilterProjection filter : plan.filters()) {
+            String alias = aliases.get(filter.definition().dataset().getId());
+            if (alias == null) throw new IllegalArgumentException("filter dimension dataset is not joined");
+            String expression = column(alias, filter.definition().field());
+            int jdbcType = jdbcType(filter.definition().field().getStarrocksType());
+            switch (filter.operator()) {
+                case IS_NULL -> predicates.add(expression + " IS NULL");
+                case IS_NOT_NULL -> predicates.add(expression + " IS NOT NULL");
+                case BETWEEN -> {
+                    predicates.add(expression + " BETWEEN ? AND ?");
+                    add(parameters, jdbcType, filter.values().get(0));
+                    add(parameters, jdbcType, filter.values().get(1));
+                }
+                case IN -> {
+                    predicates.add(expression + " IN ("
+                            + String.join(", ", java.util.Collections.nCopies(filter.values().size(), "?"))
+                            + ")");
+                    filter.values().forEach(value -> add(parameters, jdbcType, value));
+                }
+                case CONTAINS -> {
+                    predicates.add(expression + " LIKE ?");
+                    add(parameters, Types.VARCHAR, "%" + filter.values().getFirst() + "%");
+                }
+                default -> {
+                    predicates.add(expression + " " + operator(filter.operator()) + " ?");
+                    add(parameters, jdbcType, filter.values().getFirst());
+                }
+            }
+        }
+        if (plan.timeRange() != null) {
+            QueryPlan.TimeProjection time = plan.timeRange();
+            String alias = aliases.get(time.definition().dataset().getId());
+            if (alias == null) throw new IllegalArgumentException("time dimension dataset is not joined");
+            String expression = column(alias, time.definition().field());
+            predicates.add(expression + " >= ? AND " + expression + " < ?");
+            add(parameters, Types.TIMESTAMP, Timestamp.from(time.startInclusive()));
+            add(parameters, Types.TIMESTAMP, Timestamp.from(time.endExclusive()));
+        }
+        return predicates;
+    }
+
+    private static String operator(com.metricplatform.query.QueryDtos.FilterOperator operator) {
+        return switch (operator) {
+            case EQ -> "=";
+            case NE -> "<>";
+            case GT -> ">";
+            case GTE -> ">=";
+            case LT -> "<";
+            case LTE -> "<=";
+            default -> throw new IllegalArgumentException("filter operator cannot be compiled here");
+        };
+    }
+
+    private static void add(
+            List<CompiledQuery.SqlParameter> parameters, int jdbcType, Object value) {
+        parameters.add(new CompiledQuery.SqlParameter(jdbcType, value));
+    }
+
+    private static int jdbcType(String type) {
+        String normalized = type == null ? "" : type.toUpperCase(java.util.Locale.ROOT);
+        if (normalized.startsWith("DATE") && !normalized.startsWith("DATETIME")) return Types.DATE;
+        if (normalized.startsWith("TIMESTAMP") || normalized.startsWith("DATETIME")) return Types.TIMESTAMP;
+        if (normalized.startsWith("BOOL")) return Types.BOOLEAN;
+        if (normalized.matches("^(TINYINT|SMALLINT|INT|INTEGER|BIGINT|LARGEINT).*$")) return Types.BIGINT;
+        if (normalized.matches("^(FLOAT|DOUBLE|DECIMAL).*$")) return Types.DECIMAL;
+        return Types.VARCHAR;
+    }
+
+    private static String sortExpression(
+            QueryPlan plan, com.metricplatform.query.QueryDtos.SortSelection selection) {
+        String name;
+        if (selection.type() == com.metricplatform.query.QueryDtos.SortTargetType.METRIC) {
+            name = plan.metrics().stream()
+                    .filter(value -> value.definition().metric().getId().equals(selection.objectId()))
+                    .findFirst().orElseThrow().definition().metric().getName();
+        } else {
+            name = plan.dimensions().stream()
+                    .filter(value -> value.definition().dimension().getId().equals(selection.objectId()))
+                    .findFirst().orElseThrow().definition().dimension().getName();
+        }
+        return q(name) + " " + selection.direction().name();
     }
 
     private FilterSqlCompiler.CompiledPredicate compileFilter(
@@ -231,6 +331,16 @@ public class SemanticSqlCompiler {
                 sql.append(String.join(" AND ", conditions));
             }
         }
+        if (!plan.sort().isEmpty()) {
+            sql.append(" ORDER BY ")
+                    .append(
+                            String.join(
+                                    ", ",
+                                    plan.sort().stream()
+                                            .map(value -> sortExpression(plan, value))
+                                            .toList()));
+        }
+        sql.append(" LIMIT ").append(plan.limit() + 1);
         return sql.toString();
     }
 

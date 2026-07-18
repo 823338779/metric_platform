@@ -14,27 +14,18 @@ import java.time.LocalDateTime;
 import java.util.List;
 import java.util.NoSuchElementException;
 import java.util.UUID;
+import lombok.RequiredArgsConstructor;
 import org.springframework.dao.DuplicateKeyException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 @Service
+@RequiredArgsConstructor
 public class DataSourceManagementService {
     private final DataSourceMapper sources;
     private final DatasetMapper datasets;
     private final JdbcDialectRegistry dialects;
     private final JdbcConnectionService connections;
-
-    public DataSourceManagementService(
-            DataSourceMapper sources,
-            DatasetMapper datasets,
-            JdbcDialectRegistry dialects,
-            JdbcConnectionService connections) {
-        this.sources = sources;
-        this.datasets = datasets;
-        this.dialects = dialects;
-        this.connections = connections;
-    }
 
     public List<DataSourceSummary> list(boolean includeDeleted) {
         List<DataSourceEntity> selected =

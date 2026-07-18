@@ -25,10 +25,12 @@ import java.util.NoSuchElementException;
 import java.util.Set;
 import java.util.UUID;
 import java.util.stream.Collectors;
+import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 @Service
+@RequiredArgsConstructor
 public class SchemaDriftService {
     private final DatasetMapper datasets;
     private final DatasetFieldMapper fields;
@@ -37,23 +39,6 @@ public class SchemaDriftService {
     private final DatasetRelationshipFieldPairMapper relationshipPairs;
     private final SourceMetadataInspector inspector;
     private final ObjectMapper objectMapper;
-
-    public SchemaDriftService(
-            DatasetMapper datasets,
-            DatasetFieldMapper fields,
-            DimensionMapper dimensions,
-            MetricMapper metrics,
-            DatasetRelationshipFieldPairMapper relationshipPairs,
-            SourceMetadataInspector inspector,
-            ObjectMapper objectMapper) {
-        this.datasets = datasets;
-        this.fields = fields;
-        this.dimensions = dimensions;
-        this.metrics = metrics;
-        this.relationshipPairs = relationshipPairs;
-        this.inspector = inspector;
-        this.objectMapper = objectMapper;
-    }
 
     public SchemaDiffResponse detect(UUID datasetId) {
         DatasetEntity dataset = dataset(datasetId);

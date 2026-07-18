@@ -4,14 +4,12 @@ import com.baomidou.mybatisplus.core.handlers.MetaObjectHandler;
 import com.metricplatform.persistence.entity.BaseAuditEntity;
 import java.time.Clock;
 import java.time.Instant;
+import lombok.RequiredArgsConstructor;
 import org.apache.ibatis.reflection.MetaObject;
 
+@RequiredArgsConstructor
 public class AuditMetaObjectHandler implements MetaObjectHandler {
     private final Clock clock;
-
-    public AuditMetaObjectHandler(Clock clock) {
-        this.clock = clock;
-    }
 
     @Override
     public void insertFill(MetaObject metaObject) {

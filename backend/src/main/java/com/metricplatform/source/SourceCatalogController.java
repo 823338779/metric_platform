@@ -6,20 +6,16 @@ import jakarta.validation.Valid;
 import java.sql.SQLException;
 import java.util.List;
 import java.util.UUID;
+import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 @RestController
 @RequestMapping("/api/v1/data-sources")
+@RequiredArgsConstructor
 public class SourceCatalogController {
     private final DataSourceManagementService management;
     private final JdbcMetadataService metadata;
-
-    public SourceCatalogController(
-            DataSourceManagementService management, JdbcMetadataService metadata) {
-        this.management = management;
-        this.metadata = metadata;
-    }
 
     @GetMapping
     public List<DataSourceSummary> dataSources(

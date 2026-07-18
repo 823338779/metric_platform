@@ -21,6 +21,7 @@ import com.metricplatform.persistence.mapper.DatasetMapper;
 import com.metricplatform.persistence.mapper.DimensionMapper;
 import com.metricplatform.persistence.mapper.DimensionTimeGranularityMapper;
 import com.metricplatform.persistence.mapper.MetricMapper;
+import com.metricplatform.persistence.mapper.SemanticAliasMapper;
 import java.util.Set;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
@@ -32,8 +33,10 @@ class SemanticDefinitionServiceTest {
     private final DimensionTimeGranularityMapper granularities =
             mock(DimensionTimeGranularityMapper.class);
     private final MetricMapper metrics = mock(MetricMapper.class);
+    private final SemanticAliasMapper aliases = mock(SemanticAliasMapper.class);
     private final SemanticDefinitionService service =
-            new SemanticDefinitionService(datasets, fields, dimensions, granularities, metrics);
+            new SemanticDefinitionService(
+                    datasets, fields, dimensions, granularities, metrics, aliases);
     private final UUID datasetId = UUID.randomUUID();
     private final UUID fieldId = UUID.randomUUID();
 

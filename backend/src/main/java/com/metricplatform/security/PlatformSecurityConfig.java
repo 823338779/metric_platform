@@ -7,6 +7,7 @@ import java.io.IOException;
 import java.util.List;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.http.HttpMethod;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
@@ -36,8 +37,22 @@ public class PlatformSecurityConfig {
                                                                 HttpServletResponse.SC_FORBIDDEN)))
                 .authorizeHttpRequests(
                         a ->
-                                a.requestMatchers("/api/v1/**")
-                                        .authenticated()
+                                a.requestMatchers(HttpMethod.GET, "/api/v1/capabilities")
+                                        .hasAnyRole("METRIC_QUERY_CLIENT", "PLATFORM_ADMIN", "SEMANTIC_EDITOR")
+                                        .requestMatchers(HttpMethod.GET, "/api/v1/datasets/*/semantic-model")
+                                        .hasAnyRole("METRIC_QUERY_CLIENT", "PLATFORM_ADMIN", "SEMANTIC_EDITOR")
+                                        .requestMatchers(HttpMethod.POST, "/api/v1/semantic-objects:search")
+                                        .hasAnyRole("METRIC_QUERY_CLIENT", "PLATFORM_ADMIN", "SEMANTIC_EDITOR")
+                                        .requestMatchers(HttpMethod.POST, "/api/v1/semantic-objects:resolve")
+                                        .hasAnyRole("METRIC_QUERY_CLIENT", "PLATFORM_ADMIN", "SEMANTIC_EDITOR")
+                                        .requestMatchers(HttpMethod.POST, "/api/v1/dimensions/*/members:search")
+                                        .hasAnyRole("METRIC_QUERY_CLIENT", "PLATFORM_ADMIN", "SEMANTIC_EDITOR")
+                                        .requestMatchers(HttpMethod.POST, "/api/v1/queries:validate")
+                                        .hasAnyRole("METRIC_QUERY_CLIENT", "PLATFORM_ADMIN", "SEMANTIC_EDITOR")
+                                        .requestMatchers(HttpMethod.POST, "/api/v1/queries")
+                                        .hasAnyRole("METRIC_QUERY_CLIENT", "PLATFORM_ADMIN", "SEMANTIC_EDITOR")
+                                        .requestMatchers("/api/v1/**")
+                                        .hasAnyRole("PLATFORM_ADMIN", "SEMANTIC_EDITOR")
                                         .anyRequest()
                                         .permitAll())
                 .addFilterBefore(new BearerFilter(), UsernamePasswordAuthenticationFilter.class)
@@ -59,6 +74,10 @@ public class PlatformSecurityConfig {
             if ("Bearer query-token".equals(header)) {
                 role = "METRIC_QUERY_CLIENT";
                 id = "query-client";
+            }
+            if ("Bearer editor-token".equals(header)) {
+                role = "SEMANTIC_EDITOR";
+                id = "semantic-editor";
             }
             if (role != null) {
                 PlatformPrincipal principal = new PlatformPrincipal(id, role);

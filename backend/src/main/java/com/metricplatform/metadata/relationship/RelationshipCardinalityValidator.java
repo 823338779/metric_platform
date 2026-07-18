@@ -6,6 +6,7 @@ import com.metricplatform.persistence.entity.DataSourceEntity;
 import com.metricplatform.persistence.entity.DatasetEntity;
 import com.metricplatform.persistence.entity.DatasetFieldEntity;
 import com.metricplatform.persistence.mapper.DataSourceMapper;
+import com.metricplatform.source.ExternalSqlLogger;
 import com.metricplatform.source.JdbcConnectionService;
 import com.metricplatform.source.JdbcDialectRegistry;
 import com.metricplatform.source.StarRocksDataSourceFactory;
@@ -99,6 +100,12 @@ public class RelationshipCardinalityValidator {
                         + " HAVING COUNT(*) > 1 LIMIT 1";
         try (Statement statement = connection.createStatement()) {
             statement.setQueryTimeout(QUERY_TIMEOUT_SECONDS);
+            ExternalSqlLogger.logRaw(
+                    connection,
+                    "relationship_cardinality_check",
+                    source.getId(),
+                    source.getDatabaseName(),
+                    sql);
             try (ResultSet result = statement.executeQuery(sql)) {
                 return result.next();
             }

@@ -75,6 +75,8 @@ export type DatasetField = {
   physicalType: string;
   selected: boolean;
   version: number;
+  description?: string;
+  sensitivityLevel?: string;
 };
 export type FilterOperator =
   | 'EQ'
@@ -106,6 +108,15 @@ export type Dataset = {
   filterExpression?: FilterExpression;
   version: number;
   fields: DatasetField[];
+  aliases: string[];
+  businessGrain?: string;
+  defaultTimeDimensionId?: UUID;
+  freshnessPolicy?: string;
+  qualityStatus: string;
+  domain?: string;
+  owner?: string;
+  status: string;
+  certificationStatus: string;
 };
 export type FieldPair = { sourceFieldId: UUID; targetFieldId: UUID };
 export type DatasetRelationship = {
@@ -119,6 +130,11 @@ export type DatasetRelationship = {
   validationStatus: 'VALID' | 'INVALID' | 'UNKNOWN';
   lastValidatedAt?: string;
   version: number;
+  description?: string;
+  displayPath?: string;
+  semanticRole?: string;
+  fanoutSafe: boolean;
+  status: string;
 };
 export type Metric = {
   id: UUID;
@@ -128,6 +144,19 @@ export type Metric = {
   displayName: string;
   aggregation: 'COUNT' | 'COUNT_DISTINCT' | 'SUM' | 'AVG' | 'MIN' | 'MAX';
   version: number;
+  description?: string;
+  businessDefinition?: string;
+  aliases: string[];
+  unit?: string;
+  formatPattern?: string;
+  status: string;
+  domain?: string;
+  owner?: string;
+  certificationStatus: string;
+  aggregationBehavior?: string;
+  additivity?: string;
+  metricType: string;
+  defaultTimeDimensionId?: UUID;
 };
 export type TimeGranularity = 'DAY' | 'WEEK' | 'MONTH' | 'QUARTER' | 'YEAR';
 export type Dimension = {
@@ -139,6 +168,17 @@ export type Dimension = {
   type: 'STANDARD' | 'TIME';
   allowedGranularities: TimeGranularity[];
   version: number;
+  description?: string;
+  businessDefinition?: string;
+  aliases: string[];
+  domain?: string;
+  owner?: string;
+  status: string;
+  certificationStatus: string;
+  semanticType?: string;
+  valueType?: string;
+  defaultGranularity?: TimeGranularity;
+  sensitivityLevel: string;
 };
 export type SchemaDiff = {
   added: FieldChange[];
@@ -160,10 +200,38 @@ export type DeletionImpact = {
   relationshipCount: number;
 };
 export type DimensionSelection = { dimensionId: UUID; granularity?: TimeGranularity };
+export type DimensionFilter = { dimensionId: UUID; operator: FilterOperator; values?: unknown[] };
+export type TimePreset =
+  | 'TODAY'
+  | 'YESTERDAY'
+  | 'LAST_7_DAYS'
+  | 'LAST_30_DAYS'
+  | 'MONTH_TO_DATE'
+  | 'QUARTER_TO_DATE'
+  | 'YEAR_TO_DATE'
+  | 'LAST_MONTH'
+  | 'LAST_QUARTER'
+  | 'LAST_YEAR';
+export type TimeRange = {
+  dimensionId: UUID;
+  start?: string;
+  end?: string;
+  preset?: TimePreset;
+  timezone: string;
+};
+export type SortSelection = {
+  type: 'METRIC' | 'DIMENSION';
+  objectId: UUID;
+  direction: 'ASC' | 'DESC';
+};
 export type QueryRequest = {
   metricIds: UUID[];
   dimensions: DimensionSelection[];
   relationshipIds: UUID[];
+  filters?: DimensionFilter[];
+  timeRange?: TimeRange;
+  sort?: SortSelection[];
+  limit?: number;
 };
 export type SemanticSelection = { id: UUID; datasetId: UUID; name: string };
 export type AggregatePlanSummary = {
@@ -179,12 +247,51 @@ export type ValidationResponse = {
   aggregates: AggregatePlanSummary[];
   resolvedRelationshipIds: UUID[];
   parameterCount: number;
+  issues: ValidationIssue[];
+  warnings: string[];
+  normalizedRequest?: QueryRequest;
+  catalogVersion?: string;
+  planToken?: string;
+};
+export type ValidationIssue = {
+  code: string;
+  message: string;
+  objectType?: 'DATASET' | 'METRIC' | 'DIMENSION';
+  objectId?: UUID;
+  candidatePaths?: RelationshipPathSummary[];
 };
 export type QueryResponse = {
-  columns: { name: string; type: string }[];
+  columns: ResultColumn[];
   rows: unknown[][];
   metrics: Metric[];
   dimensions: Dimension[];
+  sql?: string;
+  durationMs: number;
+  queryId: UUID;
+  rowCount: number;
+  truncated: boolean;
+  appliedFilters: DimensionFilter[];
+  appliedTimeRange?: TimeRange;
+  freshnessWarnings: string[];
+  catalogVersion: string;
+  evidence: QueryEvidence;
+};
+export type ResultColumn = {
+  name: string;
+  type: string;
+  semanticType?: 'METRIC' | 'DIMENSION';
+  semanticObjectId?: UUID;
+  displayName?: string;
+  logicalType?: string;
+  unit?: string;
+  formatPattern?: string;
+  granularity?: TimeGranularity;
+};
+export type QueryEvidence = {
+  queryId: UUID;
+  catalogVersion: string;
+  definitionVersions: Record<UUID, number>;
+  relationshipIds: UUID[];
 };
 export type SemanticSearchResult = {
   type: 'DATASET' | 'METRIC' | 'DIMENSION';
@@ -192,6 +299,84 @@ export type SemanticSearchResult = {
   datasetId: UUID;
   name: string;
   displayName: string;
+  description?: string;
+  aliases: string[];
+  score: number;
+  matchReasons: string[];
+  status?: string;
+  certificationStatus?: string;
+  domain?: string;
+  version: number;
+  updatedAt?: string;
+  summary: Record<string, unknown>;
+};
+export type SemanticSearchRequest = {
+  query: string;
+  datasetIds?: UUID[];
+  objectTypes?: ('DATASET' | 'METRIC' | 'DIMENSION')[];
+  domains?: string[];
+  statuses?: string[];
+  certifiedOnly?: boolean;
+  topK?: number;
+};
+export type RelationshipPathSummary = {
+  relationshipId: UUID;
+  name: string;
+  displayPath?: string;
+  sourceDatasetId: UUID;
+  targetDatasetId: UUID;
+  cardinality: string;
+  semanticRole?: string;
+  fanoutSafe: boolean;
+};
+export type SemanticResolveRequest = {
+  objects: { type: 'DATASET' | 'METRIC' | 'DIMENSION'; id: UUID }[];
+  relationshipIds?: UUID[];
+};
+export type SemanticResolveResponse = {
+  catalogVersion: string;
+  objects: ResolvedSemanticObject[];
+  relationshipPaths: RelationshipPathSummary[];
+};
+export type ResolvedSemanticObject = {
+  type: 'DATASET' | 'METRIC' | 'DIMENSION';
+  id: UUID;
+  datasetId: UUID;
+  name: string;
+  displayName?: string;
+  description?: string;
+  businessDefinition?: string;
+  aliases: string[];
+  domain?: string;
+  owner?: string;
+  status?: string;
+  certificationStatus?: string;
+  datasetGrain?: string;
+  unit?: string;
+  formatPattern?: string;
+  valueType?: string;
+  allowedGranularities: TimeGranularity[];
+  freshnessPolicy?: string;
+  qualityStatus?: string;
+  version: number;
+};
+export type CapabilitiesResponse = {
+  apiVersion: string;
+  catalogVersion: string;
+  queryFeatures: string[];
+  limits: Record<string, number>;
+  timePresets: TimePreset[];
+  planTokenSupported: boolean;
+};
+export type DimensionMemberSearchRequest = {
+  query: string;
+  mode?: 'AUTO' | 'EXACT' | 'PREFIX' | 'CONTAINS';
+  topK?: number;
+};
+export type DimensionMemberSearchResponse = {
+  dimensionId: UUID;
+  members: { value: string; displayValue: string }[];
+  truncated: boolean;
 };
 export type ProblemDetails = {
   type?: string;
@@ -209,6 +394,7 @@ export type CreateDatasetRequest = {
   schemaName: string;
   objectName: string;
   selectedPhysicalFields: string[];
+  aliases?: string[];
 };
 export type UpdateDatasetRequest = {
   name: string;
@@ -216,10 +402,36 @@ export type UpdateDatasetRequest = {
   filterExpression?: FilterExpression;
   fieldUpdates?: { fieldId: UUID; displayName: string; selected: boolean }[];
   version: number;
+  aliases?: string[];
 };
-export type CreateMetricRequest = Omit<Metric, 'id' | 'version'>;
+export type CreateMetricRequest = Pick<
+  Metric,
+  'datasetId' | 'datasetFieldId' | 'name' | 'displayName' | 'aggregation'
+> &
+  Partial<
+    Omit<
+      Metric,
+      'id' | 'version' | 'datasetId' | 'datasetFieldId' | 'name' | 'displayName' | 'aggregation'
+    >
+  >;
 export type UpdateMetricRequest = Omit<CreateMetricRequest, 'datasetId'> & { version: number };
-export type CreateDimensionRequest = Omit<Dimension, 'id' | 'version'>;
+export type CreateDimensionRequest = Pick<
+  Dimension,
+  'datasetId' | 'datasetFieldId' | 'name' | 'displayName' | 'type' | 'allowedGranularities'
+> &
+  Partial<
+    Omit<
+      Dimension,
+      | 'id'
+      | 'version'
+      | 'datasetId'
+      | 'datasetFieldId'
+      | 'name'
+      | 'displayName'
+      | 'type'
+      | 'allowedGranularities'
+    >
+  >;
 export type UpdateDimensionRequest = Omit<CreateDimensionRequest, 'datasetId'> & {
   version: number;
 };

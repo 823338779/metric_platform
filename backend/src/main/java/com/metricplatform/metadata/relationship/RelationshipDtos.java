@@ -23,13 +23,36 @@ public final class RelationshipDtos {
             @NotNull UUID sourceDatasetId,
             @NotNull UUID targetDatasetId,
             @NotNull Cardinality cardinality,
-            @NotEmpty List<@Valid FieldPairRequest> fieldPairs) {}
+            @NotEmpty List<@Valid FieldPairRequest> fieldPairs,
+            String description,
+            String displayPath,
+            String semanticRole,
+            Boolean fanoutSafe,
+            String status) {
+        public CreateRelationshipRequest(
+                String name, UUID sourceDatasetId, UUID targetDatasetId, Cardinality cardinality,
+                List<FieldPairRequest> fieldPairs) {
+            this(name, sourceDatasetId, targetDatasetId, cardinality, fieldPairs, null, null, null,
+                    true, "ACTIVE");
+        }
+    }
 
     public record UpdateRelationshipRequest(
             @NotBlank String name,
             @NotNull Cardinality cardinality,
             @NotEmpty List<@Valid FieldPairRequest> fieldPairs,
-            long version) {}
+            long version,
+            String description,
+            String displayPath,
+            String semanticRole,
+            Boolean fanoutSafe,
+            String status) {
+        public UpdateRelationshipRequest(
+                String name, Cardinality cardinality, List<FieldPairRequest> fieldPairs,
+                long version) {
+            this(name, cardinality, fieldPairs, version, null, null, null, true, "ACTIVE");
+        }
+    }
 
     public record RelationshipResponse(
             UUID id,
@@ -41,5 +64,18 @@ public final class RelationshipDtos {
             List<FieldPairRequest> fieldPairs,
             String validationStatus,
             LocalDateTime lastValidatedAt,
-            long version) {}
+            long version,
+            String description,
+            String displayPath,
+            String semanticRole,
+            boolean fanoutSafe,
+            String status) {
+        public RelationshipResponse(
+                UUID id, String name, UUID sourceDatasetId, UUID targetDatasetId,
+                Cardinality cardinality, String joinType, List<FieldPairRequest> fieldPairs,
+                String validationStatus, LocalDateTime lastValidatedAt, long version) {
+            this(id, name, sourceDatasetId, targetDatasetId, cardinality, joinType, fieldPairs,
+                    validationStatus, lastValidatedAt, version, null, null, null, true, "ACTIVE");
+        }
+    }
 }

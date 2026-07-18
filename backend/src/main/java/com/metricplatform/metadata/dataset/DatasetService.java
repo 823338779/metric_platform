@@ -24,10 +24,12 @@ import java.util.Map;
 import java.util.NoSuchElementException;
 import java.util.Set;
 import java.util.UUID;
+import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 @Service
+@RequiredArgsConstructor
 public class DatasetService {
     private final DataSourceMapper sources;
     private final DatasetMapper datasets;
@@ -38,27 +40,6 @@ public class DatasetService {
     private final SourceMetadataInspector sourceMetadata;
     private final FilterValidator filterValidator;
     private final ObjectMapper objectMapper;
-
-    public DatasetService(
-            DataSourceMapper sources,
-            DatasetMapper datasets,
-            DatasetFieldMapper fields,
-            MetricMapper metrics,
-            DimensionMapper dimensions,
-            DatasetRelationshipMapper relationships,
-            SourceMetadataInspector sourceMetadata,
-            FilterValidator filterValidator,
-            ObjectMapper objectMapper) {
-        this.sources = sources;
-        this.datasets = datasets;
-        this.fields = fields;
-        this.metrics = metrics;
-        this.dimensions = dimensions;
-        this.relationships = relationships;
-        this.sourceMetadata = sourceMetadata;
-        this.filterValidator = filterValidator;
-        this.objectMapper = objectMapper;
-    }
 
     @Transactional
     public DatasetResponse create(CreateDatasetRequest request) {
@@ -94,6 +75,10 @@ public class DatasetService {
         dataset.setSchemaName(object.schema());
         dataset.setObjectName(object.name());
         dataset.setObjectType(object.type());
+        applyMetadata(dataset, request.businessGrain(), request.defaultTimeDimensionId(),
+                request.freshnessPolicy(), request.qualityStatus(), request.domain(),
+                request.owner(), request.status(), request.certificationStatus());
+        if (request.aliases() != null) dataset.setAliases(writeAliases(request.aliases()));
         dataset.setVersion(0);
         datasets.insert(dataset);
 
@@ -108,6 +93,7 @@ public class DatasetService {
             field.setDimensionEnabled(true);
             field.setMetricEnabled(true);
             field.setSelected(true);
+            field.setSensitivityLevel("INTERNAL");
             field.setVersion(0);
             fields.insert(field);
         }
@@ -162,6 +148,8 @@ public class DatasetService {
             }
             field.setDisplayName(fieldUpdate.displayName().trim());
             field.setSelected(fieldUpdate.selected());
+            field.setDescription(trimToNull(fieldUpdate.description()));
+            field.setSensitivityLevel(defaultValue(fieldUpdate.sensitivityLevel(), "INTERNAL"));
             if (fields.updateById(field) == 0) {
                 throw new ConflictException("dataset field was modified by another user");
             }
@@ -170,6 +158,10 @@ public class DatasetService {
         dataset.setName(request.name().trim());
         dataset.setDescription(trimToNull(request.description()));
         dataset.setFilterExpression(writeFilter(request.filterExpression()));
+        applyMetadata(dataset, request.businessGrain(), request.defaultTimeDimensionId(),
+                request.freshnessPolicy(), request.qualityStatus(), request.domain(),
+                request.owner(), request.status(), request.certificationStatus());
+        if (request.aliases() != null) dataset.setAliases(writeAliases(request.aliases()));
         if (datasets.updateById(dataset) == 0) {
             throw new ConflictException("dataset was modified by another user");
         }
@@ -263,7 +255,16 @@ public class DatasetService {
                 dataset.getVersion(),
                 fieldEntities(dataset.getId()).stream()
                         .map(DatasetService::fieldResponse)
-                        .toList());
+                        .toList(),
+                dataset.getBusinessGrain(),
+                dataset.getDefaultTimeDimensionId(),
+                dataset.getFreshnessPolicy(),
+                dataset.getQualityStatus(),
+                dataset.getDomainName(),
+                dataset.getOwnerName(),
+                dataset.getStatus(),
+                dataset.getCertificationStatus(),
+                readAliases(dataset.getAliases()));
     }
 
     private static DatasetFieldResponse fieldResponse(DatasetFieldEntity field) {
@@ -273,7 +274,29 @@ public class DatasetService {
                 field.getDisplayName(),
                 field.getStarrocksType(),
                 field.isSelected(),
-                field.getVersion());
+                field.getVersion(),
+                field.getDescription(),
+                field.getSensitivityLevel());
+    }
+
+    private static void applyMetadata(
+            DatasetEntity dataset,
+            String businessGrain,
+            UUID defaultTimeDimensionId,
+            String freshnessPolicy,
+            String qualityStatus,
+            String domain,
+            String owner,
+            String status,
+            String certificationStatus) {
+        dataset.setBusinessGrain(trimToNull(businessGrain));
+        dataset.setDefaultTimeDimensionId(defaultTimeDimensionId);
+        dataset.setFreshnessPolicy(trimToNull(freshnessPolicy));
+        dataset.setQualityStatus(defaultValue(qualityStatus, "UNKNOWN"));
+        dataset.setDomainName(trimToNull(domain));
+        dataset.setOwnerName(trimToNull(owner));
+        dataset.setStatus(defaultValue(status, "ACTIVE"));
+        dataset.setCertificationStatus(defaultValue(certificationStatus, "UNCERTIFIED"));
     }
 
     private String writeFilter(FilterExpression filter) {
@@ -283,6 +306,32 @@ public class DatasetService {
         } catch (JsonProcessingException exception) {
             throw new IllegalArgumentException(
                     "filter expression could not be serialized", exception);
+        }
+    }
+
+    private String writeAliases(List<String> values) {
+        List<String> normalized = values == null
+                ? List.of()
+                : values.stream()
+                        .filter(value -> value != null && !value.isBlank())
+                        .map(String::trim)
+                        .distinct()
+                        .toList();
+        try {
+            return objectMapper.writeValueAsString(normalized);
+        } catch (JsonProcessingException exception) {
+            throw new IllegalArgumentException("aliases could not be serialized", exception);
+        }
+    }
+
+    private List<String> readAliases(String json) {
+        if (json == null || json.isBlank()) return List.of();
+        try {
+            return objectMapper.readValue(
+                    json,
+                    objectMapper.getTypeFactory().constructCollectionType(List.class, String.class));
+        } catch (JsonProcessingException exception) {
+            throw new IllegalStateException("stored aliases are invalid", exception);
         }
     }
 
@@ -298,5 +347,9 @@ public class DatasetService {
     private static String trimToNull(String value) {
         if (value == null || value.isBlank()) return null;
         return value.trim();
+    }
+
+    private static String defaultValue(String value, String fallback) {
+        return value == null || value.isBlank() ? fallback : value.trim();
     }
 }

@@ -20,29 +20,18 @@ import java.util.Locale;
 import java.util.NoSuchElementException;
 import java.util.Set;
 import java.util.UUID;
+import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 @Service
+@RequiredArgsConstructor
 public class DatasetRelationshipService {
     private final DatasetMapper datasets;
     private final DatasetFieldMapper fields;
     private final DatasetRelationshipMapper relationships;
     private final DatasetRelationshipFieldPairMapper pairs;
     private final RelationshipCardinalityValidator cardinalityValidator;
-
-    public DatasetRelationshipService(
-            DatasetMapper datasets,
-            DatasetFieldMapper fields,
-            DatasetRelationshipMapper relationships,
-            DatasetRelationshipFieldPairMapper pairs,
-            RelationshipCardinalityValidator cardinalityValidator) {
-        this.datasets = datasets;
-        this.fields = fields;
-        this.relationships = relationships;
-        this.pairs = pairs;
-        this.cardinalityValidator = cardinalityValidator;
-    }
 
     @Transactional
     public RelationshipResponse create(CreateRelationshipRequest request) {
@@ -59,6 +48,8 @@ public class DatasetRelationshipService {
         relationship.setSourceDatasetId(source.getId());
         relationship.setTargetDatasetId(target.getId());
         relationship.setCardinality(request.cardinality().name());
+        applyMetadata(relationship, source, target, request.description(), request.displayPath(),
+                request.semanticRole(), request.fanoutSafe(), request.status());
         relationship.setLastValidationStatus("VALID");
         relationship.setLastValidatedAt(now);
         relationships.insert(relationship);
@@ -97,6 +88,8 @@ public class DatasetRelationshipService {
 
         relationship.setName(request.name().trim());
         relationship.setCardinality(request.cardinality().name());
+        applyMetadata(relationship, source, target, request.description(), request.displayPath(),
+                request.semanticRole(), request.fanoutSafe(), request.status());
         relationship.setLastValidationStatus("VALID");
         relationship.setLastValidatedAt(LocalDateTime.now());
         if (relationships.updateById(relationship) == 0) {
@@ -269,7 +262,35 @@ public class DatasetRelationshipService {
                 List.copyOf(requests),
                 relationship.getLastValidationStatus(),
                 relationship.getLastValidatedAt(),
-                relationship.getVersion());
+                relationship.getVersion(),
+                relationship.getDescription(),
+                relationship.getDisplayPath(),
+                relationship.getSemanticRole(),
+                relationship.isFanoutSafe(),
+                relationship.getStatus());
+    }
+
+    private static void applyMetadata(
+            DatasetRelationshipEntity relationship,
+            DatasetEntity source,
+            DatasetEntity target,
+            String description,
+            String displayPath,
+            String semanticRole,
+            Boolean fanoutSafe,
+            String status) {
+        relationship.setDescription(trimToNull(description));
+        relationship.setDisplayPath(
+                displayPath == null || displayPath.isBlank()
+                        ? source.getName() + " -> " + target.getName()
+                        : displayPath.trim());
+        relationship.setSemanticRole(trimToNull(semanticRole));
+        relationship.setFanoutSafe(fanoutSafe == null || fanoutSafe);
+        relationship.setStatus(status == null || status.isBlank() ? "ACTIVE" : status.trim());
+    }
+
+    private static String trimToNull(String value) {
+        return value == null || value.isBlank() ? null : value.trim();
     }
 
     private List<FieldPairRequest> pairRequests(UUID relationshipId) {

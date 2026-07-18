@@ -4,11 +4,13 @@ import com.metricplatform.persistence.entity.*;
 import com.metricplatform.persistence.mapper.*;
 import com.metricplatform.security.PlatformPrincipal;
 import java.util.*;
+import lombok.RequiredArgsConstructor;
 import org.springframework.security.core.Authentication;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 @Service
+@RequiredArgsConstructor
 public class MetadataService {
     private final DataSourceMapper sources;
     private final DatasetMapper datasets;
@@ -16,21 +18,6 @@ public class MetadataService {
     private final DimensionMapper dimensions;
     private final MetricMapper metrics;
     private final AuditEventMapper audit;
-
-    public MetadataService(
-            DataSourceMapper s,
-            DatasetMapper d,
-            DatasetFieldMapper f,
-            DimensionMapper x,
-            MetricMapper m,
-            AuditEventMapper a) {
-        sources = s;
-        datasets = d;
-        fields = f;
-        dimensions = x;
-        metrics = m;
-        audit = a;
-    }
 
     @Transactional
     public DatasetEntity createDataset(MetadataDtos.CreateDatasetRequest r, Authentication auth) {

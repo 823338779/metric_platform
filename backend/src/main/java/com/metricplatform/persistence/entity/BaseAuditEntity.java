@@ -4,7 +4,11 @@ import com.baomidou.mybatisplus.annotation.FieldFill;
 import com.baomidou.mybatisplus.annotation.TableField;
 import com.baomidou.mybatisplus.annotation.TableLogic;
 import java.time.Instant;
+import lombok.Getter;
+import lombok.Setter;
 
+@Getter
+@Setter
 public abstract class BaseAuditEntity {
     @TableField(value = "created_at", fill = FieldFill.INSERT)
     private Instant createdAt;
@@ -18,36 +22,4 @@ public abstract class BaseAuditEntity {
 
     @TableField(value = "deleted_at", fill = FieldFill.UPDATE)
     private Instant deletedAt;
-
-    public Instant getCreatedAt() {
-        return createdAt;
-    }
-
-    public void setCreatedAt(Instant createdAt) {
-        this.createdAt = createdAt;
-    }
-
-    public Instant getUpdatedAt() {
-        return updatedAt;
-    }
-
-    public void setUpdatedAt(Instant updatedAt) {
-        this.updatedAt = updatedAt;
-    }
-
-    public boolean isDeleted() {
-        return deleted;
-    }
-
-    public void setDeleted(boolean deleted) {
-        this.deleted = deleted;
-    }
-
-    public Instant getDeletedAt() {
-        return deletedAt;
-    }
-
-    public void setDeletedAt(Instant deletedAt) {
-        this.deletedAt = deletedAt;
-    }
 }

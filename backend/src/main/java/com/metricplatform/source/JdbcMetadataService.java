@@ -19,23 +19,16 @@ import java.util.List;
 import java.util.NoSuchElementException;
 import java.util.Set;
 import java.util.UUID;
+import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
 @Service
+@RequiredArgsConstructor
 public class JdbcMetadataService {
     private static final Set<Integer> PREVIEW_LIMITS = Set.of(20, 50, 100);
     private final DataSourceMapper sources;
     private final JdbcConnectionService connections;
     private final JdbcDialectRegistry dialects;
-
-    public JdbcMetadataService(
-            DataSourceMapper sources,
-            JdbcConnectionService connections,
-            JdbcDialectRegistry dialects) {
-        this.sources = sources;
-        this.connections = connections;
-        this.dialects = dialects;
-    }
 
     public List<CatalogResponse> catalogs(UUID sourceId) throws SQLException {
         DataSourceEntity source = active(sourceId);
@@ -166,7 +159,14 @@ public class JdbcMetadataService {
             try (Statement statement = connection.createStatement()) {
                 statement.setQueryTimeout(10);
                 statement.setMaxRows(limit);
-                try (ResultSet result = statement.executeQuery("SELECT * FROM " + table)) {
+                String sql = "SELECT * FROM " + table;
+                ExternalSqlLogger.logRaw(
+                        connection,
+                        "object_preview",
+                        source.getId(),
+                        source.getDatabaseName(),
+                        sql);
+                try (ResultSet result = statement.executeQuery(sql)) {
                     ResultSetMetaData metadata = result.getMetaData();
                     List<PreviewColumn> columns = new ArrayList<>();
                     for (int index = 1; index <= metadata.getColumnCount(); index++)

@@ -381,10 +381,20 @@ paths:
           { '200': { description: Dimension }, '409': { $ref: '#/components/responses/Problem' } },
       }
     delete: { summary: Delete dimension, responses: { '204': { description: Deleted } } }
+  /api/v1/capabilities:
+    get:
+      summary: Describe the agent-safe semantic query capabilities
+      x-required-roles: [METRIC_QUERY_CLIENT, PLATFORM_ADMIN, SEMANTIC_EDITOR]
+      responses:
+        '200':
+          description: Supported features and limits
+          content:
+            application/json: { schema: { $ref: '#/components/schemas/CapabilitiesResponse' } }
   /api/v1/semantic-objects:search:
     post:
       {
         summary: Search semantic objects,
+        x-required-roles: [METRIC_QUERY_CLIENT, PLATFORM_ADMIN, SEMANTIC_EDITOR],
         requestBody:
           {
             required: true,
@@ -394,8 +404,54 @@ paths:
                   { schema: { $ref: '#/components/schemas/SemanticSearchRequest' } },
               },
           },
-        responses: { '200': { description: Search results } },
+        responses:
+          {
+            '200':
+              {
+                description: Ranked search results,
+                content:
+                  {
+                    application/json:
+                      {
+                        schema:
+                          { type: array, items: { $ref: '#/components/schemas/SemanticSearchResult' } },
+                      },
+                  },
+              },
+          },
       }
+  /api/v1/semantic-objects:resolve:
+    post:
+      summary: Resolve semantic objects and agent-safe relationship context
+      x-required-roles: [METRIC_QUERY_CLIENT, PLATFORM_ADMIN, SEMANTIC_EDITOR]
+      requestBody:
+        required: true
+        content:
+          application/json: { schema: { $ref: '#/components/schemas/SemanticResolveRequest' } }
+      responses:
+        '200':
+          description: Resolved semantic context
+          content:
+            application/json: { schema: { $ref: '#/components/schemas/SemanticResolveResponse' } }
+        '404': { $ref: '#/components/responses/Problem' }
+  /api/v1/dimensions/{id}/members:search:
+    post:
+      summary: Search governed members for one dimension
+      x-required-roles: [METRIC_QUERY_CLIENT, PLATFORM_ADMIN, SEMANTIC_EDITOR]
+      parameters:
+        [{ name: dimensionId, in: path, required: true, schema: { $ref: '#/components/schemas/Uuid' } }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            { schema: { $ref: '#/components/schemas/DimensionMemberSearchRequest' } }
+      responses:
+        '200':
+          description: Canonical dimension members
+          content:
+            application/json:
+              { schema: { $ref: '#/components/schemas/DimensionMemberSearchResponse' } }
+        '403': { $ref: '#/components/responses/Problem' }
   /api/v1/queries:validate:
     post:
       {
@@ -570,6 +626,7 @@ components:
             id: { $ref: '#/components/schemas/Uuid' },
             dataSourceId: { $ref: '#/components/schemas/Uuid' },
             name: { type: string },
+            aliases: { type: array, items: { type: string } },
             filterExpression: { $ref: '#/components/schemas/FilterExpression' },
             fields: { type: array, items: { $ref: '#/components/schemas/DatasetField' } },
           },
@@ -578,6 +635,7 @@ components:
       {
         type: object,
         required: [dataSourceId, name, schemaName, objectName, selectedPhysicalFields],
+        properties: { aliases: { type: array, items: { type: string } } },
       }
     UpdateDatasetRequest:
       {
@@ -613,7 +671,15 @@ components:
       {
         type: object,
         required: [datasetId, name, displayName, aggregation],
-        properties: { aggregation: { enum: [COUNT, COUNT_DISTINCT, SUM, AVG, MIN, MAX] } },
+        properties:
+          {
+            aggregation: { enum: [COUNT, COUNT_DISTINCT, SUM, AVG, MIN, MAX] },
+            description: { type: string },
+            businessDefinition: { type: string },
+            aliases: { type: array, items: { type: string } },
+            unit: { type: string },
+            formatPattern: { type: string },
+          },
       }
     CreateDimensionRequest:
       {
@@ -624,6 +690,9 @@ components:
             type: { enum: [STANDARD, TIME] },
             allowedGranularities:
               { type: array, items: { enum: [DAY, WEEK, MONTH, QUARTER, YEAR] } },
+            description: { type: string },
+            businessDefinition: { type: string },
+            aliases: { type: array, items: { type: string } },
           },
       }
     DimensionSelection:
@@ -636,6 +705,30 @@ components:
             granularity: { enum: [DAY, WEEK, MONTH, QUARTER, YEAR] },
           },
       }
+    DimensionFilter:
+      type: object
+      required: [dimensionId, operator]
+      properties:
+        dimensionId: { $ref: '#/components/schemas/Uuid' }
+        operator: { enum: [EQ, NE, GT, GTE, LT, LTE, BETWEEN, IN, CONTAINS, IS_NULL, IS_NOT_NULL] }
+        values: { type: array, items: {} }
+    TimeRange:
+      type: object
+      required: [dimensionId, timezone]
+      properties:
+        dimensionId: { $ref: '#/components/schemas/Uuid' }
+        start: { type: string, format: date-time }
+        end: { type: string, format: date-time }
+        preset:
+          { enum: [TODAY, YESTERDAY, LAST_7_DAYS, LAST_30_DAYS, MONTH_TO_DATE, QUARTER_TO_DATE, YEAR_TO_DATE, LAST_MONTH, LAST_QUARTER, LAST_YEAR] }
+        timezone: { type: string, example: Asia/Shanghai }
+    SortSelection:
+      type: object
+      required: [type, objectId, direction]
+      properties:
+        type: { enum: [METRIC, DIMENSION] }
+        objectId: { $ref: '#/components/schemas/Uuid' }
+        direction: { enum: [ASC, DESC] }
     QueryRequest:
       type: object
       required: [metricIds]
@@ -644,14 +737,66 @@ components:
         dimensions: { type: array, items: { $ref: '#/components/schemas/DimensionSelection' } }
         relationshipIds:
           { type: array, uniqueItems: true, items: { $ref: '#/components/schemas/Uuid' } }
+        filters: { type: array, items: { $ref: '#/components/schemas/DimensionFilter' } }
+        timeRange: { $ref: '#/components/schemas/TimeRange' }
+        sort: { type: array, items: { $ref: '#/components/schemas/SortSelection' } }
+        limit: { type: integer, minimum: 1, maximum: 1000, default: 1000 }
+    ResultColumn:
+      type: object
+      required: [name, type]
+      properties:
+        name: { type: string }
+        type: { type: string }
+        semanticType: { enum: [METRIC, DIMENSION] }
+        semanticObjectId: { $ref: '#/components/schemas/Uuid' }
+        displayName: { type: string }
+        logicalType: { type: string }
+        unit: { type: string }
+        formatPattern: { type: string }
+        granularity: { enum: [DAY, WEEK, MONTH, QUARTER, YEAR] }
     QueryResponse:
       type: object
-      required: [columns, rows, metrics, dimensions]
+      required: [columns, rows, metrics, dimensions, queryId, rowCount, truncated, durationMs]
+      properties:
+        columns: { type: array, items: { $ref: '#/components/schemas/ResultColumn' } }
+        rows: { type: array, items: { type: array, items: {} } }
+        queryId: { $ref: '#/components/schemas/Uuid' }
+        rowCount: { type: integer, minimum: 0 }
+        truncated: { type: boolean }
+        appliedFilters: { type: array, items: { $ref: '#/components/schemas/DimensionFilter' } }
+        appliedTimeRange: { $ref: '#/components/schemas/TimeRange' }
+        freshnessWarnings: { type: array, items: { type: string } }
+        catalogVersion: { type: string }
+        evidence: { $ref: '#/components/schemas/QueryEvidence' }
+        sql: { type: string, description: Complete rendered SQL for authorized interactive users }
+        durationMs: { type: integer, format: int64, minimum: 0 }
+    QueryEvidence:
+      type: object
+      required: [queryId, catalogVersion, definitionVersions, relationshipIds]
+      properties:
+        queryId: { $ref: '#/components/schemas/Uuid' }
+        catalogVersion: { type: string }
+        definitionVersions: { type: object, additionalProperties: { $ref: '#/components/schemas/Version' } }
+        relationshipIds: { type: array, items: { $ref: '#/components/schemas/Uuid' } }
     ValidationResponse:
-      {
-        type: object,
-        required: [valid, metrics, dimensions, aggregates, resolvedRelationshipIds, parameterCount],
-      }
+      type: object
+      required: [valid, metrics, dimensions, aggregates, resolvedRelationshipIds, parameterCount, issues, warnings]
+      properties:
+        valid: { type: boolean }
+        issues: { type: array, items: { $ref: '#/components/schemas/ValidationIssue' } }
+        warnings: { type: array, items: { type: string } }
+        normalizedRequest: { $ref: '#/components/schemas/QueryRequest' }
+        catalogVersion: { type: string }
+        planToken: { type: [string, 'null'] }
+    ValidationIssue:
+      type: object
+      required: [code, message]
+      properties:
+        code: { type: string }
+        message: { type: string }
+        objectType: { enum: [DATASET, METRIC, DIMENSION] }
+        objectId: { $ref: '#/components/schemas/Uuid' }
+        candidatePaths: { type: array, items: { $ref: '#/components/schemas/RelationshipPathSummary' } }
     SemanticSearchRequest:
       {
         type: object,
@@ -661,8 +806,116 @@ components:
             query: { type: string },
             datasetIds: { type: array, items: { $ref: '#/components/schemas/Uuid' } },
             objectTypes: { type: array, items: { enum: [DATASET, METRIC, DIMENSION] } },
+            domains: { type: array, items: { type: string } },
+            statuses: { type: array, items: { type: string } },
+            certifiedOnly: { type: boolean, default: false },
+            topK: { type: integer, minimum: 1, maximum: 100, default: 20 },
           },
       }
+    SemanticSearchResult:
+      type: object
+      required: [type, id, datasetId, name, aliases, score, matchReasons, version, summary]
+      properties:
+        type: { enum: [DATASET, METRIC, DIMENSION] }
+        id: { $ref: '#/components/schemas/Uuid' }
+        datasetId: { $ref: '#/components/schemas/Uuid' }
+        name: { type: string }
+        displayName: { type: string }
+        description: { type: string }
+        aliases: { type: array, items: { type: string } }
+        score: { type: number, format: double }
+        matchReasons: { type: array, items: { type: string } }
+        status: { type: string }
+        certificationStatus: { type: string }
+        domain: { type: string }
+        version: { $ref: '#/components/schemas/Version' }
+        updatedAt: { type: string, format: date-time }
+        summary: { type: object, additionalProperties: true }
+    SemanticObjectReference:
+      type: object
+      required: [type, id]
+      properties:
+        type: { enum: [DATASET, METRIC, DIMENSION] }
+        id: { $ref: '#/components/schemas/Uuid' }
+    SemanticResolveRequest:
+      type: object
+      required: [objects]
+      properties:
+        objects: { type: array, minItems: 1, items: { $ref: '#/components/schemas/SemanticObjectReference' } }
+        relationshipIds: { type: array, uniqueItems: true, items: { $ref: '#/components/schemas/Uuid' } }
+    RelationshipPathSummary:
+      type: object
+      required: [relationshipId, name, sourceDatasetId, targetDatasetId, cardinality, fanoutSafe]
+      properties:
+        relationshipId: { $ref: '#/components/schemas/Uuid' }
+        name: { type: string }
+        displayPath: { type: string }
+        sourceDatasetId: { $ref: '#/components/schemas/Uuid' }
+        targetDatasetId: { $ref: '#/components/schemas/Uuid' }
+        cardinality: { type: string }
+        semanticRole: { type: string }
+        fanoutSafe: { type: boolean }
+    ResolvedSemanticObject:
+      type: object
+      required: [type, id, datasetId, name, aliases, version]
+      properties:
+        type: { enum: [DATASET, METRIC, DIMENSION] }
+        id: { $ref: '#/components/schemas/Uuid' }
+        datasetId: { $ref: '#/components/schemas/Uuid' }
+        name: { type: string }
+        displayName: { type: string }
+        description: { type: string }
+        businessDefinition: { type: string }
+        aliases: { type: array, items: { type: string } }
+        domain: { type: string }
+        owner: { type: string }
+        status: { type: string }
+        certificationStatus: { type: string }
+        datasetGrain: { type: string }
+        unit: { type: string }
+        formatPattern: { type: string }
+        valueType: { type: string }
+        allowedGranularities: { type: array, items: { enum: [DAY, WEEK, MONTH, QUARTER, YEAR] } }
+        freshnessPolicy: { type: string }
+        qualityStatus: { type: string }
+        version: { $ref: '#/components/schemas/Version' }
+    SemanticResolveResponse:
+      type: object
+      required: [catalogVersion, objects, relationshipPaths]
+      properties:
+        catalogVersion: { type: string }
+        objects: { type: array, items: { $ref: '#/components/schemas/ResolvedSemanticObject' } }
+        relationshipPaths: { type: array, items: { $ref: '#/components/schemas/RelationshipPathSummary' } }
+    CapabilitiesResponse:
+      type: object
+      required: [apiVersion, catalogVersion, queryFeatures, limits, timePresets, planTokenSupported]
+      properties:
+        apiVersion: { type: string }
+        catalogVersion: { type: string }
+        queryFeatures: { type: array, items: { type: string } }
+        limits: { type: object, additionalProperties: { type: integer } }
+        timePresets: { type: array, items: { type: string } }
+        planTokenSupported: { type: boolean }
+    DimensionMemberSearchRequest:
+      type: object
+      required: [query]
+      properties:
+        query: { type: string, minLength: 1 }
+        mode: { enum: [AUTO, EXACT, PREFIX, CONTAINS], default: AUTO }
+        topK: { type: integer, minimum: 1, maximum: 100, default: 20 }
+    DimensionMember:
+      type: object
+      required: [value, displayValue]
+      properties:
+        value: { type: string }
+        displayValue: { type: string }
+    DimensionMemberSearchResponse:
+      type: object
+      required: [dimensionId, members, truncated]
+      properties:
+        dimensionId: { $ref: '#/components/schemas/Uuid' }
+        members: { type: array, items: { $ref: '#/components/schemas/DimensionMember' } }
+        truncated: { type: boolean }
     Problem:
       {
         type: object,
