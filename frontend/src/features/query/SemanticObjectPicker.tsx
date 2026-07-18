@@ -5,10 +5,10 @@ import {
   HolderOutlined,
   PlusOutlined,
 } from '@ant-design/icons';
-import { Alert, Button, Empty, Input, Spin, Tag, Typography, message } from 'antd';
-import { useEffect, useMemo, useRef, useState, type DragEvent } from 'react';
+import { Alert, Button, Empty, Input, Select, Spin, Tag, Typography, message } from 'antd';
+import { useEffect, useMemo, useRef, useState, type DragEvent, type ReactNode } from 'react';
 import { metricPlatformApi } from '../../api/metricPlatformApi';
-import type { SemanticSearchResult } from '../../api/types';
+import type { DimensionSelection, SemanticSearchResult, TimeGranularity } from '../../api/types';
 import { placeSelection, removeSelection } from './semanticSelection';
 import './SemanticObjectPicker.css';
 
@@ -17,24 +17,37 @@ type DragPayload = { id: string; type: SemanticType };
 type Catalog = Record<string, SemanticSearchResult>;
 
 const dragMime = 'application/x-metric-platform-semantic';
+const granularityOrder: TimeGranularity[] = ['DAY', 'WEEK', 'MONTH', 'QUARTER', 'YEAR'];
+const granularityLabels: Record<TimeGranularity, string> = {
+  DAY: '日',
+  WEEK: '周',
+  MONTH: '月',
+  QUARTER: '季度',
+  YEAR: '年',
+};
 
 export function SemanticObjectPicker({
   metricIds,
-  dimensionIds,
+  dimensions,
   onMetrics,
   onDimensions,
 }: {
   metricIds: string[];
-  dimensionIds: string[];
+  dimensions: DimensionSelection[];
   onMetrics: (value: string[]) => void;
-  onDimensions: (value: string[]) => void;
+  onDimensions: (value: DimensionSelection[]) => void;
 }) {
   const [query, setQuery] = useState('');
   const [results, setResults] = useState<SemanticSearchResult[]>([]);
   const [catalog, setCatalog] = useState<Catalog>({});
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [granularities, setGranularities] = useState<Record<string, TimeGranularity[]>>({});
   const requestId = useRef(0);
+  const dimensionIds = useMemo(
+    () => dimensions.map(({ dimensionId }) => dimensionId),
+    [dimensions],
+  );
 
   useEffect(() => {
     const current = ++requestId.current;
@@ -70,9 +83,46 @@ export function SemanticObjectPicker({
     () => new Set([...metricIds, ...dimensionIds]),
     [metricIds, dimensionIds],
   );
+  const reportDimensionError = (reason: unknown) => {
+    setError(reason instanceof Error ? reason.message : '时间维度粒度加载失败');
+  };
+  const addDimension = async (id: string, index = dimensions.length) => {
+    const semantic = catalog[id];
+    let allowed: TimeGranularity[] = [];
+    let granularity: TimeGranularity | undefined;
+    if (semantic?.summary?.dimensionType === 'TIME') {
+      // 搜索结果只包含摘要；仅在选中时间维度时解析完整的允许粒度。
+      const resolved = await metricPlatformApi.resolveSemantic({
+        objects: [{ type: 'DIMENSION', id }],
+        relationshipIds: [],
+      });
+      const resolvedDimension = resolved.objects.find(
+        (value) => value.type === 'DIMENSION' && value.id === id,
+      );
+      const available = new Set(resolvedDimension?.allowedGranularities ?? []);
+      // 不依赖后端返回顺序，始终按日、周、月、季度、年的粒度顺序选择最小值。
+      allowed = granularityOrder.filter((value) => available.has(value));
+      granularity = allowed[0];
+      setGranularities((current) => ({ ...current, [id]: allowed }));
+    }
+    const next = dimensions.filter((value) => value.dimensionId !== id);
+    next.splice(Math.max(0, Math.min(index, next.length)), 0, { dimensionId: id, granularity });
+    onDimensions(next);
+  };
+  const addDimensionSafely = (id: string, index = dimensions.length) => {
+    setError('');
+    void addDimension(id, index).catch(reportDimensionError);
+  };
+  const reorderDimensions = (ids: string[]) =>
+    onDimensions(
+      ids.flatMap((id) => {
+        const selection = dimensions.find((value) => value.dimensionId === id);
+        return selection ? [selection] : [];
+      }),
+    );
   const add = (value: SemanticSearchResult) => {
     if (value.type === 'METRIC') onMetrics(placeSelection(metricIds, value.id));
-    if (value.type === 'DIMENSION') onDimensions(placeSelection(dimensionIds, value.id));
+    if (value.type === 'DIMENSION') addDimensionSafely(value.id);
   };
 
   return (
@@ -156,7 +206,32 @@ export function SemanticObjectPicker({
           description="可选，用于分组查询结果"
           ids={dimensionIds}
           catalog={catalog}
-          onChange={onDimensions}
+          onChange={reorderDimensions}
+          onAdd={addDimensionSafely}
+          renderExtra={(id) => {
+            const semantic = catalog[id];
+            if (semantic?.summary?.dimensionType !== 'TIME') return null;
+            const selection = dimensions.find((value) => value.dimensionId === id);
+            return (
+              <Select<TimeGranularity>
+                size="small"
+                aria-label={`${semantic.displayName}日期粒度`}
+                value={selection?.granularity}
+                options={(granularities[id] ?? []).map((value) => ({
+                  value,
+                  label: granularityLabels[value],
+                }))}
+                style={{ width: 88 }}
+                onChange={(granularity) =>
+                  onDimensions(
+                    dimensions.map((value) =>
+                      value.dimensionId === id ? { ...value, granularity } : value,
+                    ),
+                  )
+                }
+              />
+            );
+          }}
         />
       </div>
     </div>
@@ -170,6 +245,8 @@ function SemanticDropZone({
   ids,
   catalog,
   onChange,
+  onAdd,
+  renderExtra,
 }: {
   type: SemanticType;
   title: string;
@@ -177,12 +254,18 @@ function SemanticDropZone({
   ids: string[];
   catalog: Catalog;
   onChange: (value: string[]) => void;
+  onAdd?: (id: string, index: number) => void;
+  renderExtra?: (id: string) => ReactNode;
 }) {
   const [dragOver, setDragOver] = useState(false);
   const place = (payload: DragPayload | undefined, index = ids.length) => {
     if (!payload) return;
     if (payload.type !== type) {
       void message.warning('指标和维度需要放入对应区域');
+      return;
+    }
+    if (!ids.includes(payload.id) && onAdd) {
+      onAdd(payload.id, index);
       return;
     }
     onChange(placeSelection(ids, payload.id, index));
@@ -247,6 +330,7 @@ function SemanticDropZone({
                   </Typography.Text>
                 </div>
                 <div className="semantic-item-actions">
+                  {renderExtra?.(id)}
                   <Button
                     type="text"
                     size="small"

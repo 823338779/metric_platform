@@ -17,12 +17,12 @@ This change addresses only missing time granularity. It does not change semantic
 
 ## Frontend Data Flow
 
-The query workbench will store dimension selections as `DimensionSelection[]` instead of storing only dimension IDs. The semantic picker will continue to use IDs for placement and ordering, while also retaining the selected semantic object metadata needed to identify time dimensions and their supported granularities.
+The query workbench will store dimension selections as `DimensionSelection[]` instead of storing only dimension IDs. The semantic picker will continue to use IDs for placement and ordering. Semantic search metadata identifies time dimensions; when one is first added, the picker uses the existing `POST /semantic-objects:resolve` API to load its supported granularities and caches them for the inline selector.
 
 When a dimension is added:
 
-1. Read its dimension metadata from the semantic search result.
-2. If it is a time dimension, choose the smallest supported granularity using the fixed order.
+1. Read its dimension type from the semantic search result.
+2. If it is a time dimension, resolve it through the existing semantic API and choose the smallest supported granularity using the fixed order.
 3. Add `{ dimensionId, granularity }` to the workbench selection.
 4. If it is a standard dimension, add `{ dimensionId }`.
 
@@ -32,7 +32,7 @@ When the user changes a granularity, update only that dimension selection. The v
 
 - `QueryWorkbenchPage` owns `DimensionSelection[]` and builds `QueryRequest` without dropping granularity.
 - `SemanticObjectPicker` receives dimension selections and exposes selection updates. It renders an Ant Design selector only for selected time dimensions.
-- Semantic search result typing exposes the dimension metadata required by the picker, using the existing semantic search response rather than adding a new API call.
+- The picker uses the existing `resolveSemantic` client method only when a time dimension is first added; no backend or API-contract change is required.
 - A small pure helper determines the smallest supported granularity and keeps the ordering rule separate from rendering.
 
 ## Boundaries and Error Handling

@@ -1,13 +1,18 @@
 import { Alert, Button, Card, Space, Typography } from 'antd';
 import { useEffect, useMemo, useState } from 'react';
 import { metricPlatformApi } from '../../api/metricPlatformApi';
-import type { QueryRequest, QueryResponse, ValidationResponse } from '../../api/types';
+import type {
+  DimensionSelection,
+  QueryRequest,
+  QueryResponse,
+  ValidationResponse,
+} from '../../api/types';
 import { PlanExplanation } from './PlanExplanation';
 import { QueryResultTable } from './QueryResultTable';
 import { SemanticObjectPicker } from './SemanticObjectPicker';
 export function QueryWorkbenchPage() {
   const [metricIds, setMetrics] = useState<string[]>([]);
-  const [dimensionIds, setDimensions] = useState<string[]>([]);
+  const [dimensions, setDimensions] = useState<DimensionSelection[]>([]);
   const [plan, setPlan] = useState<ValidationResponse>();
   const [result, setResult] = useState<QueryResponse>();
   const [error, setError] = useState('');
@@ -15,10 +20,10 @@ export function QueryWorkbenchPage() {
   const request = useMemo<QueryRequest>(
     () => ({
       metricIds,
-      dimensions: dimensionIds.map((dimensionId) => ({ dimensionId })),
+      dimensions,
       relationshipIds: [],
     }),
-    [metricIds, dimensionIds],
+    [metricIds, dimensions],
   );
   useEffect(() => {
     setPlan(undefined);
@@ -56,7 +61,7 @@ export function QueryWorkbenchPage() {
         </Typography.Paragraph>
         <SemanticObjectPicker
           metricIds={metricIds}
-          dimensionIds={dimensionIds}
+          dimensions={dimensions}
           onMetrics={setMetrics}
           onDimensions={setDimensions}
         />
