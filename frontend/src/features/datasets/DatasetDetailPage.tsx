@@ -2,7 +2,13 @@ import { Button, Card, Descriptions, Space, Tabs } from 'antd';
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { metricPlatformApi } from '../../api/metricPlatformApi';
-import type { Dataset, DatasetRelationship, SchemaDiff } from '../../api/types';
+import type {
+  Dataset,
+  DatasetRelationship,
+  ResourceDeletionImpact,
+  SchemaDiff,
+} from '../../api/types';
+import { DeletionImpactDialog } from '../../components/DeletionImpactDialog';
 import { RelationshipCreateDrawer } from '../relationships/RelationshipCreateDrawer';
 import { RelationshipDrawer } from '../relationships/RelationshipDrawer';
 import { RelationshipGraph } from '../relationships/RelationshipGraph';
@@ -18,6 +24,8 @@ export function DatasetDetailPage() {
   const [selected, setSelected] = useState<DatasetRelationship>();
   const [creatingRelationship, setCreatingRelationship] = useState(false);
   const [diff, setDiff] = useState<SchemaDiff>();
+  const [relationshipImpact, setRelationshipImpact] = useState<ResourceDeletionImpact>();
+  const [confirmingRelationshipDelete, setConfirmingRelationshipDelete] = useState(false);
   const load = () => {
     const params = new URLSearchParams({ size: '200' });
     return Promise.all([
@@ -127,11 +135,29 @@ export function DatasetDetailPage() {
           void metricPlatformApi.revalidateRelationship(relationshipId).then(load)
         }
         onDelete={(relationshipId) =>
-          void metricPlatformApi.deleteRelationship(relationshipId).then(() => {
-            setSelected(undefined);
-            return load();
-          })
+          void metricPlatformApi
+            .relationshipDeletionImpact(relationshipId)
+            .then(setRelationshipImpact)
         }
+      />
+      <DeletionImpactDialog
+        open={Boolean(relationshipImpact && selected)}
+        resourceName={selected?.name}
+        impact={relationshipImpact}
+        confirming={confirmingRelationshipDelete}
+        onCancel={() => setRelationshipImpact(undefined)}
+        onConfirm={() => {
+          if (!selected || !relationshipImpact) return;
+          setConfirmingRelationshipDelete(true);
+          void metricPlatformApi
+            .deleteRelationship(selected.id)
+            .then(load)
+            .then(() => {
+              setSelected(undefined);
+              setRelationshipImpact(undefined);
+            })
+            .finally(() => setConfirmingRelationshipDelete(false));
+        }}
       />
       <SchemaDiffModal
         open={!!diff}

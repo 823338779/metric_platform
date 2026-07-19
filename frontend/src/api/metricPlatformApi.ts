@@ -80,6 +80,8 @@ export function createMetricPlatformApi(fetcher?: Fetcher) {
       request<T.DatasetRelationship>(`/dataset-relationships/${id}:revalidate`, { method: 'POST' }),
     deleteRelationship: (id: string) =>
       request<void>(`/dataset-relationships/${id}`, { method: 'DELETE' }),
+    relationshipDeletionImpact: (id: string) =>
+      request<T.ResourceDeletionImpact>(`/dataset-relationships/${id}/deletion-impact`),
     listMetrics: (params = new URLSearchParams()) =>
       request<T.PageResponse<T.Metric>>(`/metrics?${params}`),
     createMetric: (body: T.CreateMetricRequest) =>
@@ -87,6 +89,8 @@ export function createMetricPlatformApi(fetcher?: Fetcher) {
     updateMetric: (id: string, body: T.UpdateMetricRequest) =>
       request<T.Metric>(`/metrics/${id}`, { method: 'PATCH', body: JSON.stringify(body) }),
     deleteMetric: (id: string) => request<void>(`/metrics/${id}`, { method: 'DELETE' }),
+    metricDeletionImpact: (id: string) =>
+      request<T.ResourceDeletionImpact>(`/metrics/${id}/deletion-impact`),
     listDimensions: (params = new URLSearchParams()) =>
       request<T.PageResponse<T.Dimension>>(`/dimensions?${params}`),
     createDimension: (body: T.CreateDimensionRequest) =>
@@ -94,12 +98,19 @@ export function createMetricPlatformApi(fetcher?: Fetcher) {
     updateDimension: (id: string, body: T.UpdateDimensionRequest) =>
       request<T.Dimension>(`/dimensions/${id}`, { method: 'PATCH', body: JSON.stringify(body) }),
     deleteDimension: (id: string) => request<void>(`/dimensions/${id}`, { method: 'DELETE' }),
+    dimensionDeletionImpact: (id: string) =>
+      request<T.ResourceDeletionImpact>(`/dimensions/${id}/deletion-impact`),
     getCapabilities: () => request<T.CapabilitiesResponse>('/capabilities'),
     getQueryConnectivity: () => request<T.QueryConnectivityResponse>('/query-connectivity'),
     searchSemantic: (query: string) =>
       request<T.SemanticSearchResult[]>('/semantic-objects:search', {
         method: 'POST',
         body: JSON.stringify({ query }),
+      }),
+    querySemanticObjects: (body: T.SemanticObjectQueryRequest) =>
+      request<T.SemanticObjectQueryResponse>('/semantic-objects:query', {
+        method: 'POST',
+        body: JSON.stringify(body),
       }),
     resolveSemantic: (body: T.SemanticResolveRequest) =>
       request<T.SemanticResolveResponse>('/semantic-objects:resolve', {
@@ -108,6 +119,11 @@ export function createMetricPlatformApi(fetcher?: Fetcher) {
       }),
     searchDimensionMembers: (dimensionId: string, body: T.DimensionMemberSearchRequest) =>
       request<T.DimensionMemberSearchResponse>(`/dimensions/${dimensionId}/members:search`, {
+        method: 'POST',
+        body: JSON.stringify(body),
+      }),
+    queryDimensionMembers: (dimensionId: string, body: T.DimensionMemberQueryRequest) =>
+      request<T.DimensionMemberQueryResponse>(`/dimensions/${dimensionId}/members:query`, {
         method: 'POST',
         body: JSON.stringify(body),
       }),

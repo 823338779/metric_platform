@@ -5,10 +5,12 @@ import static org.assertj.core.api.Assertions.assertThat;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
+
+import org.junit.jupiter.api.Test;
+
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import org.junit.jupiter.api.Test;
 
 class OpenApiContractTest {
     @Test
@@ -16,7 +18,7 @@ class OpenApiContractTest {
         String contract = Files.readString(Path.of("../api/openapi.yaml"));
         JsonNode document = new ObjectMapper(new YAMLFactory()).readTree(contract);
         assertThat(document.path("openapi").asText()).isEqualTo("3.1.0");
-        assertThat(document.path("paths").size()).isEqualTo(35);
+        assertThat(document.path("paths").size()).isEqualTo(40);
         assertThat(contract)
                 .contains(
                         "/api/v1/datasets:",
@@ -25,8 +27,22 @@ class OpenApiContractTest {
                         "/api/v1/dimensions:",
                         "/api/v1/query-connectivity:",
                         "/api/v1/semantic-objects:search:",
+                        "/api/v1/semantic-objects:query:",
+                        "/api/v1/dimensions/{dimensionId}/members:query:",
+                        "/api/v1/metrics/{id}/deletion-impact:",
+                        "/api/v1/dimensions/{id}/deletion-impact:",
+                        "/api/v1/dataset-relationships/{id}/deletion-impact:",
                         "/api/v1/queries:validate:",
                         "/api/v1/queries:");
+        assertThat(document.at("/components/schemas/SemanticObjectQueryRequest").isObject())
+                .isTrue();
+        assertThat(document.at("/components/schemas/SemanticObjectQueryResponse").isObject())
+                .isTrue();
+        assertThat(document.at("/components/schemas/DimensionMemberQueryRequest").isObject())
+                .isTrue();
+        assertThat(document.at("/components/schemas/DimensionMemberQueryResponse").isObject())
+                .isTrue();
+        assertThat(document.at("/components/schemas/ResourceDeletionImpact").isObject()).isTrue();
         String queryRequest =
                 contract.substring(
                         contract.indexOf("    QueryRequest:"),

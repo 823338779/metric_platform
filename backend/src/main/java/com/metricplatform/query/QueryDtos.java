@@ -3,12 +3,14 @@ package com.metricplatform.query;
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.metricplatform.semantic.SemanticDtos.TimeGranularity;
+
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotEmpty;
 import jakarta.validation.constraints.NotNull;
+
 import java.time.Instant;
 import java.util.List;
 import java.util.Map;
@@ -21,21 +23,37 @@ public final class QueryDtos {
     public record DimensionSelection(@NotNull UUID dimensionId, TimeGranularity granularity) {}
 
     public enum FilterOperator {
-        EQ, NE, GT, GTE, LT, LTE, BETWEEN, IN, CONTAINS, IS_NULL, IS_NOT_NULL
+        EQ,
+        NE,
+        GT,
+        GTE,
+        LT,
+        LTE,
+        BETWEEN,
+        IN,
+        CONTAINS,
+        IS_NULL,
+        IS_NOT_NULL
     }
 
     public record DimensionFilter(
-            @NotNull UUID dimensionId,
-            @NotNull FilterOperator operator,
-            List<Object> values) {
+            @NotNull UUID dimensionId, @NotNull FilterOperator operator, List<Object> values) {
         public DimensionFilter {
             values = values == null ? List.of() : List.copyOf(values);
         }
     }
 
     public enum TimePreset {
-        TODAY, YESTERDAY, LAST_7_DAYS, LAST_30_DAYS, MONTH_TO_DATE, QUARTER_TO_DATE,
-        YEAR_TO_DATE, LAST_MONTH, LAST_QUARTER, LAST_YEAR
+        TODAY,
+        YESTERDAY,
+        LAST_7_DAYS,
+        LAST_30_DAYS,
+        MONTH_TO_DATE,
+        QUARTER_TO_DATE,
+        YEAR_TO_DATE,
+        LAST_MONTH,
+        LAST_QUARTER,
+        LAST_YEAR
     }
 
     public record TimeRange(
@@ -45,9 +63,15 @@ public final class QueryDtos {
             TimePreset preset,
             @NotBlank String timezone) {}
 
-    public enum SortDirection { ASC, DESC }
+    public enum SortDirection {
+        ASC,
+        DESC
+    }
 
-    public enum SortTargetType { METRIC, DIMENSION }
+    public enum SortTargetType {
+        METRIC,
+        DIMENSION
+    }
 
     public record SortSelection(
             @NotNull SortTargetType type,
@@ -118,7 +142,64 @@ public final class QueryDtos {
         }
     }
 
-    public enum SemanticObjectType { DATASET, METRIC, DIMENSION }
+    public enum SemanticObjectType {
+        DATASET,
+        METRIC,
+        DIMENSION
+    }
+
+    public enum SemanticObjectSort {
+        RELEVANCE_DESC,
+        NAME_ASC,
+        UPDATED_AT_DESC
+    }
+
+    public record SemanticObjectQueryRequest(
+            String text,
+            Set<SemanticObjectType> types,
+            Set<UUID> datasetIds,
+            Set<String> domains,
+            Set<String> statuses,
+            Boolean certifiedOnly,
+            SemanticObjectSort sort,
+            @Min(1) @Max(100) Integer limit,
+            String cursor) {
+        public SemanticObjectQueryRequest {
+            text = text == null || text.isBlank() ? null : text.trim();
+            types = types == null ? Set.of() : Set.copyOf(types);
+            datasetIds = datasetIds == null ? Set.of() : Set.copyOf(datasetIds);
+            domains = domains == null ? Set.of() : Set.copyOf(domains);
+            statuses = statuses == null ? Set.of() : Set.copyOf(statuses);
+            certifiedOnly = certifiedOnly != null && certifiedOnly;
+            sort =
+                    sort == null
+                            ? (text == null
+                                    ? SemanticObjectSort.NAME_ASC
+                                    : SemanticObjectSort.RELEVANCE_DESC)
+                            : sort;
+            limit = limit == null ? 20 : limit;
+            cursor = cursor == null || cursor.isBlank() ? null : cursor.trim();
+            if (limit < 1 || limit > 100) {
+                throw new IllegalArgumentException("limit must be between 1 and 100");
+            }
+            if (text == null && sort == SemanticObjectSort.RELEVANCE_DESC) {
+                throw new IllegalArgumentException("RELEVANCE_DESC requires text");
+            }
+        }
+    }
+
+    public record PageInfo(String nextCursor, boolean hasMore, int limit) {}
+
+    public record SemanticObjectFacets(
+            Map<SemanticObjectType, Long> types,
+            Map<String, Long> domains,
+            Map<String, Long> statuses) {}
+
+    public record SemanticObjectQueryResponse(
+            List<SemanticSearchResult> items,
+            PageInfo pageInfo,
+            SemanticObjectFacets facets,
+            String catalogVersion) {}
 
     public record SemanticSearchRequest(
             @NotNull String query,
@@ -160,16 +241,29 @@ public final class QueryDtos {
             Map<String, Object> summary) {
         public SemanticSearchResult(
                 SemanticObjectType type, UUID id, UUID datasetId, String name, String displayName) {
-            this(type, id, datasetId, name, displayName, null, List.of(), 0, List.of(), null, null,
-                    null, 0, null, Map.of());
+            this(
+                    type,
+                    id,
+                    datasetId,
+                    name,
+                    displayName,
+                    null,
+                    List.of(),
+                    0,
+                    List.of(),
+                    null,
+                    null,
+                    null,
+                    0,
+                    null,
+                    Map.of());
         }
     }
 
     public record SemanticObjectReference(@NotNull SemanticObjectType type, @NotNull UUID id) {}
 
     public record SemanticResolveRequest(
-            @NotEmpty List<@Valid SemanticObjectReference> objects,
-            Set<UUID> relationshipIds) {
+            @NotEmpty List<@Valid SemanticObjectReference> objects, Set<UUID> relationshipIds) {
         public SemanticResolveRequest {
             objects = objects == null ? null : List.copyOf(objects);
             relationshipIds = relationshipIds == null ? Set.of() : Set.copyOf(relationshipIds);
@@ -221,7 +315,10 @@ public final class QueryDtos {
             Set<TimePreset> timePresets,
             boolean planTokenSupported) {}
 
-    public enum ConnectivityPathStatus { UNIQUE_PATH, AMBIGUOUS_PATH }
+    public enum ConnectivityPathStatus {
+        UNIQUE_PATH,
+        AMBIGUOUS_PATH
+    }
 
     public record DatasetConnectivity(UUID datasetId, UUID dataSourceId) {}
 
@@ -240,12 +337,37 @@ public final class QueryDtos {
             List<DatasetConnectivity> datasets,
             List<ConnectivityPath> paths) {}
 
-    public enum MemberMatchMode { AUTO, EXACT, PREFIX, CONTAINS }
+    public enum MemberMatchMode {
+        AUTO,
+        EXACT,
+        PREFIX,
+        CONTAINS
+    }
+
+    public record DimensionMemberQueryRequest(
+            String text, MemberMatchMode mode, @Min(1) @Max(100) Integer limit, String cursor) {
+        public DimensionMemberQueryRequest {
+            text = text == null || text.isBlank() ? null : text.trim();
+            mode = mode == null ? MemberMatchMode.AUTO : mode;
+            limit = limit == null ? 20 : limit;
+            cursor = cursor == null || cursor.isBlank() ? null : cursor.trim();
+            if (limit < 1 || limit > 100) {
+                throw new IllegalArgumentException("limit must be between 1 and 100");
+            }
+            if (text == null && mode != MemberMatchMode.AUTO) {
+                throw new IllegalArgumentException("member match mode requires text");
+            }
+        }
+    }
+
+    public record DimensionMemberQueryResponse(
+            UUID dimensionId,
+            List<DimensionMember> items,
+            PageInfo pageInfo,
+            String memberVersion) {}
 
     public record DimensionMemberSearchRequest(
-            @NotBlank String query,
-            MemberMatchMode mode,
-            @Min(1) @Max(100) Integer topK) {
+            @NotBlank String query, MemberMatchMode mode, @Min(1) @Max(100) Integer topK) {
         public DimensionMemberSearchRequest {
             mode = mode == null ? MemberMatchMode.AUTO : mode;
             topK = topK == null ? 20 : Math.min(100, topK);
@@ -291,8 +413,18 @@ public final class QueryDtos {
                 List<AggregatePlanSummary> aggregates,
                 List<UUID> resolvedRelationshipIds,
                 int parameterCount) {
-            this(valid, metrics, dimensions, aggregates, resolvedRelationshipIds, parameterCount,
-                    List.of(), List.of(), null, null, null);
+            this(
+                    valid,
+                    metrics,
+                    dimensions,
+                    aggregates,
+                    resolvedRelationshipIds,
+                    parameterCount,
+                    List.of(),
+                    List.of(),
+                    null,
+                    null,
+                    null);
         }
     }
 
@@ -326,15 +458,41 @@ public final class QueryDtos {
                 List<Object> dimensions,
                 String sql,
                 long durationMs) {
-            this(dataset, columns, rows, metrics, dimensions, null, rows == null ? 0 : rows.size(),
-                    false, List.of(), null, List.of(), null, null, sql, durationMs);
+            this(
+                    dataset,
+                    columns,
+                    rows,
+                    metrics,
+                    dimensions,
+                    null,
+                    rows == null ? 0 : rows.size(),
+                    false,
+                    List.of(),
+                    null,
+                    List.of(),
+                    null,
+                    null,
+                    sql,
+                    durationMs);
         }
 
         public QueryResponse withoutSql() {
             return new QueryResponse(
-                    dataset, columns, rows, metrics, dimensions, queryId, rowCount, truncated,
-                    appliedFilters, appliedTimeRange, freshnessWarnings, catalogVersion, evidence,
-                    null, durationMs);
+                    dataset,
+                    columns,
+                    rows,
+                    metrics,
+                    dimensions,
+                    queryId,
+                    rowCount,
+                    truncated,
+                    appliedFilters,
+                    appliedTimeRange,
+                    freshnessWarnings,
+                    catalogVersion,
+                    evidence,
+                    null,
+                    durationMs);
         }
     }
 }

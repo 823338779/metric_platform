@@ -6,17 +6,19 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 import com.metricplatform.identity.PlatformAuthenticationService;
 import com.metricplatform.security.PlatformPrincipal;
-import java.util.List;
-import java.util.UUID;
+
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.http.MediaType;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
+
+import java.util.List;
+import java.util.UUID;
 
 @SpringBootTest
 @AutoConfigureMockMvc
@@ -31,8 +33,9 @@ class QueryControllerTest {
         org.mockito.Mockito.when(authentication.authenticate("query-token"))
                 .thenReturn(principal());
         org.mockito.Mockito.when(connectivity.connectivity())
-                .thenReturn(new QueryDtos.QueryConnectivityResponse(
-                        "catalog-test", List.of(), List.of()));
+                .thenReturn(
+                        new QueryDtos.QueryConnectivityResponse(
+                                "catalog-test", List.of(), List.of()));
     }
 
     @Test
@@ -77,26 +80,44 @@ class QueryControllerTest {
 
     @Test
     void anonymousCannotReadQueryConnectivity() throws Exception {
-        mvc.perform(get("/api/v1/query-connectivity"))
-                .andExpect(status().isUnauthorized());
+        mvc.perform(get("/api/v1/query-connectivity")).andExpect(status().isUnauthorized());
     }
 
     @Test
     void authenticatedAccountCanReadQueryConnectivity() throws Exception {
-        mvc.perform(get("/api/v1/query-connectivity")
-                        .header("Authorization", "Bearer query-token"))
+        mvc.perform(get("/api/v1/query-connectivity").header("Authorization", "Bearer query-token"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.catalogVersion").value("catalog-test"))
                 .andExpect(jsonPath("$.datasets").isArray())
                 .andExpect(jsonPath("$.paths").isArray());
     }
 
+    @Test
+    void authenticatedAccountCanBrowseSemanticObjectsWithoutSearchText() throws Exception {
+        mvc.perform(
+                        post("/api/v1/semantic-objects:query")
+                                .header("Authorization", "Bearer query-token")
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content("{\"types\":[\"METRIC\",\"DIMENSION\"],\"limit\":2}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.items").isArray())
+                .andExpect(jsonPath("$.pageInfo.limit").value(2))
+                .andExpect(jsonPath("$.pageInfo.hasMore").isBoolean())
+                .andExpect(jsonPath("$.facets.types").isMap())
+                .andExpect(jsonPath("$.catalogVersion").isString());
+    }
+
+    @Test
+    void dimensionMemberQueryValidatesItsGeneralPaginationContract() throws Exception {
+        mvc.perform(
+                        post("/api/v1/dimensions/00000000-0000-0000-0000-000000000011/members:query")
+                                .header("Authorization", "Bearer query-token")
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content("{\"limit\":0}"))
+                .andExpect(status().isUnprocessableEntity());
+    }
+
     private static PlatformPrincipal principal() {
-        return new PlatformPrincipal(
-                UUID.randomUUID(),
-                "test-user",
-                "Test User",
-                null,
-                1);
+        return new PlatformPrincipal(UUID.randomUUID(), "test-user", "Test User", null, 1);
     }
 }

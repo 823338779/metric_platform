@@ -20,7 +20,11 @@ import { placeSelection } from './semanticSelection';
 
 type QueryWorkbenchApi = Pick<
   typeof metricPlatformApi,
-  'searchSemantic' | 'getQueryConnectivity' | 'resolveSemantic' | 'validateQuery' | 'executeQuery'
+  | 'querySemanticObjects'
+  | 'getQueryConnectivity'
+  | 'resolveSemantic'
+  | 'validateQuery'
+  | 'executeQuery'
 >;
 
 const granularityOrder: TimeGranularity[] = ['DAY', 'WEEK', 'MONTH', 'QUARTER', 'YEAR'];
@@ -40,6 +44,7 @@ export function QueryWorkbenchPage({ api = metricPlatformApi }: { api?: QueryWor
   const [catalogRevision, setCatalogRevision] = useState(0);
   const [granularities, setGranularities] = useState<Record<string, TimeGranularity[]>>({});
   const [searchLoading, setSearchLoading] = useState(false);
+  const [nextCursor, setNextCursor] = useState<string>();
   const [plan, setPlan] = useState<ValidationResponse>();
   const [result, setResult] = useState<QueryResponse>();
   const [error, setError] = useState('');
@@ -79,14 +84,20 @@ export function QueryWorkbenchPage({ api = metricPlatformApi }: { api?: QueryWor
     const current = ++requestId.current;
     const timer = window.setTimeout(() => {
       setSearchLoading(true);
+      const text = query.trim();
       void api
-        .searchSemantic(query)
-        .then((values) => {
+        .querySemanticObjects({
+          ...(text ? { text } : {}),
+          types: ['METRIC', 'DIMENSION'],
+          limit: 50,
+        })
+        .then((response) => {
           if (current !== requestId.current) return;
-          const semanticValues = values.filter(
+          const semanticValues = response.items.filter(
             (value) => value.type === 'METRIC' || value.type === 'DIMENSION',
           );
           setResults(semanticValues);
+          setNextCursor(response.pageInfo.nextCursor);
           setCatalog((previous) => ({
             ...previous,
             ...Object.fromEntries(semanticValues.map((value) => [value.id, value])),
@@ -101,6 +112,34 @@ export function QueryWorkbenchPage({ api = metricPlatformApi }: { api?: QueryWor
     }, 200);
     return () => window.clearTimeout(timer);
   }, [api, catalogRevision, query]);
+
+  const loadMore = async () => {
+    if (!nextCursor || searchLoading) return;
+    setSearchLoading(true);
+    try {
+      const text = query.trim();
+      const response = await api.querySemanticObjects({
+        ...(text ? { text } : {}),
+        types: ['METRIC', 'DIMENSION'],
+        limit: 50,
+        cursor: nextCursor,
+      });
+      setResults((current) => {
+        const merged = new Map(current.map((value) => [value.id, value]));
+        response.items.forEach((value) => merged.set(value.id, value));
+        return [...merged.values()];
+      });
+      setCatalog((current) => ({
+        ...current,
+        ...Object.fromEntries(response.items.map((value) => [value.id, value])),
+      }));
+      setNextCursor(response.pageInfo.nextCursor);
+    } catch (reason) {
+      setError(errorMessage(reason, '更多语义对象加载失败'));
+    } finally {
+      setSearchLoading(false);
+    }
+  };
 
   const compatibility = useMemo(
     () =>
@@ -193,8 +232,10 @@ export function QueryWorkbenchPage({ api = metricPlatformApi }: { api?: QueryWor
             query={query}
             loading={searchLoading}
             connectivityReady={Boolean(connectivity)}
+            hasMore={Boolean(nextCursor)}
             onQuery={setQuery}
             onAdd={addObject}
+            onLoadMore={() => void loadMore()}
           />
           <div className="query-workspace">
             <Card size="small" title="构建指标查询" className="query-builder-card">

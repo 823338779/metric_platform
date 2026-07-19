@@ -8,10 +8,16 @@ import com.metricplatform.persistence.entity.DatasetEntity;
 import com.metricplatform.persistence.entity.DatasetFieldEntity;
 import com.metricplatform.persistence.entity.DatasetRelationshipEntity;
 import com.metricplatform.persistence.entity.DatasetRelationshipFieldPairEntity;
-import com.metricplatform.persistence.service.DatasetFieldPersistenceService;
 import com.metricplatform.persistence.service.DatasetEntityPersistenceService;
-import com.metricplatform.persistence.service.DatasetRelationshipFieldPairPersistenceService;
+import com.metricplatform.persistence.service.DatasetFieldPersistenceService;
 import com.metricplatform.persistence.service.DatasetRelationshipEntityPersistenceService;
+import com.metricplatform.persistence.service.DatasetRelationshipFieldPairPersistenceService;
+
+import lombok.RequiredArgsConstructor;
+
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.HashSet;
@@ -20,9 +26,6 @@ import java.util.Locale;
 import java.util.NoSuchElementException;
 import java.util.Set;
 import java.util.UUID;
-import lombok.RequiredArgsConstructor;
-import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
 
 @Service
 @RequiredArgsConstructor
@@ -48,8 +51,15 @@ public class DatasetRelationshipService {
         relationship.setSourceDatasetId(source.getId());
         relationship.setTargetDatasetId(target.getId());
         relationship.setCardinality(request.cardinality().name());
-        applyMetadata(relationship, source, target, request.description(), request.displayPath(),
-                request.semanticRole(), request.fanoutSafe(), request.status());
+        applyMetadata(
+                relationship,
+                source,
+                target,
+                request.description(),
+                request.displayPath(),
+                request.semanticRole(),
+                request.fanoutSafe(),
+                request.status());
         relationship.setLastValidationStatus("VALID");
         relationship.setLastValidatedAt(now);
         relationships.save(relationship);
@@ -88,8 +98,15 @@ public class DatasetRelationshipService {
 
         relationship.setName(request.name().trim());
         relationship.setCardinality(request.cardinality().name());
-        applyMetadata(relationship, source, target, request.description(), request.displayPath(),
-                request.semanticRole(), request.fanoutSafe(), request.status());
+        applyMetadata(
+                relationship,
+                source,
+                target,
+                request.description(),
+                request.displayPath(),
+                request.semanticRole(),
+                request.fanoutSafe(),
+                request.status());
         relationship.setLastValidationStatus("VALID");
         relationship.setLastValidatedAt(LocalDateTime.now());
         if (!relationships.updateById(relationship)) {
@@ -122,6 +139,27 @@ public class DatasetRelationshipService {
         relationship(id);
         pairs.removeByRelationshipId(id);
         relationships.softDeleteById(id);
+    }
+
+    public DeletionImpactResponse deletionImpact(UUID id) {
+        DatasetRelationshipEntity relationship = relationship(id);
+        DatasetEntity source = dataset(relationship.getSourceDatasetId());
+        DatasetEntity target = dataset(relationship.getTargetDatasetId());
+        return new DeletionImpactResponse(
+                id,
+                true,
+                List.of(
+                        new DependentResource(
+                                "DATASET", source.getId(), displayName(source), "SOURCE_ENDPOINT"),
+                        new DependentResource(
+                                "DATASET", target.getId(), displayName(target), "TARGET_ENDPOINT")),
+                List.of("Queries requiring this relationship may no longer validate."));
+    }
+
+    private static String displayName(DatasetEntity dataset) {
+        return dataset.getName() == null || dataset.getName().isBlank()
+                ? dataset.getId().toString()
+                : dataset.getName();
     }
 
     private ResolvedPairs validateDefinition(

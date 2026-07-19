@@ -78,6 +78,26 @@ it('does not add or expose dragging for incompatible objects', () => {
   expect(onAdd).not.toHaveBeenCalled();
 });
 
+it('requests the next opaque page only when more results exist', () => {
+  const onLoadMore = vi.fn();
+  render(
+    <SemanticObjectPicker
+      objects={[addableMetric]}
+      compatibility={{ [addableMetric.id]: { state: 'ADDABLE' } }}
+      query=""
+      loading={false}
+      connectivityReady
+      hasMore
+      onQuery={() => undefined}
+      onAdd={() => undefined}
+      onLoadMore={onLoadMore}
+    />,
+  );
+
+  fireEvent.click(screen.getByRole('button', { name: '加载更多语义对象' }));
+  expect(onLoadMore).toHaveBeenCalledOnce();
+});
+
 function semantic(
   id: string,
   type: 'METRIC' | 'DIMENSION',

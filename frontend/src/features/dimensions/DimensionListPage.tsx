@@ -1,7 +1,8 @@
 import { Button, Card, Input, Space, Table, Tag } from 'antd';
 import { useEffect, useState } from 'react';
 import { metricPlatformApi } from '../../api/metricPlatformApi';
-import type { Dataset, Dimension } from '../../api/types';
+import type { Dataset, Dimension, ResourceDeletionImpact } from '../../api/types';
+import { DeletionImpactDialog } from '../../components/DeletionImpactDialog';
 import { DimensionDrawer } from './DimensionDrawer';
 
 export function DimensionListPage() {
@@ -10,6 +11,9 @@ export function DimensionListPage() {
   const [editing, setEditing] = useState<Dimension>();
   const [open, setOpen] = useState(false);
   const [q, setQ] = useState('');
+  const [deleting, setDeleting] = useState<Dimension>();
+  const [impact, setImpact] = useState<ResourceDeletionImpact>();
+  const [confirmingDelete, setConfirmingDelete] = useState(false);
   const load = () =>
     Promise.all([
       metricPlatformApi.listDimensions(new URLSearchParams({ q })),
@@ -73,7 +77,11 @@ export function DimensionListPage() {
                 </Button>
                 <Button
                   danger
-                  onClick={() => void metricPlatformApi.deleteDimension(dimension.id).then(load)}
+                  onClick={() => {
+                    setDeleting(dimension);
+                    setImpact(undefined);
+                    void metricPlatformApi.dimensionDeletionImpact(dimension.id).then(setImpact);
+                  }}
                 >
                   删除
                 </Button>
@@ -101,6 +109,28 @@ export function DimensionListPage() {
           else await metricPlatformApi.createDimension({ ...value, aliases: value.aliases ?? [] });
           setOpen(false);
           await load();
+        }}
+      />
+      <DeletionImpactDialog
+        open={Boolean(deleting)}
+        resourceName={deleting?.displayName}
+        impact={impact}
+        confirming={confirmingDelete}
+        onCancel={() => {
+          setDeleting(undefined);
+          setImpact(undefined);
+        }}
+        onConfirm={() => {
+          if (!deleting || !impact) return;
+          setConfirmingDelete(true);
+          void metricPlatformApi
+            .deleteDimension(deleting.id)
+            .then(load)
+            .then(() => {
+              setDeleting(undefined);
+              setImpact(undefined);
+            })
+            .finally(() => setConfirmingDelete(false));
         }}
       />
     </Card>

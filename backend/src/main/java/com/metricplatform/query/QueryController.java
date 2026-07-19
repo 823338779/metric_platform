@@ -1,12 +1,11 @@
 package com.metricplatform.query;
 
 import com.metricplatform.security.PlatformPrincipal;
+
 import jakarta.validation.Valid;
-import java.sql.SQLException;
-import java.util.List;
-import java.util.Set;
-import java.util.UUID;
+
 import lombok.RequiredArgsConstructor;
+
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -14,6 +13,11 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
+
+import java.sql.SQLException;
+import java.util.List;
+import java.util.Set;
+import java.util.UUID;
 
 @RestController
 @RequestMapping("/api/v1")
@@ -47,6 +51,12 @@ public class QueryController {
         return catalog.search(request, null);
     }
 
+    @PostMapping("/semantic-objects:query")
+    public QueryDtos.SemanticObjectQueryResponse querySemanticObjects(
+            @Valid @RequestBody QueryDtos.SemanticObjectQueryRequest request) {
+        return catalog.query(request, null);
+    }
+
     @PostMapping("/semantic-objects:resolve")
     public QueryDtos.SemanticResolveResponse resolve(
             @Valid @RequestBody QueryDtos.SemanticResolveRequest request) {
@@ -60,6 +70,14 @@ public class QueryController {
             @Valid @RequestBody QueryDtos.DimensionMemberSearchRequest request)
             throws SQLException {
         return members.search(dimensionId, request);
+    }
+
+    @PostMapping("/dimensions/{dimensionId}/members:query")
+    public QueryDtos.DimensionMemberQueryResponse queryMembers(
+            @PathVariable UUID dimensionId,
+            @Valid @RequestBody QueryDtos.DimensionMemberQueryRequest request)
+            throws SQLException {
+        return members.query(dimensionId, request);
     }
 
     @PostMapping("/queries:validate")

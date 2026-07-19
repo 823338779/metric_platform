@@ -65,7 +65,12 @@ it('loads connectivity once and does not validate while selecting objects', asyn
 
 function fakeApi() {
   return {
-    searchSemantic: vi.fn().mockResolvedValue([metric, dimension]),
+    querySemanticObjects: vi.fn().mockResolvedValue({
+      items: [metric, dimension],
+      pageInfo: { hasMore: false, limit: 50 },
+      facets: { types: { METRIC: 1, DIMENSION: 1 }, domains: {}, statuses: {} },
+      catalogVersion: 'catalog-1',
+    }),
     getQueryConnectivity: vi.fn().mockResolvedValue(connectivity),
     resolveSemantic: vi.fn(),
     validateQuery: vi.fn().mockResolvedValue(validation),

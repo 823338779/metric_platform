@@ -16,6 +16,9 @@ import com.metricplatform.persistence.service.DimensionEntityPersistenceService;
 import com.metricplatform.persistence.service.DimensionTimeGranularityPersistenceService;
 import com.metricplatform.persistence.service.MetricEntityPersistenceService;
 import com.metricplatform.semantic.SemanticDtos.TimeGranularity;
+
+import org.springframework.stereotype.Service;
+
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -25,8 +28,10 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.NoSuchElementException;
 import java.util.Set;
+import java.util.TreeMap;
 import java.util.UUID;
-import org.springframework.stereotype.Service;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 
 @Service
 public class SemanticCatalogService {
@@ -39,6 +44,7 @@ public class SemanticCatalogService {
     private final ObjectMapper objectMapper;
     private final DimensionTimeGranularityPersistenceService granularities;
     private final DatasetRelationshipEntityPersistenceService relationships;
+    private final SemanticObjectCursorCodec cursors;
 
     public SemanticCatalogService(
             DatasetEntityPersistenceService datasets,
@@ -46,13 +52,15 @@ public class SemanticCatalogService {
             DimensionEntityPersistenceService dimensions,
             ObjectMapper objectMapper,
             DimensionTimeGranularityPersistenceService granularities,
-            DatasetRelationshipEntityPersistenceService relationships) {
+            DatasetRelationshipEntityPersistenceService relationships,
+            SemanticObjectCursorCodec cursors) {
         this.datasets = datasets;
         this.metrics = metrics;
         this.dimensions = dimensions;
         this.objectMapper = objectMapper;
         this.granularities = granularities;
         this.relationships = relationships;
+        this.cursors = cursors;
     }
 
     public CapabilitiesResponse capabilities() {
@@ -91,6 +99,55 @@ public class SemanticCatalogService {
 
     public List<SemanticSearchResult> search(
             SemanticSearchRequest request, Set<UUID> discoverableDatasetIds) {
+        return collect(request, discoverableDatasetIds).stream()
+                .sorted(
+                        Comparator.comparingDouble(SemanticSearchResult::score)
+                                .reversed()
+                                .thenComparing(SemanticSearchResult::name)
+                                .thenComparing(SemanticSearchResult::id))
+                .limit(request.topK())
+                .toList();
+    }
+
+    public SemanticObjectQueryResponse query(
+            SemanticObjectQueryRequest request, Set<UUID> discoverableDatasetIds) {
+        SemanticSearchRequest legacy =
+                new SemanticSearchRequest(
+                        request.text() == null ? "" : request.text(),
+                        request.datasetIds(),
+                        request.types(),
+                        request.domains(),
+                        request.statuses(),
+                        request.certifiedOnly(),
+                        100);
+        List<SemanticSearchResult> filtered = collect(legacy, discoverableDatasetIds);
+        Comparator<SemanticSearchResult> comparator = comparator(request.sort());
+        List<SemanticSearchResult> ordered = filtered.stream().sorted(comparator).toList();
+        String catalogVersion = catalogVersion();
+        int start = cursorStart(request, ordered, catalogVersion);
+        int pageEnd = Math.min(ordered.size(), start + request.limit());
+        boolean hasMore = pageEnd < ordered.size();
+        List<SemanticSearchResult> items = List.copyOf(ordered.subList(start, pageEnd));
+        String nextCursor = null;
+        if (hasMore && !items.isEmpty()) {
+            SemanticSearchResult last = items.getLast();
+            nextCursor =
+                    cursors.encode(
+                            new SemanticObjectCursorCodec.Cursor(
+                                    catalogVersion,
+                                    request.sort(),
+                                    cursorKey(last, request.sort()),
+                                    last.id()));
+        }
+        return new SemanticObjectQueryResponse(
+                items,
+                new PageInfo(nextCursor, hasMore, request.limit()),
+                facets(filtered),
+                catalogVersion);
+    }
+
+    private List<SemanticSearchResult> collect(
+            SemanticSearchRequest request, Set<UUID> discoverableDatasetIds) {
         Set<UUID> authorizedDatasetIds = authorizedDatasetIds(request, discoverableDatasetIds);
         if (authorizedDatasetIds != null && authorizedDatasetIds.isEmpty()) {
             return List.of();
@@ -119,13 +176,91 @@ public class SemanticCatalogService {
                     .filter(value -> needle.isBlank() || value.score() > 0)
                     .forEach(results::add);
         }
-        return results.stream()
-                .sorted(
-                        Comparator.comparingDouble(SemanticSearchResult::score)
-                                .reversed()
-                                .thenComparing(SemanticSearchResult::name))
-                .limit(request.topK())
-                .toList();
+        return List.copyOf(results);
+    }
+
+    private int cursorStart(
+            SemanticObjectQueryRequest request,
+            List<SemanticSearchResult> ordered,
+            String catalogVersion) {
+        if (request.cursor() == null) return 0;
+        SemanticObjectCursorCodec.Cursor cursor =
+                cursors.decode(request.cursor(), catalogVersion, request.sort());
+        for (int index = 0; index < ordered.size(); index++) {
+            SemanticSearchResult candidate = ordered.get(index);
+            if (candidate.id().equals(cursor.lastId())
+                    && cursorKey(candidate, request.sort()).equals(cursor.lastKey())) {
+                return index + 1;
+            }
+        }
+        throw new IllegalArgumentException("semantic object cursor is stale or forged");
+    }
+
+    private static Comparator<SemanticSearchResult> comparator(SemanticObjectSort sort) {
+        Comparator<SemanticSearchResult> id = Comparator.comparing(SemanticSearchResult::id);
+        return switch (sort) {
+            case RELEVANCE_DESC ->
+                    Comparator.comparingDouble(SemanticSearchResult::score)
+                            .reversed()
+                            .thenComparing(value -> normalized(value.displayName()))
+                            .thenComparing(id);
+            case NAME_ASC ->
+                    Comparator.comparing(
+                                    (SemanticSearchResult value) -> normalized(value.displayName()))
+                            .thenComparing(id);
+            case UPDATED_AT_DESC ->
+                    Comparator.comparing(
+                                    (SemanticSearchResult value) ->
+                                            value.updatedAt() == null
+                                                    ? Instant.EPOCH
+                                                    : value.updatedAt())
+                            .reversed()
+                            .thenComparing(id);
+        };
+    }
+
+    private static String cursorKey(SemanticSearchResult value, SemanticObjectSort sort) {
+        return switch (sort) {
+            case RELEVANCE_DESC ->
+                    String.format(
+                            Locale.ROOT,
+                            "%.12f|%s",
+                            value.score(),
+                            normalized(value.displayName()));
+            case NAME_ASC -> normalized(value.displayName());
+            case UPDATED_AT_DESC ->
+                    Long.toString(
+                            (value.updatedAt() == null ? Instant.EPOCH : value.updatedAt())
+                                    .toEpochMilli());
+        };
+    }
+
+    private static SemanticObjectFacets facets(List<SemanticSearchResult> values) {
+        Map<SemanticObjectType, Long> types =
+                values.stream()
+                        .collect(
+                                Collectors.groupingBy(
+                                        SemanticSearchResult::type,
+                                        () -> new java.util.EnumMap<>(SemanticObjectType.class),
+                                        Collectors.counting()));
+        return new SemanticObjectFacets(
+                Map.copyOf(types),
+                stringFacet(values, SemanticSearchResult::domain),
+                stringFacet(values, SemanticSearchResult::status));
+    }
+
+    private static Map<String, Long> stringFacet(
+            List<SemanticSearchResult> values, Function<SemanticSearchResult, String> extractor) {
+        return values.stream()
+                .map(extractor)
+                .filter(value -> value != null && !value.isBlank())
+                .collect(
+                        Collectors.groupingBy(
+                                Function.identity(), TreeMap::new, Collectors.counting()));
+    }
+
+    private static String normalized(String value) {
+        return value == null ? "" : value.trim().toLowerCase(Locale.ROOT);
     }
 
     public SemanticResolveResponse resolve(SemanticResolveRequest request) {
@@ -186,10 +321,8 @@ public class SemanticCatalogService {
 
     public String catalogVersion() {
         Instant latest = Instant.EPOCH;
-        for (DatasetEntity value : datasets.list())
-            latest = later(latest, value.getUpdatedAt());
-        for (MetricEntity value : metrics.list())
-            latest = later(latest, value.getUpdatedAt());
+        for (DatasetEntity value : datasets.list()) latest = later(latest, value.getUpdatedAt());
+        for (MetricEntity value : metrics.list()) latest = later(latest, value.getUpdatedAt());
         for (DimensionEntity value : dimensions.list())
             latest = later(latest, value.getUpdatedAt());
         return "catalog-" + latest.toEpochMilli();
@@ -369,10 +502,7 @@ public class SemanticCatalogService {
         return switch (reference.type()) {
             case DATASET ->
                     resolveDataset(
-                            required(
-                                    datasets.getById(reference.id()),
-                                    "dataset",
-                                    reference.id()));
+                            required(datasets.getById(reference.id()), "dataset", reference.id()));
             case METRIC -> {
                 MetricEntity metric =
                         required(metrics.getById(reference.id()), "metric", reference.id());
@@ -385,8 +515,7 @@ public class SemanticCatalogService {
             }
             case DIMENSION -> {
                 DimensionEntity dimension =
-                        required(
-                                dimensions.getById(reference.id()), "dimension", reference.id());
+                        required(dimensions.getById(reference.id()), "dimension", reference.id());
                 yield resolveDimension(
                         dimension,
                         required(

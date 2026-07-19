@@ -349,6 +349,15 @@ paths:
           },
       }
     delete: { summary: Delete relationship, responses: { '204': { description: Deleted } } }
+  /api/v1/dataset-relationships/{id}/deletion-impact:
+    get:
+      summary: Preview dependencies and warnings before deleting a relationship
+      parameters: [{ $ref: '#/components/parameters/Id' }]
+      responses:
+        '200':
+          description: Relationship deletion impact
+          content:
+            application/json: { schema: { $ref: '#/components/schemas/ResourceDeletionImpact' } }
   /api/v1/dataset-relationships/{id}:revalidate:
     post:
       {
@@ -381,6 +390,15 @@ paths:
           { '200': { description: Metric }, '409': { $ref: '#/components/responses/Problem' } },
       }
     delete: { summary: Delete metric, responses: { '204': { description: Deleted } } }
+  /api/v1/metrics/{id}/deletion-impact:
+    get:
+      summary: Preview dependencies and warnings before deleting a metric
+      parameters: [{ $ref: '#/components/parameters/Id' }]
+      responses:
+        '200':
+          description: Metric deletion impact
+          content:
+            application/json: { schema: { $ref: '#/components/schemas/ResourceDeletionImpact' } }
   /api/v1/dimensions:
     get: { summary: List dimensions, responses: { '200': { description: Dimension page } } }
     post:
@@ -407,6 +425,15 @@ paths:
           { '200': { description: Dimension }, '409': { $ref: '#/components/responses/Problem' } },
       }
     delete: { summary: Delete dimension, responses: { '204': { description: Deleted } } }
+  /api/v1/dimensions/{id}/deletion-impact:
+    get:
+      summary: Preview dependencies and warnings before deleting a dimension
+      parameters: [{ $ref: '#/components/parameters/Id' }]
+      responses:
+        '200':
+          description: Dimension deletion impact
+          content:
+            application/json: { schema: { $ref: '#/components/schemas/ResourceDeletionImpact' } }
   /api/v1/capabilities:
     get:
       summary: Describe the agent-safe semantic query capabilities
@@ -455,6 +482,19 @@ paths:
               },
           },
       }
+  /api/v1/semantic-objects:query:
+    post:
+      summary: Browse or search semantic objects with stable cursor pagination and facets
+      requestBody:
+        required: true
+        content:
+          application/json: { schema: { $ref: '#/components/schemas/SemanticObjectQueryRequest' } }
+      responses:
+        '200':
+          description: Semantic object page
+          content:
+            application/json: { schema: { $ref: '#/components/schemas/SemanticObjectQueryResponse' } }
+        '422': { $ref: '#/components/responses/Problem' }
   /api/v1/semantic-objects:resolve:
     post:
       summary: Resolve semantic objects and agent-safe relationship context
@@ -468,7 +508,7 @@ paths:
           content:
             application/json: { schema: { $ref: '#/components/schemas/SemanticResolveResponse' } }
         '404': { $ref: '#/components/responses/Problem' }
-  /api/v1/dimensions/{id}/members:search:
+  /api/v1/dimensions/{dimensionId}/members:search:
     post:
       summary: Search governed members for one dimension
       parameters:
@@ -491,6 +531,24 @@ paths:
           content:
             application/json:
               { schema: { $ref: '#/components/schemas/DimensionMemberSearchResponse' } }
+  /api/v1/dimensions/{dimensionId}/members:query:
+    post:
+      summary: Browse or search governed dimension members with stable cursor pagination
+      parameters:
+        - name: dimensionId
+          in: path
+          required: true
+          schema: { $ref: '#/components/schemas/Uuid' }
+      requestBody:
+        required: true
+        content:
+          application/json: { schema: { $ref: '#/components/schemas/DimensionMemberQueryRequest' } }
+      responses:
+        '200':
+          description: Dimension member page
+          content:
+            application/json: { schema: { $ref: '#/components/schemas/DimensionMemberQueryResponse' } }
+        '422': { $ref: '#/components/responses/Problem' }
   /api/v1/queries:validate:
     post:
       {
@@ -899,6 +957,56 @@ components:
             topK: { type: integer, minimum: 1, maximum: 100, default: 20 },
           },
       }
+    SemanticObjectQueryRequest:
+      type: object
+      properties:
+        text: { type: string, minLength: 1 }
+        types:
+          type: array
+          uniqueItems: true
+          items: { enum: [DATASET, METRIC, DIMENSION] }
+        datasetIds:
+          type: array
+          uniqueItems: true
+          items: { $ref: '#/components/schemas/Uuid' }
+        domains: { type: array, uniqueItems: true, items: { type: string } }
+        statuses: { type: array, uniqueItems: true, items: { type: string } }
+        certifiedOnly: { type: boolean, default: false }
+        sort: { enum: [RELEVANCE_DESC, NAME_ASC, UPDATED_AT_DESC] }
+        limit: { type: integer, minimum: 1, maximum: 100, default: 20 }
+        cursor:
+          type: string
+          description: Opaque continuation token bound to the catalog version and sort order
+    PageInfo:
+      type: object
+      required: [hasMore, limit]
+      properties:
+        nextCursor: { type: string }
+        hasMore: { type: boolean }
+        limit: { type: integer, minimum: 1, maximum: 100 }
+    SemanticObjectFacets:
+      type: object
+      required: [types, domains, statuses]
+      properties:
+        types:
+          type: object
+          additionalProperties: { type: integer, format: int64, minimum: 0 }
+        domains:
+          type: object
+          additionalProperties: { type: integer, format: int64, minimum: 0 }
+        statuses:
+          type: object
+          additionalProperties: { type: integer, format: int64, minimum: 0 }
+    SemanticObjectQueryResponse:
+      type: object
+      required: [items, pageInfo, facets, catalogVersion]
+      properties:
+        items:
+          type: array
+          items: { $ref: '#/components/schemas/SemanticSearchResult' }
+        pageInfo: { $ref: '#/components/schemas/PageInfo' }
+        facets: { $ref: '#/components/schemas/SemanticObjectFacets' }
+        catalogVersion: { type: string }
     SemanticSearchResult:
       type: object
       required: [type, id, datasetId, name, aliases, score, matchReasons, version, summary]
@@ -1024,6 +1132,15 @@ components:
         query: { type: string, minLength: 1 }
         mode: { enum: [AUTO, EXACT, PREFIX, CONTAINS], default: AUTO }
         topK: { type: integer, minimum: 1, maximum: 100, default: 20 }
+    DimensionMemberQueryRequest:
+      type: object
+      properties:
+        text: { type: string, minLength: 1 }
+        mode: { enum: [AUTO, EXACT, PREFIX, CONTAINS], default: AUTO }
+        limit: { type: integer, minimum: 1, maximum: 100, default: 20 }
+        cursor:
+          type: string
+          description: Opaque continuation token bound to the dimension and member version
     DimensionMember:
       type: object
       required: [value, displayValue]
@@ -1037,6 +1154,32 @@ components:
         dimensionId: { $ref: '#/components/schemas/Uuid' }
         members: { type: array, items: { $ref: '#/components/schemas/DimensionMember' } }
         truncated: { type: boolean }
+    DimensionMemberQueryResponse:
+      type: object
+      required: [dimensionId, items, pageInfo, memberVersion]
+      properties:
+        dimensionId: { $ref: '#/components/schemas/Uuid' }
+        items: { type: array, items: { $ref: '#/components/schemas/DimensionMember' } }
+        pageInfo: { $ref: '#/components/schemas/PageInfo' }
+        memberVersion: { type: string }
+    DependentResource:
+      type: object
+      required: [type, id, name, reason]
+      properties:
+        type: { type: string }
+        id: { $ref: '#/components/schemas/Uuid' }
+        name: { type: string }
+        reason: { type: string }
+    ResourceDeletionImpact:
+      type: object
+      required: [resourceId, deletable, dependencies, warnings]
+      properties:
+        resourceId: { $ref: '#/components/schemas/Uuid' }
+        deletable: { type: boolean }
+        dependencies:
+          type: array
+          items: { $ref: '#/components/schemas/DependentResource' }
+        warnings: { type: array, items: { type: string } }
     Problem:
       {
         type: object,

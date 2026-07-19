@@ -14,20 +14,24 @@ import com.metricplatform.persistence.entity.DatasetFieldEntity;
 import com.metricplatform.persistence.entity.DimensionEntity;
 import com.metricplatform.persistence.entity.DimensionTimeGranularityEntity;
 import com.metricplatform.persistence.entity.MetricEntity;
-import com.metricplatform.persistence.service.DatasetFieldPersistenceService;
 import com.metricplatform.persistence.service.DatasetEntityPersistenceService;
+import com.metricplatform.persistence.service.DatasetFieldPersistenceService;
 import com.metricplatform.persistence.service.DimensionEntityPersistenceService;
 import com.metricplatform.persistence.service.DimensionTimeGranularityPersistenceService;
 import com.metricplatform.persistence.service.MetricEntityPersistenceService;
+
+import lombok.RequiredArgsConstructor;
+
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
+import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.NoSuchElementException;
 import java.util.Set;
 import java.util.UUID;
-import lombok.RequiredArgsConstructor;
-import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
 
 @Service
 @RequiredArgsConstructor
@@ -101,10 +105,20 @@ public class SemanticDefinitionService {
         metric.setName(request.name().trim());
         metric.setDisplayName(request.displayName().trim());
         metric.setAggregation(request.aggregation().name());
-        applyMetricMetadata(metric, request.description(), request.businessDefinition(),
-                request.unit(), request.formatPattern(), request.status(), request.domain(),
-                request.owner(), request.certificationStatus(), request.aggregationBehavior(),
-                request.additivity(), request.metricType(), request.defaultTimeDimensionId());
+        applyMetricMetadata(
+                metric,
+                request.description(),
+                request.businessDefinition(),
+                request.unit(),
+                request.formatPattern(),
+                request.status(),
+                request.domain(),
+                request.owner(),
+                request.certificationStatus(),
+                request.aggregationBehavior(),
+                request.additivity(),
+                request.metricType(),
+                request.defaultTimeDimensionId());
         if (request.aliases() != null) metric.setAliases(writeAliases(request.aliases()));
         metrics.save(metric);
         return metricResponse(metric);
@@ -124,10 +138,20 @@ public class SemanticDefinitionService {
         metric.setName(request.name().trim());
         metric.setDisplayName(request.displayName().trim());
         metric.setAggregation(request.aggregation().name());
-        applyMetricMetadata(metric, request.description(), request.businessDefinition(),
-                request.unit(), request.formatPattern(), request.status(), request.domain(),
-                request.owner(), request.certificationStatus(), request.aggregationBehavior(),
-                request.additivity(), request.metricType(), request.defaultTimeDimensionId());
+        applyMetricMetadata(
+                metric,
+                request.description(),
+                request.businessDefinition(),
+                request.unit(),
+                request.formatPattern(),
+                request.status(),
+                request.domain(),
+                request.owner(),
+                request.certificationStatus(),
+                request.aggregationBehavior(),
+                request.additivity(),
+                request.metricType(),
+                request.defaultTimeDimensionId());
         if (request.aliases() != null) metric.setAliases(writeAliases(request.aliases()));
         if (!metrics.updateById(metric)) {
             throw new ConflictException("metric version is stale");
@@ -139,6 +163,11 @@ public class SemanticDefinitionService {
     public void deleteMetric(UUID id) {
         metric(id);
         metrics.softDeleteById(id);
+    }
+
+    public DeletionImpactResponse metricDeletionImpact(UUID id) {
+        metric(id);
+        return new DeletionImpactResponse(id, true, List.of(), List.of());
     }
 
     public PageResponse<DimensionResponse> listDimensions(
@@ -190,10 +219,18 @@ public class SemanticDefinitionService {
         dimension.setName(request.name().trim());
         dimension.setDisplayName(request.displayName().trim());
         dimension.setDimensionType(request.type().name());
-        applyDimensionMetadata(dimension, request.description(), request.businessDefinition(),
-                request.domain(), request.owner(), request.status(),
-                request.certificationStatus(), request.semanticType(), request.valueType(),
-                request.defaultGranularity(), request.sensitivityLevel());
+        applyDimensionMetadata(
+                dimension,
+                request.description(),
+                request.businessDefinition(),
+                request.domain(),
+                request.owner(),
+                request.status(),
+                request.certificationStatus(),
+                request.semanticType(),
+                request.valueType(),
+                request.defaultGranularity(),
+                request.sensitivityLevel());
         if (request.aliases() != null) dimension.setAliases(writeAliases(request.aliases()));
         dimensions.save(dimension);
         replaceGranularities(dimension.getId(), request.allowedGranularities());
@@ -217,10 +254,18 @@ public class SemanticDefinitionService {
         dimension.setName(request.name().trim());
         dimension.setDisplayName(request.displayName().trim());
         dimension.setDimensionType(request.type().name());
-        applyDimensionMetadata(dimension, request.description(), request.businessDefinition(),
-                request.domain(), request.owner(), request.status(),
-                request.certificationStatus(), request.semanticType(), request.valueType(),
-                request.defaultGranularity(), request.sensitivityLevel());
+        applyDimensionMetadata(
+                dimension,
+                request.description(),
+                request.businessDefinition(),
+                request.domain(),
+                request.owner(),
+                request.status(),
+                request.certificationStatus(),
+                request.semanticType(),
+                request.valueType(),
+                request.defaultGranularity(),
+                request.sensitivityLevel());
         if (request.aliases() != null) dimension.setAliases(writeAliases(request.aliases()));
         if (!dimensions.updateById(dimension)) {
             throw new ConflictException("dimension version is stale");
@@ -234,6 +279,53 @@ public class SemanticDefinitionService {
         dimension(id);
         granularities.removeByDimensionId(id);
         dimensions.softDeleteById(id);
+    }
+
+    public DeletionImpactResponse dimensionDeletionImpact(UUID id) {
+        dimension(id);
+        List<DependentResource> dependencies = new ArrayList<>();
+        datasets.list(
+                        new LambdaQueryWrapper<DatasetEntity>()
+                                .eq(DatasetEntity::getDefaultTimeDimensionId, id))
+                .forEach(
+                        dataset ->
+                                dependencies.add(
+                                        new DependentResource(
+                                                "DATASET",
+                                                dataset.getId(),
+                                                dataset.getName(),
+                                                "DEFAULT_TIME_DIMENSION")));
+        metrics.list(
+                        new LambdaQueryWrapper<MetricEntity>()
+                                .eq(MetricEntity::getDefaultTimeDimensionId, id))
+                .forEach(
+                        metric ->
+                                dependencies.add(
+                                        new DependentResource(
+                                                "METRIC",
+                                                metric.getId(),
+                                                metric.getName(),
+                                                "DEFAULT_TIME_DIMENSION")));
+        datasets.list().stream()
+                .filter(
+                        dataset ->
+                                dataset.getFilterExpression() != null
+                                        && dataset.getFilterExpression().contains(id.toString()))
+                .forEach(
+                        dataset ->
+                                dependencies.add(
+                                        new DependentResource(
+                                                "DATASET",
+                                                dataset.getId(),
+                                                dataset.getName(),
+                                                "FILTER_REFERENCE")));
+        return new DeletionImpactResponse(
+                id,
+                dependencies.isEmpty(),
+                dependencies,
+                dependencies.isEmpty()
+                        ? List.of()
+                        : List.of("Dependent definitions must be updated before deletion."));
     }
 
     public MetricEntity createMetric(UUID datasetId, MetricRequest request) {
@@ -450,18 +542,20 @@ public class SemanticDefinitionService {
         dimension.setCertificationStatus(defaultValue(certificationStatus, "UNCERTIFIED"));
         dimension.setSemanticType(trimToNull(semanticType));
         dimension.setValueType(trimToNull(valueType));
-        dimension.setDefaultGranularity(defaultGranularity == null ? null : defaultGranularity.name());
+        dimension.setDefaultGranularity(
+                defaultGranularity == null ? null : defaultGranularity.name());
         dimension.setSensitivityLevel(defaultValue(sensitivityLevel, "INTERNAL"));
     }
 
     private String writeAliases(List<String> values) {
-        List<String> normalized = values == null
-                ? List.of()
-                : values.stream()
-                        .filter(value -> value != null && !value.isBlank())
-                        .map(String::trim)
-                        .distinct()
-                        .toList();
+        List<String> normalized =
+                values == null
+                        ? List.of()
+                        : values.stream()
+                                .filter(value -> value != null && !value.isBlank())
+                                .map(String::trim)
+                                .distinct()
+                                .toList();
         try {
             return objectMapper.writeValueAsString(normalized);
         } catch (JsonProcessingException exception) {

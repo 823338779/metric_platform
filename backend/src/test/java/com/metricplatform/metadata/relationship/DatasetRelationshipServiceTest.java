@@ -1,6 +1,7 @@
 package com.metricplatform.metadata.relationship;
 
 import static com.metricplatform.metadata.relationship.RelationshipDtos.Cardinality.MANY_TO_ONE;
+
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
@@ -15,12 +16,14 @@ import com.metricplatform.persistence.service.DatasetEntityPersistenceService;
 import com.metricplatform.persistence.service.DatasetFieldPersistenceService;
 import com.metricplatform.persistence.service.DatasetRelationshipEntityPersistenceService;
 import com.metricplatform.persistence.service.DatasetRelationshipFieldPairPersistenceService;
-import java.util.List;
-import java.util.UUID;
+
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+
+import java.util.List;
+import java.util.UUID;
 
 @ExtendWith(MockitoExtension.class)
 class DatasetRelationshipServiceTest {
@@ -51,6 +54,27 @@ class DatasetRelationshipServiceTest {
 
         verify(pairs).removeByRelationshipId(relationshipId);
         verify(relationships).softDeleteById(relationshipId);
+    }
+
+    @Test
+    void reportsBothDatasetEndpointsBeforeRelationshipDeletion() {
+        UUID relationshipId = UUID.randomUUID();
+        DatasetRelationshipEntity relationship = new DatasetRelationshipEntity();
+        relationship.setId(relationshipId);
+        relationship.setName("Order customer");
+        relationship.setSourceDatasetId(SOURCE_DATASET);
+        relationship.setTargetDatasetId(TARGET_DATASET);
+        when(relationships.getById(relationshipId)).thenReturn(relationship);
+        when(datasets.getById(SOURCE_DATASET)).thenReturn(dataset(SOURCE_DATASET, DATA_SOURCE));
+        when(datasets.getById(TARGET_DATASET)).thenReturn(dataset(TARGET_DATASET, DATA_SOURCE));
+
+        RelationshipDtos.DeletionImpactResponse impact = service().deletionImpact(relationshipId);
+
+        assertThat(impact.resourceId()).isEqualTo(relationshipId);
+        assertThat(impact.dependencies())
+                .extracting(RelationshipDtos.DependentResource::id)
+                .containsExactly(SOURCE_DATASET, TARGET_DATASET);
+        assertThat(impact.warnings()).isNotEmpty();
     }
 
     @Test
@@ -159,8 +183,7 @@ class DatasetRelationshipServiceTest {
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("source field");
 
-        when(fields.getById(SOURCE_FIELD))
-                .thenReturn(field(SOURCE_FIELD, SOURCE_DATASET, "DATE"));
+        when(fields.getById(SOURCE_FIELD)).thenReturn(field(SOURCE_FIELD, SOURCE_DATASET, "DATE"));
         assertThatThrownBy(
                         () ->
                                 service()

@@ -15,16 +15,20 @@ export function SemanticObjectPicker({
   query,
   loading,
   connectivityReady,
+  hasMore = false,
   onQuery,
   onAdd,
+  onLoadMore,
 }: {
   objects: SemanticSearchResult[];
   compatibility: Record<string, ObjectCompatibility>;
   query: string;
   loading: boolean;
   connectivityReady: boolean;
+  hasMore?: boolean;
   onQuery: (value: string) => void;
   onAdd: (value: SemanticSearchResult) => void;
+  onLoadMore?: () => void;
 }) {
   const semanticObjects = objects.filter(
     (value): value is SemanticSearchResult & { type: SemanticType } =>
@@ -69,6 +73,17 @@ export function SemanticObjectPicker({
           onAdd={onAdd}
         />
       </div>
+      {hasMore && (
+        <Button
+          block
+          size="small"
+          loading={loading}
+          aria-label="加载更多语义对象"
+          onClick={onLoadMore}
+        >
+          加载更多
+        </Button>
+      )}
     </aside>
   );
 }

@@ -1,7 +1,8 @@
 import { Button, Card, Input, Space, Table } from 'antd';
 import { useEffect, useState } from 'react';
 import { metricPlatformApi } from '../../api/metricPlatformApi';
-import type { Dataset, Metric } from '../../api/types';
+import type { Dataset, Metric, ResourceDeletionImpact } from '../../api/types';
+import { DeletionImpactDialog } from '../../components/DeletionImpactDialog';
 import { MetricDrawer } from './MetricDrawer';
 
 export function MetricListPage() {
@@ -10,6 +11,9 @@ export function MetricListPage() {
   const [editing, setEditing] = useState<Metric>();
   const [open, setOpen] = useState(false);
   const [q, setQ] = useState('');
+  const [deleting, setDeleting] = useState<Metric>();
+  const [impact, setImpact] = useState<ResourceDeletionImpact>();
+  const [confirmingDelete, setConfirmingDelete] = useState(false);
   const load = () =>
     Promise.all([
       metricPlatformApi.listMetrics(new URLSearchParams({ q })),
@@ -62,7 +66,11 @@ export function MetricListPage() {
                 </Button>
                 <Button
                   danger
-                  onClick={() => void metricPlatformApi.deleteMetric(metric.id).then(load)}
+                  onClick={() => {
+                    setDeleting(metric);
+                    setImpact(undefined);
+                    void metricPlatformApi.metricDeletionImpact(metric.id).then(setImpact);
+                  }}
                 >
                   删除
                 </Button>
@@ -89,6 +97,28 @@ export function MetricListPage() {
           else await metricPlatformApi.createMetric({ ...value, aliases: value.aliases ?? [] });
           setOpen(false);
           await load();
+        }}
+      />
+      <DeletionImpactDialog
+        open={Boolean(deleting)}
+        resourceName={deleting?.displayName}
+        impact={impact}
+        confirming={confirmingDelete}
+        onCancel={() => {
+          setDeleting(undefined);
+          setImpact(undefined);
+        }}
+        onConfirm={() => {
+          if (!deleting || !impact) return;
+          setConfirmingDelete(true);
+          void metricPlatformApi
+            .deleteMetric(deleting.id)
+            .then(load)
+            .then(() => {
+              setDeleting(undefined);
+              setImpact(undefined);
+            })
+            .finally(() => setConfirmingDelete(false));
         }}
       />
     </Card>

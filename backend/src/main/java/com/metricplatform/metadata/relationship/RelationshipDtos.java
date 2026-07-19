@@ -4,6 +4,7 @@ import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotEmpty;
 import jakarta.validation.constraints.NotNull;
+
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.UUID;
@@ -30,10 +31,22 @@ public final class RelationshipDtos {
             Boolean fanoutSafe,
             String status) {
         public CreateRelationshipRequest(
-                String name, UUID sourceDatasetId, UUID targetDatasetId, Cardinality cardinality,
+                String name,
+                UUID sourceDatasetId,
+                UUID targetDatasetId,
+                Cardinality cardinality,
                 List<FieldPairRequest> fieldPairs) {
-            this(name, sourceDatasetId, targetDatasetId, cardinality, fieldPairs, null, null, null,
-                    true, "ACTIVE");
+            this(
+                    name,
+                    sourceDatasetId,
+                    targetDatasetId,
+                    cardinality,
+                    fieldPairs,
+                    null,
+                    null,
+                    null,
+                    true,
+                    "ACTIVE");
         }
     }
 
@@ -48,7 +61,9 @@ public final class RelationshipDtos {
             Boolean fanoutSafe,
             String status) {
         public UpdateRelationshipRequest(
-                String name, Cardinality cardinality, List<FieldPairRequest> fieldPairs,
+                String name,
+                Cardinality cardinality,
+                List<FieldPairRequest> fieldPairs,
                 long version) {
             this(name, cardinality, fieldPairs, version, null, null, null, true, "ACTIVE");
         }
@@ -71,11 +86,45 @@ public final class RelationshipDtos {
             boolean fanoutSafe,
             String status) {
         public RelationshipResponse(
-                UUID id, String name, UUID sourceDatasetId, UUID targetDatasetId,
-                Cardinality cardinality, String joinType, List<FieldPairRequest> fieldPairs,
-                String validationStatus, LocalDateTime lastValidatedAt, long version) {
-            this(id, name, sourceDatasetId, targetDatasetId, cardinality, joinType, fieldPairs,
-                    validationStatus, lastValidatedAt, version, null, null, null, true, "ACTIVE");
+                UUID id,
+                String name,
+                UUID sourceDatasetId,
+                UUID targetDatasetId,
+                Cardinality cardinality,
+                String joinType,
+                List<FieldPairRequest> fieldPairs,
+                String validationStatus,
+                LocalDateTime lastValidatedAt,
+                long version) {
+            this(
+                    id,
+                    name,
+                    sourceDatasetId,
+                    targetDatasetId,
+                    cardinality,
+                    joinType,
+                    fieldPairs,
+                    validationStatus,
+                    lastValidatedAt,
+                    version,
+                    null,
+                    null,
+                    null,
+                    true,
+                    "ACTIVE");
+        }
+    }
+
+    public record DependentResource(String type, UUID id, String name, String reason) {}
+
+    public record DeletionImpactResponse(
+            UUID resourceId,
+            boolean deletable,
+            List<DependentResource> dependencies,
+            List<String> warnings) {
+        public DeletionImpactResponse {
+            dependencies = dependencies == null ? List.of() : List.copyOf(dependencies);
+            warnings = warnings == null ? List.of() : List.copyOf(warnings);
         }
     }
 }

@@ -4,6 +4,7 @@ import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
+
 import java.util.List;
 import java.util.Set;
 import java.util.UUID;
@@ -58,8 +59,23 @@ public final class SemanticDtos {
                 String displayName,
                 DimensionType type,
                 Set<TimeGranularity> allowedGranularities) {
-            this(datasetId, datasetFieldId, name, displayName, type, allowedGranularities, null,
-                    null, List.of(), null, null, "ACTIVE", "UNCERTIFIED", null, null, null,
+            this(
+                    datasetId,
+                    datasetFieldId,
+                    name,
+                    displayName,
+                    type,
+                    allowedGranularities,
+                    null,
+                    null,
+                    List.of(),
+                    null,
+                    null,
+                    "ACTIVE",
+                    "UNCERTIFIED",
+                    null,
+                    null,
+                    null,
                     "INTERNAL");
         }
     }
@@ -89,8 +105,23 @@ public final class SemanticDtos {
                 DimensionType type,
                 Set<TimeGranularity> allowedGranularities,
                 long version) {
-            this(datasetFieldId, name, displayName, type, allowedGranularities, version, null,
-                    null, null, null, null, "ACTIVE", "UNCERTIFIED", null, null, null,
+            this(
+                    datasetFieldId,
+                    name,
+                    displayName,
+                    type,
+                    allowedGranularities,
+                    version,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    "ACTIVE",
+                    "UNCERTIFIED",
+                    null,
+                    null,
+                    null,
                     "INTERNAL");
         }
     }
@@ -120,8 +151,25 @@ public final class SemanticDtos {
                 String name,
                 String displayName,
                 Aggregation aggregation) {
-            this(datasetId, datasetFieldId, name, displayName, aggregation, null, null, List.of(),
-                    null, null, "ACTIVE", null, null, "UNCERTIFIED", null, null, "BASE", null);
+            this(
+                    datasetId,
+                    datasetFieldId,
+                    name,
+                    displayName,
+                    aggregation,
+                    null,
+                    null,
+                    List.of(),
+                    null,
+                    null,
+                    "ACTIVE",
+                    null,
+                    null,
+                    "UNCERTIFIED",
+                    null,
+                    null,
+                    "BASE",
+                    null);
         }
     }
 
@@ -150,8 +198,25 @@ public final class SemanticDtos {
                 String displayName,
                 Aggregation aggregation,
                 long version) {
-            this(datasetFieldId, name, displayName, aggregation, version, null, null, null,
-                    null, null, "ACTIVE", null, null, "UNCERTIFIED", null, null, "BASE", null);
+            this(
+                    datasetFieldId,
+                    name,
+                    displayName,
+                    aggregation,
+                    version,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    "ACTIVE",
+                    null,
+                    null,
+                    "UNCERTIFIED",
+                    null,
+                    null,
+                    "BASE",
+                    null);
         }
     }
 
@@ -176,11 +241,34 @@ public final class SemanticDtos {
             TimeGranularity defaultGranularity,
             String sensitivityLevel) {
         public DimensionResponse(
-                UUID id, UUID datasetId, UUID datasetFieldId, String name, String displayName,
-                DimensionType type, Set<TimeGranularity> allowedGranularities, long version) {
-            this(id, datasetId, datasetFieldId, name, displayName, type, allowedGranularities,
-                    version, null, null, List.of(), null, null, "ACTIVE", "UNCERTIFIED", null,
-                    null, null, "INTERNAL");
+                UUID id,
+                UUID datasetId,
+                UUID datasetFieldId,
+                String name,
+                String displayName,
+                DimensionType type,
+                Set<TimeGranularity> allowedGranularities,
+                long version) {
+            this(
+                    id,
+                    datasetId,
+                    datasetFieldId,
+                    name,
+                    displayName,
+                    type,
+                    allowedGranularities,
+                    version,
+                    null,
+                    null,
+                    List.of(),
+                    null,
+                    null,
+                    "ACTIVE",
+                    "UNCERTIFIED",
+                    null,
+                    null,
+                    null,
+                    "INTERNAL");
         }
     }
 
@@ -206,11 +294,34 @@ public final class SemanticDtos {
             String metricType,
             UUID defaultTimeDimensionId) {
         public MetricResponse(
-                UUID id, UUID datasetId, UUID datasetFieldId, String name, String displayName,
-                Aggregation aggregation, long version) {
-            this(id, datasetId, datasetFieldId, name, displayName, aggregation, version, null,
-                    null, List.of(), null, null, "ACTIVE", null, null, "UNCERTIFIED", null, null,
-                    "BASE", null);
+                UUID id,
+                UUID datasetId,
+                UUID datasetFieldId,
+                String name,
+                String displayName,
+                Aggregation aggregation,
+                long version) {
+            this(
+                    id,
+                    datasetId,
+                    datasetFieldId,
+                    name,
+                    displayName,
+                    aggregation,
+                    version,
+                    null,
+                    null,
+                    List.of(),
+                    null,
+                    null,
+                    "ACTIVE",
+                    null,
+                    null,
+                    "UNCERTIFIED",
+                    null,
+                    null,
+                    "BASE",
+                    null);
         }
     }
 
@@ -218,4 +329,17 @@ public final class SemanticDtos {
 
     public record PageRequest(
             String q, UUID datasetId, @Min(0) int page, @Min(1) @Max(200) int size) {}
+
+    public record DependentResource(String type, UUID id, String name, String reason) {}
+
+    public record DeletionImpactResponse(
+            UUID resourceId,
+            boolean deletable,
+            List<DependentResource> dependencies,
+            List<String> warnings) {
+        public DeletionImpactResponse {
+            dependencies = dependencies == null ? List.of() : List.copyOf(dependencies);
+            warnings = warnings == null ? List.of() : List.copyOf(warnings);
+        }
+    }
 }

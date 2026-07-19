@@ -1,8 +1,9 @@
 package com.metricplatform.semantic;
 
 import jakarta.validation.Valid;
-import java.util.UUID;
+
 import lombok.RequiredArgsConstructor;
+
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -12,6 +13,8 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
+
+import java.util.UUID;
 
 @RestController
 @RequiredArgsConstructor
@@ -50,6 +53,11 @@ public class SemanticController {
         return ResponseEntity.noContent().build();
     }
 
+    @GetMapping("/api/v1/metrics/{id}/deletion-impact")
+    public SemanticDtos.DeletionImpactResponse metricDeletionImpact(@PathVariable UUID id) {
+        return semantics.metricDeletionImpact(id);
+    }
+
     @GetMapping("/api/v1/dimensions")
     public SemanticDtos.PageResponse<SemanticDtos.DimensionResponse> listDimensions(
             @RequestParam(required = false) String q,
@@ -81,5 +89,10 @@ public class SemanticController {
     public ResponseEntity<Void> deleteDimension(@PathVariable UUID id) {
         semantics.deleteDimension(id);
         return ResponseEntity.noContent().build();
+    }
+
+    @GetMapping("/api/v1/dimensions/{id}/deletion-impact")
+    public SemanticDtos.DeletionImpactResponse dimensionDeletionImpact(@PathVariable UUID id) {
+        return semantics.dimensionDeletionImpact(id);
     }
 }

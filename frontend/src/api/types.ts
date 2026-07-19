@@ -319,6 +319,30 @@ export type SemanticSearchRequest = {
   certifiedOnly?: boolean;
   topK?: number;
 };
+export type SemanticObjectSort = 'RELEVANCE_DESC' | 'NAME_ASC' | 'UPDATED_AT_DESC';
+export type SemanticObjectQueryRequest = {
+  text?: string;
+  types?: ('DATASET' | 'METRIC' | 'DIMENSION')[];
+  datasetIds?: UUID[];
+  domains?: string[];
+  statuses?: string[];
+  certifiedOnly?: boolean;
+  sort?: SemanticObjectSort;
+  limit?: number;
+  cursor?: string;
+};
+export type PageInfo = { nextCursor?: string; hasMore: boolean; limit: number };
+export type SemanticObjectFacets = {
+  types: Partial<Record<'DATASET' | 'METRIC' | 'DIMENSION', number>>;
+  domains: Record<string, number>;
+  statuses: Record<string, number>;
+};
+export type SemanticObjectQueryResponse = {
+  items: SemanticSearchResult[];
+  pageInfo: PageInfo;
+  facets: SemanticObjectFacets;
+  catalogVersion: string;
+};
 export type RelationshipPathSummary = {
   relationshipId: UUID;
   name: string;
@@ -390,6 +414,24 @@ export type DimensionMemberSearchResponse = {
   dimensionId: UUID;
   members: { value: string; displayValue: string }[];
   truncated: boolean;
+};
+export type DimensionMemberQueryRequest = {
+  text?: string;
+  mode?: 'AUTO' | 'EXACT' | 'PREFIX' | 'CONTAINS';
+  limit?: number;
+  cursor?: string;
+};
+export type DimensionMemberQueryResponse = {
+  dimensionId: UUID;
+  items: { value: string; displayValue: string }[];
+  pageInfo: PageInfo;
+  memberVersion: string;
+};
+export type ResourceDeletionImpact = {
+  resourceId: UUID;
+  deletable: boolean;
+  dependencies: { type: string; id: UUID; name: string; reason: string }[];
+  warnings: string[];
 };
 export type ProblemDetails = {
   type?: string;
