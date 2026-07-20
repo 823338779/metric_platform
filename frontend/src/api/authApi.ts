@@ -2,7 +2,7 @@ import { getAccessToken, type AuthIdentity, type AuthSession } from './auth';
 import { ApiProblem, type Fetcher } from './httpClient';
 import type { ProblemDetails } from './types';
 
-const baseUrl = import.meta.env.VITE_METRIC_PLATFORM_API_URL ?? '/api/v1';
+const baseUrl = '/api/v1';
 
 async function readProblem(response: Response): Promise<ApiProblem> {
   let problem: ProblemDetails = {

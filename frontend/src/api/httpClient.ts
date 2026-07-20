@@ -9,10 +9,7 @@ export class ApiProblem extends Error {
 }
 export type Fetcher = (input: RequestInfo | URL, init?: RequestInit) => Promise<Response>;
 
-export function createHttpClient(
-  fetcher: Fetcher = fetch,
-  baseUrl = import.meta.env.VITE_METRIC_PLATFORM_API_URL ?? '/api/v1',
-) {
+export function createHttpClient(fetcher: Fetcher = fetch, baseUrl = '/api/v1') {
   return async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
     const token = getAccessToken();
     const headers: Record<string, string> = {

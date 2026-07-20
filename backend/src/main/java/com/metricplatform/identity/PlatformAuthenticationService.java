@@ -21,6 +21,7 @@ import java.util.Locale;
 import java.util.UUID;
 import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -31,6 +32,7 @@ public class PlatformAuthenticationService {
     private final PasswordEncoder passwordEncoder;
     private final PlatformUserPersistenceService users;
     private final PlatformAccessTokenPersistenceService tokens;
+    private final RedisAccessTokenStore redisTokens;
     private final Clock clock;
     private final SecureRandom random = new SecureRandom();
     private final String dummyPasswordHash;
@@ -42,11 +44,24 @@ public class PlatformAuthenticationService {
             PlatformUserPersistenceService users,
             PlatformAccessTokenPersistenceService tokens,
             Clock clock) {
+        this(properties, rateLimiter, passwordEncoder, users, tokens, null, clock);
+    }
+
+    @Autowired
+    public PlatformAuthenticationService(
+            PlatformIdentityProperties properties,
+            LoginRateLimiter rateLimiter,
+            PasswordEncoder passwordEncoder,
+            PlatformUserPersistenceService users,
+            PlatformAccessTokenPersistenceService tokens,
+            RedisAccessTokenStore redisTokens,
+            Clock clock) {
         this.properties = properties;
         this.rateLimiter = rateLimiter;
         this.passwordEncoder = passwordEncoder;
         this.users = users;
         this.tokens = tokens;
+        this.redisTokens = redisTokens;
         this.clock = clock;
         this.dummyPasswordHash = passwordEncoder.encode(UUID.randomUUID().toString());
     }
@@ -84,16 +99,22 @@ public class PlatformAuthenticationService {
         rateLimiter.recordSuccess(remoteAddress, username);
 
         String rawToken = newToken();
-        PlatformAccessTokenEntity token = new PlatformAccessTokenEntity();
-        token.setId(UUID.randomUUID());
-        token.setTokenHash(hash(rawToken));
-        token.setIdentityId(user.getId());
-        token.setAuthVersion(user.getAuthVersion());
-        token.setIssuedAt(now);
-        token.setExpiresAt(now.plus(properties.getTokenTtl()));
-        tokens.save(token);
+        UUID tokenId = UUID.randomUUID();
+        Instant expiresAt = now.plus(properties.getTokenTtl());
+        if (redisTokens != null) {
+            redisTokens.save(hash(rawToken), tokenId, user.getId(), user.getAuthVersion(), expiresAt);
+        } else {
+            PlatformAccessTokenEntity token = new PlatformAccessTokenEntity();
+            token.setId(tokenId);
+            token.setTokenHash(hash(rawToken));
+            token.setIdentityId(user.getId());
+            token.setAuthVersion(user.getAuthVersion());
+            token.setIssuedAt(now);
+            token.setExpiresAt(expiresAt);
+            tokens.save(token);
+        }
 
-        PlatformPrincipal principal = principal(user, token.getId());
+        PlatformPrincipal principal = principal(user, tokenId);
         return new AuthTokenResponse(
                 rawToken, "Bearer", properties.getTokenTtl().toSeconds(), summary(principal));
     }
@@ -104,20 +125,34 @@ public class PlatformAuthenticationService {
             throw invalidCredentials();
         }
         Instant now = clock.instant();
-        PlatformAccessTokenEntity token =
-                tokens.getOne(
-                        new LambdaQueryWrapper<PlatformAccessTokenEntity>()
-                                .eq(PlatformAccessTokenEntity::getTokenHash, hash(rawToken))
-                                .isNull(PlatformAccessTokenEntity::getRevokedAt));
-        if (token == null || !token.getExpiresAt().isAfter(now)) throw invalidCredentials();
+        UUID credentialId;
+        UUID identityId;
+        long authVersion;
+        if (redisTokens != null) {
+            var token = redisTokens.find(hash(rawToken));
+            if (token == null) throw invalidCredentials();
+            credentialId = token.id();
+            identityId = token.identityId();
+            authVersion = token.authVersion();
+        } else {
+            PlatformAccessTokenEntity token =
+                    tokens.getOne(
+                            new LambdaQueryWrapper<PlatformAccessTokenEntity>()
+                                    .eq(PlatformAccessTokenEntity::getTokenHash, hash(rawToken))
+                                    .isNull(PlatformAccessTokenEntity::getRevokedAt));
+            if (token == null || !token.getExpiresAt().isAfter(now)) throw invalidCredentials();
+            credentialId = token.getId();
+            identityId = token.getIdentityId();
+            authVersion = token.getAuthVersion();
+        }
 
-        PlatformUserEntity user = users.getById(token.getIdentityId());
+        PlatformUserEntity user = users.getById(identityId);
         if (user == null
                 || !"ACTIVE".equals(user.getStatus())
-                || user.getAuthVersion() != token.getAuthVersion()) {
+                || user.getAuthVersion() != authVersion) {
             throw invalidCredentials();
         }
-        return principal(user, token.getId());
+        return principal(user, credentialId);
     }
 
     public IdentitySummary summary(PlatformPrincipal principal) {

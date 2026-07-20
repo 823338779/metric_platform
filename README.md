@@ -12,7 +12,7 @@ docker compose up -d
 npm.cmd --prefix .\frontend run dev
 ```
 
-The metadata PostgreSQL service listens on port `5433`; the backend defaults to port `8090`. Copy `.env.example` to `.env` when local overrides are needed. StarRocks connections must use a read-only account.
+The metadata PostgreSQL service listens on port `5433`; the backend defaults to port `8090`. Local credentials are defined in the checked-in service configuration. StarRocks connections must use a read-only account.
 
 Build independently with:
 

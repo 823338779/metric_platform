@@ -2,25 +2,31 @@ spring:
   application:
     name: metric-platform
   datasource:
-    url: ${METRIC_PLATFORM_DB_URL:jdbc:postgresql://localhost:5432/metric_platform}
-    username: ${METRIC_PLATFORM_DB_USERNAME:${POSTGRES_USERNAME:data_agent}}
-    password: ${METRIC_PLATFORM_DB_PASSWORD:${POSTGRES_PASSWORD:data_agent_local_dev}}
+    url: jdbc:postgresql://localhost:5432/metric_platform
+    username: data_agent
+    password: data_agent_local_dev
   flyway:
     enabled: true
+  data:
+    redis:
+      host: localhost
+      port: 6379
+      username: default
+      password: redis_local_dev
 mybatis-plus:
   type-handlers-package: com.metricplatform.persistence
 server:
-  port: ${METRIC_PLATFORM_PORT:8090}
+  port: 8090
 metric-platform:
   identity-auth:
-    enabled: ${METRIC_PLATFORM_IDENTITY_AUTH_ENABLED:true}
+    enabled: true
     token-ttl: PT10H
     lock-threshold: 5
     lock-duration: PT15M
     rate-limit: 10
     rate-window: PT1M
     bootstrap:
-      enabled: ${METRIC_PLATFORM_BOOTSTRAP_ENABLED:false}
-      username: ${METRIC_PLATFORM_BOOTSTRAP_USERNAME:}
-      display-name: ${METRIC_PLATFORM_BOOTSTRAP_DISPLAY_NAME:Platform Administrator}
-      password: ${METRIC_PLATFORM_BOOTSTRAP_PASSWORD:}
+      enabled: true
+      username: admin
+      display-name: Platform Administrator
+      password: admin
