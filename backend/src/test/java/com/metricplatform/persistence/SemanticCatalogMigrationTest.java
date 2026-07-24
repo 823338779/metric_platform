@@ -5,13 +5,12 @@ import static org.assertj.core.api.Assertions.assertThat;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.ActiveProfiles;
 
 @SpringBootTest
 @ActiveProfiles("test")
 class SemanticCatalogMigrationTest {
-    @Autowired JdbcTemplate jdbc;
+    @Autowired MigrationMetadataPersistenceService metadata;
 
     @Test
     void createsRelationshipAndGranularityTables() {
@@ -20,9 +19,6 @@ class SemanticCatalogMigrationTest {
     }
 
     private int tableCount(String tableName) {
-        return jdbc.queryForObject(
-                "select count(*) from information_schema.tables where table_name = ?",
-                Integer.class,
-                tableName);
+        return metadata.tableCount(tableName);
     }
 }
