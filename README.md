@@ -23,7 +23,7 @@ Metric Platform is the governed metric and semantic layer used by Data Agent. It
 When this repository is checked out under `agent-root`, use the workspace Compose project. It supplies PostgreSQL, creates the `metric_platform` database with the application's default credentials, and starts Redis:
 
 ```powershell
-docker compose -f .\infra\compose\data-agent.yml up -d
+docker compose -f .\infra\compose\compose.yml up -d
 ```
 
 From the workspace root, start `MetricPlatformApplication` from `.run/`, or run the backend from this repository:
