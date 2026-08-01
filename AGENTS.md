@@ -1,28 +1,28 @@
-# Metric Platform Instructions
+# Metric Platform 规则
 
-This repository owns the governed metric and semantic layer. Keep it independently buildable and independent of Data Agent implementation classes.
+本仓库负责受治理的指标与语义层。必须保持独立构建，并且不得依赖 Data Agent 的实现类。
 
-## Project map
+## 项目结构
 
-- `backend/`: Spring Boot API, domain services, persistence, authentication, Flyway migrations, and semantic query compilation and execution.
-- `frontend/`: React/Vite metric-management console.
-- `api/openapi.yaml`: published integration contract.
-- `docker-compose.yml`: standalone PostgreSQL development service.
+- `backend/`：Spring Boot API、领域服务、持久化、身份认证、Flyway 迁移以及语义查询编译与执行。
+- `frontend/`：React/Vite 指标管理控制台。
+- `api/openapi.yaml`：已发布的集成契约。
+- `docker-compose.yml`：独立的 PostgreSQL 开发服务。
 
-## Change boundaries
+## 变更边界
 
-- Data-source metadata, datasets, fields, dimensions, metrics, relationships, semantic SQL, governed queries, identities, and their management UI belong here.
-- The current platform uses global authenticated identities and is not tenant-, workspace-, role-, or dataset-grant-scoped. Do not reintroduce those semantics unless the requirement explicitly calls for them and the migrations, implementation, and OpenAPI contract change together.
-- Treat authentication, access-token lifecycle, data-source credentials, audit attribution, semantic SQL generation and execution, and destructive mutations as security or correctness boundaries.
-- For an intentional public API change, update `api/openapi.yaml` and keep routes, schemas, authentication, errors, implementation, tests, and consumers aligned with it.
-- Data Agent integration must use the published HTTP API. Do not import or reach into the parent workspace or Data Agent source tree.
-- Preserve the existing semantic query compiler and parameter-binding paths; do not bypass them with ad hoc SQL string construction.
-- Keep schema changes in versioned Flyway migrations and never rewrite an applied migration.
+- 数据源元数据、数据集、字段、维度、指标、关系、语义 SQL、受治理查询、身份及其管理界面均归属本仓库。
+- 当前平台使用全局身份认证模型，不按租户、工作区、角色或数据集授权进行隔离。除非需求明确要求，并且数据库迁移、实现和 OpenAPI 契约同步变更，否则不得重新引入这些语义。
+- 身份认证、访问令牌生命周期、数据源凭据、审计归因、语义 SQL 生成与执行以及破坏性变更均属于安全或正确性边界。
+- 有意修改公开 API 时，应更新 `api/openapi.yaml`，并确保路由、数据结构、身份认证、错误行为、实现、测试和调用方与其保持一致。
+- Data Agent 必须通过已发布的 HTTP API 集成。不得导入或访问父工作区及 Data Agent 源码树中的实现。
+- 保持现有语义查询编译器和参数绑定路径；不得使用临时 SQL 字符串拼接绕过这些机制。
+- 数据库结构变更必须使用带版本的 Flyway 迁移，且不得改写已经应用的迁移。
 
-## Coding and verification
+## 编码与验证
 
-- Add comments for non-obvious semantic rules, authentication constraints, SQL-generation invariants, and destructive operations; do not comment self-evident code.
-- Do not delete, weaken, or rewrite tests merely to make a change pass. Bug fixes and new behavior may add the smallest relevant regression tests; broad test-suite changes require explicit user approval.
-- Never commit real credentials, connection details, tokens, or customer data.
-- Use the supported commands in `README.md`. Run the narrowest affected backend or frontend test first, then broaden verification when a change crosses boundaries.
-- The checked-in Maven wrapper is incomplete because `.mvn/wrapper/maven-wrapper.properties` is absent. Use the installed `mvn` command for backend work; run frontend commands from `frontend/`.
+- 仅为非显而易见的语义规则、身份认证约束、SQL 生成不变量和破坏性操作添加注释；不要注释不言自明的代码。
+- 不得为了让变更通过而删除、弱化或改写测试。修复缺陷或新增行为时，可以添加最小范围的回归测试；大范围调整测试体系必须获得用户明确授权。
+- 严禁提交真实凭据、连接信息、令牌或客户数据。
+- 使用 `README.md` 中记录的受支持命令。先运行受影响后端或前端范围内的最小测试；当变更跨越边界时，再扩大验证范围。
+- 仓库中的 Maven Wrapper 不完整，因为缺少 `.mvn/wrapper/maven-wrapper.properties`。后端工作使用系统安装的 `mvn` 命令；前端命令从 `frontend/` 目录运行。
