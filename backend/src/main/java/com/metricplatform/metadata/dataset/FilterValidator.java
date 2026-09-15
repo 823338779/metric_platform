@@ -54,7 +54,8 @@ public final class FilterValidator {
             case IS_NULL, IS_NOT_NULL ->
                     require(valueCount == 0, "null predicate does not accept values");
             case BETWEEN -> require(valueCount == 2, "BETWEEN requires exactly two values");
-            case IN -> require(valueCount > 0, "IN requires at least one value");
+            case IN, NOT_IN ->
+                    require(valueCount > 0, expression.operator() + " requires at least one value");
             default ->
                     require(valueCount == 1, expression.operator() + " requires exactly one value");
         }

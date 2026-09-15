@@ -18,7 +18,13 @@ class OpenApiContractTest {
         String contract = Files.readString(Path.of("../api/openapi.yaml"));
         JsonNode document = new ObjectMapper(new YAMLFactory()).readTree(contract);
         assertThat(document.path("openapi").asText()).isEqualTo("3.1.0");
-        assertThat(document.path("paths").size()).isEqualTo(40);
+        assertThat(document.path("paths").size()).isEqualTo(42);
+        assertThat(
+                        document.at("/paths/~1internal~1git-sync~1events/post/security/0/gitWebhookHmac")
+                                .isArray())
+                .isTrue();
+        assertThat(document.at("/paths/~1api~1v1~1git-sync~1status/get/responses/200").isObject())
+                .isTrue();
         assertThat(contract)
                 .contains(
                         "/api/v1/datasets:",

@@ -1,0 +1,49 @@
+#!/usr/bin/env python3
+"""Git 服务端 post-receive：main 更新后通知指标平台；失败由平台轮询补偿。"""
+
+import hashlib
+import hmac
+import json
+import os
+import sys
+import urllib.request
+import uuid
+
+MAIN = "refs/heads/main"
+TIMEOUT_SECONDS = 3
+
+
+def notify(lines, environment):
+    for line in lines:
+        parts = line.strip().split()
+        if len(parts) != 3 or parts[2] != MAIN:
+            continue
+        # 严格签名最终发送的原始字节，避免 JSON 空白或中文编码差异造成验签失败。
+        body = json.dumps({
+            "protocolVersion": 1,
+            "eventId": str(uuid.uuid4()),
+            "repositoryId": environment["METRIC_GIT_REPOSITORY_ID"],
+            "ref": MAIN,
+            "before": parts[0],
+            "after": parts[1],
+        }, separators=(",", ":")).encode("utf-8")
+        signature = hmac.new(
+            environment["METRIC_GIT_WEBHOOK_SECRET"].encode("utf-8"), body, hashlib.sha256
+        ).hexdigest()
+        request = urllib.request.Request(
+            environment["METRIC_GIT_WEBHOOK_URL"], data=body, method="POST",
+            headers={"Content-Type": "application/json", "X-Git-Signature": "sha256=" + signature},
+        )
+        with urllib.request.urlopen(request, timeout=TIMEOUT_SECONDS) as response:
+            if response.status != 202:
+                raise RuntimeError("unexpected webhook response")
+        break
+
+
+if __name__ == "__main__":
+    try:
+        notify(sys.stdin, os.environ)
+    except Exception:
+        # post-receive 发生在 Git 接受提交之后，不把平台可用性变成 Agent push 的条件。
+        # 不输出 URL、密钥、响应内容和底层异常；这些内容可能包含部署凭据。
+        print("指标平台刷新通知未送达，将由平台定时扫描补偿。", file=sys.stderr)

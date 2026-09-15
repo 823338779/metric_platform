@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.metricplatform.persistence.mapper.GitSyncStateMapper">
+    <!-- ON CONFLICT 与行锁是首次并发消费和 CAS 的数据库边界，通用 CRUD 不能替代。 -->
+    <insert id="initialize">
+        INSERT INTO git_sync_state(repository_id,model_name,data_source_id,schema_name)
+        VALUES(#{repositoryId},#{modelName},#{dataSourceId},#{schemaName}) ON CONFLICT DO NOTHING
+    </insert>
+    <select id="lock" resultType="com.metricplatform.persistence.entity.GitSyncStateEntity">
+        SELECT * FROM git_sync_state WHERE repository_id=#{repositoryId} FOR UPDATE
+    </select>
+    <select id="authorize" resultType="string">
+        SELECT set_config('metric_platform.git_repository', #{repositoryId}, true)
+    </select>
+</mapper>

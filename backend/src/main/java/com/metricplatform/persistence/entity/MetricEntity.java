@@ -17,6 +17,10 @@ public class MetricEntity extends BaseAuditEntity {
     private String description, businessDefinition, domainName, ownerName;
     private String status, certificationStatus, unit, formatPattern;
     private String aggregationBehavior, additivity, metricType, aliases;
+
+    /** 指标级固定过滤的 FilterExpression JSON；空值表示无过滤，仅作用于本指标聚合。 */
+    private String fixedFilterExpression;
+
     private UUID defaultTimeDimensionId;
     @Version private long version;
 }

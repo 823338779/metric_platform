@@ -13,10 +13,17 @@ import com.metricplatform.persistence.entity.MetricEntity;
 import com.metricplatform.query.QueryDtos;
 import com.metricplatform.query.SemanticCatalogReader;
 import com.metricplatform.semantic.SemanticDtos;
+import java.sql.Connection;
 import java.util.List;
 import java.util.Set;
 import java.util.UUID;
+import javax.sql.DataSource;
 import org.junit.jupiter.api.Test;
+import org.springframework.aop.framework.ProxyFactory;
+import org.springframework.jdbc.datasource.DataSourceTransactionManager;
+import org.springframework.transaction.annotation.AnnotationTransactionAttributeSource;
+import org.springframework.transaction.interceptor.TransactionInterceptor;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 class QueryPlannerTest {
     private final SemanticCatalogReader catalog = mock(SemanticCatalogReader.class);
@@ -26,6 +33,55 @@ class QueryPlannerTest {
     private final UUID salesMetric = UUID.randomUUID();
     private final UUID ticketMetric = UUID.randomUUID();
     private final UUID regionDimension = UUID.randomUUID();
+
+    @Test
+    void readsMetadataInReadOnlyRepeatableReadAndReleasesTransactionAfterPlanning()
+            throws Exception {
+        DataSource dataSource = mock(DataSource.class);
+        Connection connection = mock(Connection.class);
+        when(dataSource.getConnection()).thenReturn(connection);
+        when(connection.getAutoCommit()).thenReturn(true);
+        when(connection.getTransactionIsolation())
+                .thenReturn(Connection.TRANSACTION_READ_COMMITTED);
+        when(catalog.metric(salesMetric))
+                .thenAnswer(
+                        invocation -> {
+                            assertThat(
+                                            TransactionSynchronizationManager
+                                                    .isActualTransactionActive())
+                                    .isTrue();
+                            assertThat(
+                                            TransactionSynchronizationManager
+                                                    .isCurrentTransactionReadOnly())
+                                    .isTrue();
+                            assertThat(
+                                            TransactionSynchronizationManager
+                                                    .getCurrentTransactionIsolationLevel())
+                                    .isEqualTo(Connection.TRANSACTION_REPEATABLE_READ);
+                            return metric(salesMetric, orderDataset);
+                        });
+        when(catalog.relationships())
+                .thenAnswer(
+                        invocation -> {
+                            assertThat(
+                                            TransactionSynchronizationManager
+                                                    .isActualTransactionActive())
+                                    .isTrue();
+                            return List.of();
+                        });
+        ProxyFactory factory = new ProxyFactory(new QueryPlanner(catalog));
+        factory.addAdvice(
+                new TransactionInterceptor(
+                        new DataSourceTransactionManager(dataSource),
+                        new AnnotationTransactionAttributeSource()));
+        QueryPlanner planner = (QueryPlanner) factory.getProxy();
+
+        QueryPlan plan =
+                planner.plan(new QueryDtos.QueryRequest(List.of(salesMetric), List.of(), Set.of()));
+
+        assertThat(plan.metrics()).hasSize(1);
+        assertThat(TransactionSynchronizationManager.isActualTransactionActive()).isFalse();
+    }
 
     @Test
     void createsOneAggregatePerMetricDatasetInRequestOrder() {

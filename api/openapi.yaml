@@ -2,8 +2,41 @@ openapi: 3.1.0
 info:
   title: Metric Platform API
   version: v1
+  description: >-
+    Git 托管的数据集、字段、维度、指标和关系由仓库统一维护。
+    管理写接口修改这些对象、向托管数据集追加人工定义或删除受其引用的对象时返回 409；
+    普通人工对象沿用既有管理流程。
 security: [{ bearerAuth: [] }]
 paths:
+  /internal/git-sync/events:
+    post:
+      summary: 通知平台刷新配置仓库的 main 快照
+      description: >-
+        仅启用 git-sync 时存在。请求体最多 4096 字节，使用部署密钥对原始请求体做
+        HMAC-SHA256，X-Git-Signature 为 sha256= 加小写十六进制摘要。
+        事件只用于唤醒，平台自行拉取配置远端；相同事件可重发，非 main 分支忽略。
+        202 表示刷新信号已接收，不表示定义已生效；启动扫描和周期轮询补偿丢失信号。
+      security: [{ gitWebhookHmac: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json: { schema: { $ref: '#/components/schemas/GitSyncEvent' } }
+      responses:
+        '202': { description: 已接收刷新信号或忽略非 main 分支 }
+        '400': { description: 载荷、协议版本或仓库标识错误 }
+        '401': { description: HMAC 签名缺失或无效 }
+        '413': { description: 请求体超过 4096 字节 }
+        '415': { description: 仅接受 application/json }
+  /api/v1/git-sync/status:
+    get:
+      summary: 查询 Git 定义当前生效版本和最后同步错误
+      description: 仅启用 git-sync 时存在；使用平台既有 Bearer 身份认证。
+      responses:
+        '200':
+          description: 持久化检查点；首次发布前 appliedCommit 为空
+          content:
+            application/json: { schema: { $ref: '#/components/schemas/GitSyncState' } }
+        '401': { $ref: '#/components/responses/Problem' }
   /api/v1/auth/token:
     post:
       summary: Exchange one Metric Platform username and password for an access token
@@ -587,6 +620,11 @@ paths:
 components:
   securitySchemes:
     bearerAuth: { type: http, scheme: bearer }
+    gitWebhookHmac:
+      type: apiKey
+      in: header
+      name: X-Git-Signature
+      description: 使用共享部署密钥签名原始请求体，格式 sha256=<HMAC-SHA256 十六进制摘要>
   parameters:
     Id: { name: id, in: path, required: true, schema: { $ref: '#/components/schemas/Uuid' } }
     Page: { name: page, in: query, schema: { type: integer, minimum: 0, default: 0 } }
@@ -613,6 +651,27 @@ components:
           },
       }
   schemas:
+    GitSyncEvent:
+      type: object
+      additionalProperties: false
+      required: [protocolVersion, repositoryId, ref]
+      properties:
+        protocolVersion: { type: integer, const: 1 }
+        eventId: { type: [string, 'null'], description: 可选追踪标识；幂等由实际 Git SHA 和数据库检查点保证 }
+        repositoryId: { type: string, minLength: 1, description: 必须与部署配置相同 }
+        ref: { type: string, minLength: 1, example: refs/heads/main }
+        before: { type: [string, 'null'], description: 仅供事件追踪，不参与快照选择 }
+        after: { type: [string, 'null'], description: 仅供事件追踪，不参与快照选择 }
+    GitSyncState:
+      type: object
+      required: [repositoryId, modelName]
+      properties:
+        repositoryId: { type: string }
+        modelName: { type: string }
+        appliedCommit: { type: [string, 'null'], description: 最后整体成功发布的 Git SHA }
+        errorCode: { type: [string, 'null'] }
+        errorMessage: { type: [string, 'null'], description: 经过脱敏的失败信息 }
+        updatedAt: { type: [string, 'null'], format: date-time }
     Uuid: { type: string, format: uuid }
     AuthTokenRequest:
       type: object
@@ -775,7 +834,7 @@ components:
             children: { type: array, items: { $ref: '#/components/schemas/FilterExpression' } },
             fieldId: { $ref: '#/components/schemas/Uuid' },
             operator:
-              { enum: [EQ, NE, GT, GTE, LT, LTE, BETWEEN, IN, CONTAINS, IS_NULL, IS_NOT_NULL] },
+              { enum: [EQ, NE, GT, GTE, LT, LTE, BETWEEN, IN, NOT_IN, CONTAINS, IS_NULL, IS_NOT_NULL] },
             values: { type: array },
           },
       }

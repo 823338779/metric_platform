@@ -30,6 +30,8 @@ public record FilterExpression(
         LTE,
         BETWEEN,
         IN,
+        /** 排除非空值列表中的项，对应 SQL NOT IN。 */
+        NOT_IN,
         CONTAINS,
         IS_NULL,
         IS_NOT_NULL

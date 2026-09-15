@@ -8,20 +8,29 @@ import com.metricplatform.persistence.entity.DatasetFieldEntity;
 import com.metricplatform.query.IdentifierQuoter;
 import com.metricplatform.query.SemanticCatalogReader.RelationshipDefinition;
 import com.metricplatform.query.planner.QueryPlan;
+import java.sql.Timestamp;
+import java.sql.Types;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
-import java.sql.Types;
-import java.sql.Timestamp;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 
 @Component
 @RequiredArgsConstructor
 public class SemanticSqlCompiler {
+    private static final String COUNT_DISTINCT = "COUNT_DISTINCT";
+    private static final String COUNT_DISTINCT_SQL = "COUNT(DISTINCT ";
+    private static final String CASE_WHEN_SQL = "CASE WHEN ";
+    private static final String THEN_SQL = " THEN ";
+    private static final String END_SQL = " END";
+    private static final String LEFT_JOIN_TYPE = "LEFT";
+    private static final String INNER_JOIN_TYPE = "INNER";
+    private static final String LEFT_JOIN_SQL = " LEFT JOIN ";
+    private static final String INNER_JOIN_SQL = " INNER JOIN ";
     private final ObjectMapper objectMapper;
     private final FilterSqlCompiler filters;
 
@@ -102,7 +111,7 @@ public class SemanticSqlCompiler {
         for (QueryPlan.MetricProjection metric : aggregate.metrics()) {
             int index = metricIndexes.get(metric.definition().metric().getId());
             select.add(
-                    metricExpression(metric, aliases.get(aggregate.datasetId()))
+                    metricExpression(metric, aliases.get(aggregate.datasetId()), parameters)
                             + " AS "
                             + q("m_" + index));
         }
@@ -134,7 +143,7 @@ public class SemanticSqlCompiler {
                                     .toList());
             if (conditions.isBlank())
                 throw new IllegalArgumentException("relationship has no field pairs");
-            sql.append(" LEFT JOIN ")
+            sql.append(joinSql(relationship.joinType()))
                     .append(table(target))
                     .append(" ")
                     .append(q(targetAlias))
@@ -364,10 +373,54 @@ public class SemanticSqlCompiler {
                 + ")";
     }
 
-    private static String metricExpression(QueryPlan.MetricProjection projection, String alias) {
+    private String metricExpression(
+            QueryPlan.MetricProjection projection,
+            String alias,
+            List<CompiledQuery.SqlParameter> parameters) {
         String aggregation = projection.definition().metric().getAggregation();
-        if (projection.definition().field() == null) return "COUNT(*)";
-        return aggregation + "(" + column(alias, projection.definition().field()) + ")";
+        String fixedFilter = projection.definition().metric().getFixedFilterExpression();
+        boolean filtered = fixedFilter != null && !fixedFilter.isBlank();
+        if (projection.definition().field() == null) {
+            if (filtered)
+                throw new IllegalArgumentException(
+                        "metric fixed filter requires an aggregate field");
+            return "COUNT(*)";
+        }
+        String operand = column(alias, projection.definition().field());
+        if (filtered) {
+            try {
+                FilterExpression expression =
+                        // 固定口径必须无损读取十进制常量，不能先转 double 再绑定 DECIMAL。
+                        objectMapper
+                                .readerFor(FilterExpression.class)
+                                .with(
+                                        com.fasterxml.jackson.databind.DeserializationFeature
+                                                .USE_BIG_DECIMAL_FOR_FLOATS)
+                                .readValue(fixedFilter);
+                var predicate =
+                        filters.compile(expression, projection.definition().filterFields(), alias);
+                if (predicate.sql().isBlank())
+                    throw new IllegalArgumentException("metric fixed filter is empty");
+                // 固定条件仅限制当前聚合的输入，不能进入 WHERE 影响同查询中的其他指标。
+                operand = CASE_WHEN_SQL + predicate.sql() + THEN_SQL + operand + END_SQL;
+                // SELECT 占位符先于 WHERE；必须按 SQL 文本生成顺序追加绑定参数。
+                parameters.addAll(predicate.parameters());
+            } catch (JsonProcessingException exception) {
+                throw new IllegalArgumentException("metric fixed filter is not valid", exception);
+            }
+        }
+        return (COUNT_DISTINCT.equals(aggregation) ? COUNT_DISTINCT_SQL : aggregation + "(")
+                + operand
+                + ")";
+    }
+
+    private static String joinSql(String joinType) {
+        // 连接类型只能来自受限枚举，不能把持久化字符串直接作为 SQL 片段拼接。
+        return switch (joinType) {
+            case LEFT_JOIN_TYPE -> LEFT_JOIN_SQL;
+            case INNER_JOIN_TYPE -> INNER_JOIN_SQL;
+            default -> throw new IllegalArgumentException("unsupported relationship join type");
+        };
     }
 
     private static String table(DatasetEntity dataset) {

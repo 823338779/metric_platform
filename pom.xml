@@ -15,6 +15,7 @@
     <packaging>pom</packaging>
     <name>metric-platform</name>
     <modules>
+        <module>metric-git-sync</module>
         <module>backend</module>
     </modules>
 

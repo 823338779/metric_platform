@@ -5,6 +5,7 @@ import com.metricplatform.query.QueryValidationException;
 import java.sql.SQLException;
 import java.sql.SQLTimeoutException;
 import java.util.NoSuchElementException;
+import org.springframework.dao.DataAccessException;
 import org.springframework.http.*;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.authentication.BadCredentialsException;
@@ -14,6 +15,24 @@ import org.springframework.web.method.annotation.MethodArgumentTypeMismatchExcep
 
 @RestControllerAdvice
 public class ApiExceptionHandler {
+    private static final String GIT_WRITE_CONFLICT = "GIT01";
+
+    /** Git 数据库守卫覆盖所有管理写路径；只把专用 SQLSTATE 转换为可处理的资源冲突。 */
+    @ExceptionHandler(DataAccessException.class)
+    ResponseEntity<ProblemDetail> persistence(DataAccessException exception) {
+        for (Throwable cause = exception; cause != null; cause = cause.getCause()) {
+            if (cause instanceof SQLException sql) {
+                if (GIT_WRITE_CONFLICT.equals(sql.getSQLState())) {
+                    return conflict(
+                            new ConflictException(
+                                    "Git-managed definitions must be changed in their repository"));
+                }
+                return upstream(sql);
+            }
+        }
+        throw exception;
+    }
+
     @ExceptionHandler(BadCredentialsException.class)
     ResponseEntity<ProblemDetail> unauthorized(BadCredentialsException exception) {
         return problem(HttpStatus.UNAUTHORIZED, "Authentication failed", "Invalid credentials");

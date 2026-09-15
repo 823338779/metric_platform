@@ -22,12 +22,17 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
+import org.springframework.transaction.annotation.Isolation;
+import org.springframework.transaction.annotation.Transactional;
 
 @Component
 @RequiredArgsConstructor
 public class QueryPlanner {
     private final SemanticCatalogReader catalog;
 
+    // Git 发布会原子替换多个语义对象，固定读取快照可避免混用发布前后的字段与关系。
+    // 事务仅覆盖计划构建；调用方取得计划后才编译和执行外部数据查询。
+    @Transactional(readOnly = true, isolation = Isolation.REPEATABLE_READ)
     public QueryPlan plan(QueryDtos.QueryRequest request) {
         if (request.metricIds() == null || request.metricIds().isEmpty()) {
             throw new IllegalArgumentException("at least one metric is required");

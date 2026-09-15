@@ -27,6 +27,28 @@ class FilterValidatorTest {
                     STATUS_ID, field(STATUS_ID, DATASET_ID, "VARCHAR"));
 
     @Test
+    void notInRequiresAtLeastOneValue() {
+        var operator = FilterExpression.FilterOperator.valueOf("NOT_IN");
+        assertThatCode(
+                        () ->
+                                validator.validate(
+                                        DATASET_ID,
+                                        predicate(
+                                                STATUS_ID,
+                                                operator,
+                                                JsonNodeFactory.instance.textNode("DRAFT"),
+                                                JsonNodeFactory.instance.textNode("CANCELLED")),
+                                        fields))
+                .doesNotThrowAnyException();
+        assertThatThrownBy(
+                        () ->
+                                validator.validate(
+                                        DATASET_ID, predicate(STATUS_ID, operator), fields))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("at least one value");
+    }
+
+    @Test
     void acceptsNestedGroupsWithTypeCompatiblePredicates() {
         FilterExpression expression =
                 new FilterExpression(

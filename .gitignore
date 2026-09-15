@@ -13,3 +13,4 @@
 !/test-reports/.gitkeep
 /testcases/.build/
 *.log
+.git-sync-cache/

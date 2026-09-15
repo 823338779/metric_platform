@@ -30,6 +30,7 @@ import java.util.UUID;
 @Service
 @RequiredArgsConstructor
 public class DatasetRelationshipService {
+    private static final String DEFAULT_JOIN_TYPE = "LEFT";
     private final DatasetEntityPersistenceService datasets;
     private final DatasetFieldPersistenceService fields;
     private final DatasetRelationshipEntityPersistenceService relationships;
@@ -296,7 +297,7 @@ public class DatasetRelationshipService {
                 relationship.getSourceDatasetId(),
                 relationship.getTargetDatasetId(),
                 Cardinality.valueOf(relationship.getCardinality()),
-                "LEFT",
+                relationship.getJoinType() == null ? DEFAULT_JOIN_TYPE : relationship.getJoinType(),
                 List.copyOf(requests),
                 relationship.getLastValidationStatus(),
                 relationship.getLastValidatedAt(),

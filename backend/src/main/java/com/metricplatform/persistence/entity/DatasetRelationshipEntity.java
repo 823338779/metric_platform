@@ -17,6 +17,10 @@ public class DatasetRelationshipEntity extends BaseAuditEntity {
     private UUID sourceDatasetId;
     private UUID targetDatasetId;
     private String cardinality;
+
+    /** 从 source 到 target 的连接语义，只允许 INNER 或 LEFT；旧对象空值按 LEFT 解释。 */
+    private String joinType;
+
     private String description, displayPath, semanticRole, status;
     private boolean fanoutSafe;
     private LocalDateTime lastValidatedAt;
