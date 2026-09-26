@@ -39,6 +39,16 @@ test('opens a published dbt catalog and queries its fixed release', async ({ pag
           durationMs: 3,
         },
       });
+    if (url.pathname.endsWith('/query-options'))
+      return route.fulfill({
+        json: {
+          releaseId: 'release-1',
+          metrics: [{ name: 'revenue' }],
+          dimensions: [{ token: 'region', name: 'Region' }],
+          timeDimensions: [{ token: 'metric_time__month', granularity: 'month' }],
+          allowedFilters: ['='],
+        },
+      });
     if (url.pathname.endsWith('/queries'))
       return route.fulfill({
         status: 202,

@@ -8,9 +8,9 @@ export function createMetricPlatformApi(fetcher?: Fetcher) {
     listDbtProjects: () => request<T.DbtProject[]>('/semantic-projects'),
     listDbtReleases: (projectId: string) =>
       request<T.DbtRelease[]>(`/semantic-projects/${encodeURIComponent(projectId)}/releases`),
-    getDbtCatalog: (projectId: string, releaseId?: string, q = '') =>
+    getDbtCatalog: (projectId: string, releaseId: string, q = '', page = 0, size = 20, kind = '') =>
       request<T.DbtCatalog>(
-        `/semantic-projects/${encodeURIComponent(projectId)}/catalog?${new URLSearchParams({ ...(releaseId ? { releaseId } : {}), q })}`,
+        `/semantic-projects/${encodeURIComponent(projectId)}/catalog?${new URLSearchParams({ releaseId, q, page: String(page), size: String(size), ...(kind ? { kind } : {}) })}`,
       ),
     getDbtResource: (projectId: string, resourceId: string, releaseId: string) =>
       request<T.DbtResource>(
@@ -19,6 +19,26 @@ export function createMetricPlatformApi(fetcher?: Fetcher) {
     getDbtLineage: (projectId: string, resourceId: string, releaseId: string) =>
       request<T.DbtLineage>(
         `/semantic-projects/${encodeURIComponent(projectId)}/resources/${encodeURIComponent(resourceId)}/lineage?releaseId=${encodeURIComponent(releaseId)}`,
+      ),
+    getDbtPresentation: (projectId: string, resourceId: string, releaseId: string) =>
+      request<T.DbtResourcePresentation>(
+        `/semantic-projects/${encodeURIComponent(projectId)}/resources/${encodeURIComponent(resourceId)}/presentation?releaseId=${encodeURIComponent(releaseId)}`,
+      ),
+    getDbtSource: (projectId: string, resourceId: string, releaseId: string) =>
+      request<T.DbtSourceDocument>(
+        `/semantic-projects/${encodeURIComponent(projectId)}/resources/${encodeURIComponent(resourceId)}/source?releaseId=${encodeURIComponent(releaseId)}`,
+      ),
+    getDbtQueryOptions: (projectId: string, releaseId: string, metrics: string[]) => {
+      const params = new URLSearchParams({ releaseId });
+      metrics.forEach((metric) => params.append('metrics', metric));
+      return request<T.DbtQueryOptions>(
+        `/semantic-projects/${encodeURIComponent(projectId)}/query-options?${params}`,
+      );
+    },
+    submitDbtDimensionValues: (projectId: string, body: T.DbtDimensionValuesRequest) =>
+      request<T.DbtQuerySubmission>(
+        `/semantic-projects/${encodeURIComponent(projectId)}/queries:dimension-values`,
+        { method: 'POST', body: JSON.stringify(body) },
       ),
     submitDbtQuery: (projectId: string, body: T.DbtQueryRequest) =>
       request<T.DbtQuerySubmission>(`/semantic-projects/${encodeURIComponent(projectId)}/queries`, {

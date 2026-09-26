@@ -48,11 +48,44 @@ export type DbtLineage = {
   resourceId: string;
   dependencies: { upstreamResourceId: string; downstreamResourceId: string; kind: string }[];
 };
+export type DbtResourcePresentation = {
+  releaseId: UUID;
+  resourceId: string;
+  kind: string;
+  title: string;
+  sections: { title: string; fields: Record<string, unknown> }[];
+  nativeDetails: Record<string, unknown>;
+  queryable: boolean;
+};
+export type DbtSourceDocument = {
+  releaseId: UUID;
+  buildSourceSha: string;
+  sourcePath: string;
+  content: string;
+};
+export type DbtQueryOptions = {
+  releaseId: UUID;
+  metrics: { name: string }[];
+  dimensions: { token: string; name: string; type?: string }[];
+  timeDimensions: { token: string; granularity: string }[];
+  allowedFilters: string[];
+};
+export type DbtQueryFilter = { field: string; operator: string; value: unknown };
 export type DbtQueryRequest = {
   releaseId: UUID;
   metrics: string[];
   groupBy?: string[];
-  filters?: { field: string; operator: string; value: unknown }[];
+  filters?: DbtQueryFilter[];
+  limit?: number;
+  startTime?: string;
+  endTime?: string;
+  orderBy?: string[];
+};
+export type DbtDimensionValuesRequest = {
+  releaseId: UUID;
+  metrics: string[];
+  dimension: string;
+  filters?: DbtQueryFilter[];
   limit?: number;
 };
 export type DbtQuerySubmission = { queryId: UUID; releaseId: UUID; status: 'PENDING' };
@@ -60,7 +93,7 @@ export type DbtQueryStatus = {
   queryId: UUID;
   releaseId: UUID;
   targetCommitSha: string;
-  mode: 'QUERY' | 'EXPLAIN' | 'PREVIEW';
+  mode: 'QUERY' | 'EXPLAIN' | 'PREVIEW' | 'DIMENSION_VALUES';
   status: 'PENDING' | 'RUNNING' | 'COMPLETED' | 'FAILED' | 'CANCELLED';
   columns: { name: string; type: string }[] | null;
   rows: unknown[][] | null;

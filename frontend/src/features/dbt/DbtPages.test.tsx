@@ -64,7 +64,7 @@ it('renders a read-only catalog pinned to its response release', async () => {
     }),
   };
   render(
-    <MemoryRouter initialEntries={['/dbt/projects/demo/catalog']}>
+    <MemoryRouter initialEntries={['/dbt/projects/demo/catalog?releaseId=release-1']}>
       <Routes>
         <Route
           path="/dbt/projects/:projectId/catalog"
@@ -80,6 +80,19 @@ it('renders a read-only catalog pinned to its response release', async () => {
 
 it('queries the selected release and renders exact decimal strings', async () => {
   const api = {
+    getDbtCatalog: vi.fn().mockResolvedValue({
+      releaseId: 'release-1',
+      resources: [
+        { resourceId: 'metric.revenue', kind: 'METRIC', name: 'revenue', queryable: true },
+      ],
+    }),
+    getDbtQueryOptions: vi.fn().mockResolvedValue({
+      releaseId: 'release-1',
+      metrics: [{ name: 'revenue' }],
+      dimensions: [],
+      timeDimensions: [],
+      allowedFilters: ['='],
+    }),
     submitDbtQuery: vi
       .fn()
       .mockResolvedValue({ queryId: 'query-1', releaseId: 'release-1', status: 'PENDING' }),
@@ -104,6 +117,9 @@ it('queries the selected release and renders exact decimal strings', async () =>
         />
       </Routes>
     </MemoryRouter>,
+  );
+  await waitFor(() =>
+    expect(screen.getByRole('button', { name: '运行查询' }).hasAttribute('disabled')).toBe(false),
   );
   fireEvent.click(screen.getByRole('button', { name: '运行查询' }));
   await waitFor(() =>

@@ -49,6 +49,8 @@ npm run dev
 
 前端代理 `/api` 至 `http://localhost:8090`。
 
+项目页从已发布版本进入只读目录；目录按资源类型展示指标、维度、语义模型、表和视图。点击资源可查看编译产物生成的结构化详情、血缘和固定构建 SHA 的 YAML 源码。查询工作台从固定 `releaseId` 获取共同维度、`metric_time` 粒度和筛选能力，支持维度值查询及保留高精度原值的结果表格。运行服务没有查询能力时，页面会显示原因并禁用提交。
+
 ## 验证
 
 ```powershell
@@ -61,7 +63,10 @@ mvn -B verify
 npm ci
 npm test
 npm run build
+npm run test:e2e
 ```
+
+真实 PostgreSQL 浏览器验收需先启动 PostgreSQL profile 的 dbt 运行服务和已启用 Git 发布的平台，等待 fixture 项目出现 `PUBLISHED` 版本。随后在 `frontend/` 设置 `DBT_POSTGRES_E2E=1`、`DBT_POSTGRES_E2E_USER`、`DBT_POSTGRES_E2E_PASSWORD`，可选设置 `DBT_POSTGRES_E2E_PROJECT`，运行 `npm run test:e2e -- dbt-postgres-integration.spec.ts`。该测试通过页面登录，使用真实 API 验证发布目录、YAML 源码、月粒度指标查询与维度值；未设置开关时跳过真实集成场景。
 
 ## 发布与契约
 
