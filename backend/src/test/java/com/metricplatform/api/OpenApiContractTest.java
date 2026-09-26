@@ -5,12 +5,10 @@ import static org.assertj.core.api.Assertions.assertThat;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
-
-import org.junit.jupiter.api.Test;
-
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import org.junit.jupiter.api.Test;
 
 class OpenApiContractTest {
     @Test
@@ -18,9 +16,22 @@ class OpenApiContractTest {
         String contract = Files.readString(Path.of("../api/openapi.yaml"));
         JsonNode document = new ObjectMapper(new YAMLFactory()).readTree(contract);
         assertThat(document.path("openapi").asText()).isEqualTo("3.1.0");
-        assertThat(document.path("paths").size()).isEqualTo(42);
+        assertThat(document.path("paths").size()).isEqualTo(52);
         assertThat(
-                        document.at("/paths/~1internal~1git-sync~1events/post/security/0/gitWebhookHmac")
+                        document.at(
+                                        "/paths/~1api~1v1~1semantic-projects~1{projectId}~1queries/post/responses/202")
+                                .isObject())
+                .isTrue();
+        assertThat(document.at("/paths/~1api~1v1~1semantic-projects/get/responses/200").isObject())
+                .isTrue();
+        assertThat(
+                        document.at(
+                                        "/paths/~1api~1v1~1semantic-projects~1{projectId}~1catalog/get/responses/410")
+                                .isObject())
+                .isTrue();
+        assertThat(
+                        document.at(
+                                        "/paths/~1internal~1git-sync~1events/post/security/0/gitWebhookHmac")
                                 .isArray())
                 .isTrue();
         assertThat(document.at("/paths/~1api~1v1~1git-sync~1status/get/responses/200").isObject())

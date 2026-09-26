@@ -12,7 +12,11 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
 @Setter
 @ConfigurationProperties("metric-platform.git-sync")
 public class GitSyncProperties {
+    private static final String OSSIE_MODE = "OSSIE";
     private boolean enabled;
+
+    /** 发布模式默认延续旧 Ossie 消费，DBT 必须在真实服务验收后显式启用。 */
+    private String mode = OSSIE_MODE;
 
     /** 仓库的稳定标识，作为幂等检查点与对象归属作用域。 */
     private String repositoryId;
@@ -26,6 +30,21 @@ public class GitSyncProperties {
 
     private String schema;
     private String modelName;
+
+    /** dbt 模式下部署配置的稳定项目标识，不接受请求覆盖。 */
+    private String projectId;
+
+    /** dbt 项目在受信任 Git 仓库中的固定子目录。 */
+    private String projectSubdir;
+
+    /** 外部运行服务中固定的 StarRocks profile 绑定标识。 */
+    private String profileBindingId;
+
+    /** 会影响 dbt 编译或结果的受控 profile、环境与工具链配置版本。 */
+    private String configVersion;
+
+    /** DBT 模式下必须匹配 READY 产物的固定 dbt/MetricFlow 工具链版本。 */
+    private String toolchainVersion;
 
     /** 仅通过环境或密钥配置注入；不记录、不对外返回。 */
     private String webhookSecret;

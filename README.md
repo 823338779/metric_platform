@@ -7,7 +7,7 @@ Metric Platform is the governed metric and semantic layer used by Data Agent. It
 | Path | Responsibility |
 | --- | --- |
 | `backend/` | Spring Boot API, domain services, persistence, security, Flyway migrations, and semantic/query execution. |
-| `metric-git-sync/` | 独立的 Git 快照读取与 Ossie Profile 解析模块。 |
+| `metric-git-sync/` | 独立的 Git 快照读取、Ossie Profile 解析与 dbt 项目输入摘要模块。 |
 | `frontend/` | React and Vite management console. |
 | `api/openapi.yaml` | Published HTTP API contract. |
 | `docker-compose.yml` | Standalone PostgreSQL development service. |
@@ -77,10 +77,10 @@ npm run build
 
 ## Git 定义订阅
 
-新增的 `metric-git-sync` 模块消费 Ossie 0.1.1 的 `ossie-metrics` Profile v1，
+默认的 Ossie 模式消费 Ossie 0.1.1 的 `ossie-metrics` Profile v1，
 以单个配置仓库的 `main:semantic/model.yaml` 为定义来源。默认关闭；启用后使用
 Webhook、启动扫描和轮询同步，整份快照原子发布，重复提交不会重复创建对象。
 Git 托管对象通过仓库维护，管理写接口返回 409；人工对象继续沿用既有流程。
 
-部署参数、Git hook、协议边界及恢复方法见 [Git 订阅与消费说明](docs/git-sync.md)。
+部署参数、Git hook、协议边界及恢复方法见 [Git 订阅与消费说明](docs/git-sync.md)。dbt 全量构建与版本发布见 [dbt 发布运行说明](docs/dbt-publication.md)。
 Git 服务端示例 hook 位于 [ops/git/post-receive](ops/git/post-receive)。

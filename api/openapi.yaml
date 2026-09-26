@@ -30,13 +30,163 @@ paths:
   /api/v1/git-sync/status:
     get:
       summary: 查询 Git 定义当前生效版本和最后同步错误
-      description: 仅启用 git-sync 时存在；使用平台既有 Bearer 身份认证。
+      description: 仅在 git-sync.enabled=true 且 mode=OSSIE 时存在；DBT 模式使用 semantic-projects 发布历史接口。
       responses:
         '200':
           description: 持久化检查点；首次发布前 appliedCommit 为空
           content:
             application/json: { schema: { $ref: '#/components/schemas/GitSyncState' } }
         '401': { $ref: '#/components/responses/Problem' }
+  /api/v1/semantic-projects:
+    get:
+      summary: 列出固定配置的 dbt 项目与生效版本
+      responses:
+        '200':
+          description: 项目状态列表
+          content:
+            application/json:
+              schema: { type: array, items: { $ref: '#/components/schemas/DbtProjectSummary' } }
+        '401': { $ref: '#/components/responses/Problem' }
+  /api/v1/semantic-projects/{projectId}/catalog:
+    get:
+      summary: 分页读取已发布 dbt 语义目录
+      parameters:
+        - { name: projectId, in: path, required: true, schema: { type: string } }
+        - { name: releaseId, in: query, schema: { $ref: '#/components/schemas/Uuid' } }
+        - { name: q, in: query, schema: { type: string } }
+        - { name: page, in: query, schema: { type: integer, minimum: 0, default: 0 } }
+        - { name: size, in: query, schema: { type: integer, minimum: 1, maximum: 100, default: 20 } }
+      responses:
+        '200':
+          description: 固定 releaseId 的只读目录
+          content:
+            application/json: { schema: { $ref: '#/components/schemas/DbtCatalogPage' } }
+        '401': { $ref: '#/components/responses/Problem' }
+        '404': { $ref: '#/components/responses/Problem' }
+        '410': { $ref: '#/components/responses/Problem' }
+        '422': { $ref: '#/components/responses/Problem' }
+  /api/v1/semantic-projects/{projectId}/resources/{resourceId}:
+    get:
+      summary: 读取已发布 dbt 资源的原生定义投影
+      parameters:
+        - { name: projectId, in: path, required: true, schema: { type: string } }
+        - { name: resourceId, in: path, required: true, schema: { type: string } }
+        - { name: releaseId, in: query, schema: { $ref: '#/components/schemas/Uuid' } }
+      responses:
+        '200':
+          description: 只读资源定义
+          content:
+            application/json: { schema: { $ref: '#/components/schemas/DbtResource' } }
+        '401': { $ref: '#/components/responses/Problem' }
+        '404': { $ref: '#/components/responses/Problem' }
+        '410': { $ref: '#/components/responses/Problem' }
+  /api/v1/semantic-projects/{projectId}/resources/{resourceId}/lineage:
+    get:
+      summary: 读取当前资源的有界血缘
+      parameters:
+        - { name: projectId, in: path, required: true, schema: { type: string } }
+        - { name: resourceId, in: path, required: true, schema: { type: string } }
+        - { name: releaseId, in: query, schema: { $ref: '#/components/schemas/Uuid' } }
+        - { name: limit, in: query, schema: { type: integer, minimum: 1, maximum: 200, default: 100 } }
+      responses:
+        '200':
+          description: 固定版本中的依赖边
+          content:
+            application/json: { schema: { $ref: '#/components/schemas/DbtLineage' } }
+        '401': { $ref: '#/components/responses/Problem' }
+        '404': { $ref: '#/components/responses/Problem' }
+        '410': { $ref: '#/components/responses/Problem' }
+        '422': { $ref: '#/components/responses/Problem' }
+  /api/v1/semantic-projects/{projectId}/releases:
+    get:
+      summary: 查看项目最近发布候选和历史状态
+      parameters:
+        - { name: projectId, in: path, required: true, schema: { type: string } }
+      responses:
+        '200':
+          description: 最近最多 100 个版本，含已清理版本元数据
+          content:
+            application/json:
+              schema: { type: array, items: { $ref: '#/components/schemas/DbtReleaseSummary' } }
+        '401': { $ref: '#/components/responses/Problem' }
+        '404': { $ref: '#/components/responses/Problem' }
+  /api/v1/semantic-projects/{projectId}/releases/{releaseId}:
+    get:
+      summary: 查看发布版本状态与脱敏诊断
+      parameters:
+        - { name: projectId, in: path, required: true, schema: { type: string } }
+        - { name: releaseId, in: path, required: true, schema: { $ref: '#/components/schemas/Uuid' } }
+      responses:
+        '200':
+          description: 历史发布元数据，清理后仍保留
+          content:
+            application/json: { schema: { $ref: '#/components/schemas/DbtReleaseSummary' } }
+        '401': { $ref: '#/components/responses/Problem' }
+        '404': { $ref: '#/components/responses/Problem' }
+  /api/v1/semantic-projects/{projectId}/queries:
+    post:
+      summary: 对固定 dbt 发布版本提交类型化指标查询
+      parameters: [{ name: projectId, in: path, required: true, schema: { type: string } }]
+      requestBody:
+        required: true
+        content: { application/json: { schema: { $ref: '#/components/schemas/DbtTypedQuery' } } }
+      responses:
+        '202':
+          description: 查询已受理，结果通过任务 ID 读取
+          content: { application/json: { schema: { $ref: '#/components/schemas/DbtQuerySubmission' } } }
+        '404': { $ref: '#/components/responses/Problem' }
+        '410': { $ref: '#/components/responses/Problem' }
+        '422': { $ref: '#/components/responses/Problem' }
+        '502': { $ref: '#/components/responses/Problem' }
+        '503': { $ref: '#/components/responses/Problem' }
+  /api/v1/semantic-projects/{projectId}/queries:explain:
+    post:
+      summary: 对固定 dbt 发布版本异步解释类型化指标查询
+      parameters: [{ name: projectId, in: path, required: true, schema: { type: string } }]
+      requestBody:
+        required: true
+        content: { application/json: { schema: { $ref: '#/components/schemas/DbtTypedQuery' } } }
+      responses:
+        '202':
+          description: 解释任务已受理
+          content: { application/json: { schema: { $ref: '#/components/schemas/DbtQuerySubmission' } } }
+        '404': { $ref: '#/components/responses/Problem' }
+        '410': { $ref: '#/components/responses/Problem' }
+        '422': { $ref: '#/components/responses/Problem' }
+        '502': { $ref: '#/components/responses/Problem' }
+        '503': { $ref: '#/components/responses/Problem' }
+  /api/v1/semantic-projects/{projectId}/queries/{queryId}:
+    get:
+      summary: 读取固定发布版本的异步查询状态与类型化结果
+      parameters:
+        - { name: projectId, in: path, required: true, schema: { type: string } }
+        - { name: queryId, in: path, required: true, schema: { $ref: '#/components/schemas/Uuid' } }
+      responses:
+        '200':
+          description: 查询任务状态；DECIMAL/NUMERIC/BIGINT 值以字符串返回
+          content: { application/json: { schema: { $ref: '#/components/schemas/DbtQueryStatus' } } }
+        '404': { $ref: '#/components/responses/Problem' }
+        '410': { $ref: '#/components/responses/Problem' }
+        '502': { $ref: '#/components/responses/Problem' }
+        '503': { $ref: '#/components/responses/Problem' }
+  /api/v1/semantic-projects/{projectId}/datasets/{resourceId}:preview:
+    post:
+      summary: 对固定发布版本的数据集提交有界预览，不接受 SQL
+      parameters:
+        - { name: projectId, in: path, required: true, schema: { type: string } }
+        - { name: resourceId, in: path, required: true, schema: { type: string } }
+      requestBody:
+        required: true
+        content: { application/json: { schema: { $ref: '#/components/schemas/DbtPreviewRequest' } } }
+      responses:
+        '202':
+          description: 预览任务已受理
+          content: { application/json: { schema: { $ref: '#/components/schemas/DbtQuerySubmission' } } }
+        '404': { $ref: '#/components/responses/Problem' }
+        '410': { $ref: '#/components/responses/Problem' }
+        '422': { $ref: '#/components/responses/Problem' }
+        '502': { $ref: '#/components/responses/Problem' }
+        '503': { $ref: '#/components/responses/Problem' }
   /api/v1/auth/token:
     post:
       summary: Exchange one Metric Platform username and password for an access token
@@ -651,6 +801,111 @@ components:
           },
       }
   schemas:
+    DbtTypedQuery:
+      type: object
+      additionalProperties: false
+      required: [releaseId, metrics]
+      properties:
+        releaseId: { $ref: '#/components/schemas/Uuid' }
+        metrics: { type: array, minItems: 1, items: { type: string } }
+        groupBy: { type: array, items: { type: string } }
+        filters:
+          type: array
+          items:
+            type: object
+            additionalProperties: false
+            required: [field, operator, value]
+            properties:
+              field: { type: string }
+              operator: { type: string }
+              value: {}
+        limit: { type: integer, minimum: 1, maximum: 10000 }
+    DbtPreviewRequest:
+      type: object
+      additionalProperties: false
+      required: [releaseId]
+      properties:
+        releaseId: { $ref: '#/components/schemas/Uuid' }
+        limit: { type: integer, minimum: 1, maximum: 10000 }
+    DbtQuerySubmission:
+      type: object
+      required: [queryId, releaseId, status]
+      properties:
+        queryId: { $ref: '#/components/schemas/Uuid' }
+        releaseId: { $ref: '#/components/schemas/Uuid' }
+        status: { type: string, enum: [PENDING] }
+    DbtQueryStatus:
+      type: object
+      required: [queryId, releaseId, targetCommitSha, mode, status]
+      properties:
+        queryId: { $ref: '#/components/schemas/Uuid' }
+        releaseId: { $ref: '#/components/schemas/Uuid' }
+        targetCommitSha: { type: string }
+        mode: { type: string, enum: [QUERY, EXPLAIN, PREVIEW] }
+        status: { type: string, enum: [PENDING, RUNNING, COMPLETED, FAILED, CANCELLED] }
+        columns: { type: [array, 'null'], items: { type: object } }
+        rows: { type: [array, 'null'], items: { type: array } }
+        errorCode: { type: [string, 'null'] }
+        truncated: { type: [boolean, 'null'] }
+        durationMs: { type: [integer, 'null'], format: int64 }
+    DbtProjectSummary:
+      type: object
+      required: [projectId]
+      properties:
+        projectId: { type: string }
+        observedSha: { type: [string, 'null'] }
+        activeReleaseId: { anyOf: [{ $ref: '#/components/schemas/Uuid' }, { type: 'null' }] }
+        lastObservationStatus: { type: [string, 'null'] }
+    DbtReleaseSummary:
+      type: object
+      required: [releaseId, projectId, targetCommitSha, buildSourceSha, projectDigest, state, cleanupState, createdAt]
+      properties:
+        releaseId: { $ref: '#/components/schemas/Uuid' }
+        projectId: { type: string }
+        targetCommitSha: { type: string }
+        buildSourceSha: { type: string }
+        projectDigest: { type: string }
+        state: { type: string, enum: [PREPARING, BUILDING, VALIDATING, READY, PUBLISHED, FAILED, SUPERSEDED] }
+        cleanupState: { type: string, enum: [PENDING, CLEANING, CLEANED] }
+        schemaName: { type: [string, 'null'] }
+        errorCode: { type: [string, 'null'] }
+        createdAt: { type: string, format: date-time }
+        publishedAt: { type: [string, 'null'], format: date-time }
+    DbtCatalogPage:
+      type: object
+      required: [releaseId, page, size, total, resources]
+      properties:
+        releaseId: { $ref: '#/components/schemas/Uuid' }
+        page: { type: integer, minimum: 0 }
+        size: { type: integer, minimum: 1, maximum: 100 }
+        total: { type: integer, minimum: 0 }
+        resources: { type: array, items: { $ref: '#/components/schemas/DbtResource' } }
+    DbtResource:
+      type: object
+      required: [resourceId, nativeId, kind, name, definitionJson, queryable]
+      properties:
+        resourceId: { type: string }
+        nativeId: { type: string }
+        kind: { type: string }
+        name: { type: string }
+        description: { type: [string, 'null'] }
+        sourcePath: { type: [string, 'null'] }
+        definitionJson: { type: string, description: 原生定义 JSON 文本的只读投影 }
+        queryable: { type: boolean }
+    DbtLineage:
+      type: object
+      required: [releaseId, resourceId, dependencies]
+      properties:
+        releaseId: { $ref: '#/components/schemas/Uuid' }
+        resourceId: { type: string }
+        dependencies: { type: array, items: { $ref: '#/components/schemas/DbtDependency' } }
+    DbtDependency:
+      type: object
+      required: [upstreamResourceId, downstreamResourceId, kind]
+      properties:
+        upstreamResourceId: { type: string }
+        downstreamResourceId: { type: string }
+        kind: { type: string }
     GitSyncEvent:
       type: object
       additionalProperties: false

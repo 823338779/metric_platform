@@ -12,7 +12,7 @@ import lombok.extern.slf4j.Slf4j;
 /** webhook 与补偿轮询共用单线程消费路径；数据库检查点负责跨实例并发隔离。 */
 @RequiredArgsConstructor
 @Slf4j
-public class GitSyncCoordinator {
+public class GitSyncCoordinator implements GitRefreshTrigger {
     private static final String THREAD = "metric-git-sync",
             INVALID = "INVALID_PROTOCOL",
             FAILED = "SYNC_FAILED";

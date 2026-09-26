@@ -5,6 +5,7 @@ import {
   FieldTimeOutlined,
   LineChartOutlined,
   PlayCircleOutlined,
+  FolderOpenOutlined,
 } from '@ant-design/icons';
 import { Button, Layout, Menu, Space, Typography } from 'antd';
 import { Outlet, useLocation, useNavigate } from 'react-router-dom';
@@ -14,8 +15,8 @@ export function PlatformLayout() {
   const navigate = useNavigate();
   const { pathname } = useLocation();
   const selected =
-    ['/data-sources', '/datasets', '/metrics', '/dimensions', '/query'].find((path) =>
-      pathname.startsWith(path),
+    ['/data-sources', '/datasets', '/metrics', '/dimensions', '/query', '/dbt/projects'].find(
+      (path) => pathname.startsWith(path),
     ) ?? '/data-sources';
   const displayName = getAuthSession()?.identity.displayName;
   const handleLogout = () => {
@@ -51,6 +52,7 @@ export function PlatformLayout() {
             { key: '/metrics', icon: <LineChartOutlined />, label: '指标' },
             { key: '/dimensions', icon: <FieldTimeOutlined />, label: '维度' },
             { key: '/query', icon: <PlayCircleOutlined />, label: '查询工作台' },
+            { key: '/dbt/projects', icon: <FolderOpenOutlined />, label: 'dbt 项目' },
           ]}
         />
       </Layout.Sider>

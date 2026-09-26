@@ -1,5 +1,6 @@
 package com.metricplatform.api;
 
+import com.metricplatform.dbt.DbtRuntimeClient;
 import com.metricplatform.identity.LoginRateLimitException;
 import com.metricplatform.query.QueryValidationException;
 import java.sql.SQLException;
@@ -16,6 +17,24 @@ import org.springframework.web.method.annotation.MethodArgumentTypeMismatchExcep
 @RestControllerAdvice
 public class ApiExceptionHandler {
     private static final String GIT_WRITE_CONFLICT = "GIT01";
+    private static final String DBT_QUERY_REJECTED = "DBT_QUERY_REJECTED";
+
+    /** 外部服务的 422 仅暴露固定错误码，鉴权和服务故障不伪装成用户认证问题。 */
+    @ExceptionHandler(DbtRuntimeClient.ServiceFailure.class)
+    ResponseEntity<ProblemDetail> dbtRuntime(DbtRuntimeClient.ServiceFailure failure) {
+        HttpStatus status =
+                failure.status() == 422
+                        ? HttpStatus.UNPROCESSABLE_ENTITY
+                        : failure.transientFailure()
+                                ? HttpStatus.SERVICE_UNAVAILABLE
+                                : HttpStatus.BAD_GATEWAY;
+        ProblemDetail body = ProblemDetail.forStatusAndDetail(status, "dbt 运行服务拒绝查询或暂不可用");
+        body.setTitle("dbt query unavailable");
+        body.setProperty("code", DBT_QUERY_REJECTED);
+        return ResponseEntity.status(status)
+                .contentType(MediaType.APPLICATION_PROBLEM_JSON)
+                .body(body);
+    }
 
     /** Git 数据库守卫覆盖所有管理写路径；只把专用 SQLSTATE 转换为可处理的资源冲突。 */
     @ExceptionHandler(DataAccessException.class)

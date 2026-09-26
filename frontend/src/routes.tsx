@@ -8,6 +8,9 @@ import { DatasetListPage } from './features/datasets/DatasetListPage';
 import { DimensionListPage } from './features/dimensions/DimensionListPage';
 import { MetricListPage } from './features/metrics/MetricListPage';
 import { QueryWorkbenchPage } from './features/query/QueryWorkbenchPage';
+import { DbtProjectsPage } from './features/dbt/DbtProjectsPage';
+import { DbtCatalogPage } from './features/dbt/DbtCatalogPage';
+import { DbtQueryPage } from './features/dbt/DbtQueryPage';
 import { PlatformLayout } from './layout/PlatformLayout';
 
 export const router = createBrowserRouter([
@@ -27,6 +30,9 @@ export const router = createBrowserRouter([
           { path: '/metrics', element: <MetricListPage /> },
           { path: '/dimensions', element: <DimensionListPage /> },
           { path: '/query', element: <QueryWorkbenchPage /> },
+          { path: '/dbt/projects', element: <DbtProjectsPage /> },
+          { path: '/dbt/projects/:projectId/catalog', element: <DbtCatalogPage /> },
+          { path: '/dbt/projects/:projectId/query', element: <DbtQueryPage /> },
         ],
       },
     ],

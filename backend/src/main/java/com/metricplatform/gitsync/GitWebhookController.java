@@ -27,7 +27,7 @@ public class GitWebhookController {
             ALGORITHM = "HmacSHA256",
             MAIN = "refs/heads/main";
     private final GitSyncProperties properties;
-    private final GitSyncCoordinator coordinator;
+    private final GitRefreshTrigger coordinator;
     private final ObjectMapper mapper =
             new ObjectMapper()
                     .enable(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES)
