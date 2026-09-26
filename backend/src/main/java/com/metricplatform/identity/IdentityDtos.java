@@ -11,12 +11,8 @@ public final class IdentityDtos {
             @NotBlank String username, @NotBlank @Size(max = 1024) String password) {}
 
     public record IdentitySummary(
-            UUID identityId,
-            String subject,
-            String displayName,
-            long authVersion) {}
+            UUID identityId, String subject, String displayName, long authVersion) {}
 
     public record AuthTokenResponse(
             String accessToken, String tokenType, long expiresIn, IdentitySummary identity) {}
-
 }

@@ -32,10 +32,7 @@ public class DbtReleaseCleanupService {
             "select count(*) from semantic_query where release_id in (select release_id from semantic_release where project_id=? and runtime_run_id=?) and status in ('PENDING','RUNNING')";
     private static final String MARK =
             "update semantic_release set cleanup_state=? where project_id=? and runtime_run_id=? and cleanup_state<>'CLEANED'";
-    private static final String DBT = "DBT",
-            PENDING = "PENDING",
-            CLEANING = "CLEANING",
-            CLEANED = "CLEANED";
+    private static final String PENDING = "PENDING", CLEANING = "CLEANING", CLEANED = "CLEANED";
     private final JdbcTemplate jdbc;
     private final TransactionTemplate transactions;
     private final DbtRuntimeClient runtime;
@@ -45,9 +42,8 @@ public class DbtReleaseCleanupService {
 
     @Scheduled(fixedDelayString = "${metric-platform.dbt-cleanup.poll-ms:60000}")
     public void scheduledCleanup() {
-        if (properties.isEnabled()
-                && DBT.equals(properties.getMode())
-                && properties.getProjectId() != null) cleanupEligible(properties.getProjectId());
+        if (properties.isEnabled() && properties.getProjectId() != null)
+            cleanupEligible(properties.getProjectId());
     }
 
     public int cleanupEligible(String projectId) {

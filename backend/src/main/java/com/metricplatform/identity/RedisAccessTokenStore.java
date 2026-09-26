@@ -16,7 +16,8 @@ public class RedisAccessTokenStore {
         this.redis = redis;
     }
 
-    public void save(String tokenHash, UUID tokenId, UUID identityId, long authVersion, Instant expiresAt) {
+    public void save(
+            String tokenHash, UUID tokenId, UUID identityId, long authVersion, Instant expiresAt) {
         String key = PREFIX + tokenHash;
         redis.opsForHash()
                 .putAll(

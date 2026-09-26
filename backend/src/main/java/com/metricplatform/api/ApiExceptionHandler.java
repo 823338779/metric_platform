@@ -2,9 +2,7 @@ package com.metricplatform.api;
 
 import com.metricplatform.dbt.DbtRuntimeClient;
 import com.metricplatform.identity.LoginRateLimitException;
-import com.metricplatform.query.QueryValidationException;
 import java.sql.SQLException;
-import java.sql.SQLTimeoutException;
 import java.util.NoSuchElementException;
 import org.springframework.dao.DataAccessException;
 import org.springframework.http.*;
@@ -16,7 +14,6 @@ import org.springframework.web.method.annotation.MethodArgumentTypeMismatchExcep
 
 @RestControllerAdvice
 public class ApiExceptionHandler {
-    private static final String GIT_WRITE_CONFLICT = "GIT01";
     private static final String DBT_QUERY_REJECTED = "DBT_QUERY_REJECTED";
 
     /** 外部服务的 422 仅暴露固定错误码，鉴权和服务故障不伪装成用户认证问题。 */
@@ -36,16 +33,11 @@ public class ApiExceptionHandler {
                 .body(body);
     }
 
-    /** Git 数据库守卫覆盖所有管理写路径；只把专用 SQLSTATE 转换为可处理的资源冲突。 */
+    /** 数据库错误只返回可处理的上游故障，不泄露 SQL 和连接信息。 */
     @ExceptionHandler(DataAccessException.class)
     ResponseEntity<ProblemDetail> persistence(DataAccessException exception) {
         for (Throwable cause = exception; cause != null; cause = cause.getCause()) {
             if (cause instanceof SQLException sql) {
-                if (GIT_WRITE_CONFLICT.equals(sql.getSQLState())) {
-                    return conflict(
-                            new ConflictException(
-                                    "Git-managed definitions must be changed in their repository"));
-                }
                 return upstream(sql);
             }
         }
@@ -83,25 +75,7 @@ public class ApiExceptionHandler {
 
     @ExceptionHandler(IllegalArgumentException.class)
     ResponseEntity<ProblemDetail> invalid(IllegalArgumentException exception) {
-        return problem(
-                HttpStatus.UNPROCESSABLE_ENTITY,
-                "Semantic validation failed",
-                exception.getMessage());
-    }
-
-    @ExceptionHandler(QueryValidationException.class)
-    ResponseEntity<ProblemDetail> queryInvalid(QueryValidationException exception) {
-        ProblemDetail detail =
-                ProblemDetail.forStatusAndDetail(
-                        HttpStatus.UNPROCESSABLE_ENTITY, exception.getMessage());
-        detail.setTitle("Semantic validation failed");
-        detail.setProperty("code", exception.code());
-        detail.setProperty("objectType", exception.objectType());
-        detail.setProperty("objectId", exception.objectId());
-        detail.setProperty("candidatePaths", exception.candidatePaths());
-        return ResponseEntity.unprocessableEntity()
-                .contentType(MediaType.APPLICATION_PROBLEM_JSON)
-                .body(detail);
+        return problem(HttpStatus.UNPROCESSABLE_ENTITY, "Invalid request", exception.getMessage());
     }
 
     @ExceptionHandler(SecurityException.class)
@@ -114,33 +88,20 @@ public class ApiExceptionHandler {
         return problem(HttpStatus.NOT_FOUND, "Resource not found", exception.getMessage());
     }
 
-    @ExceptionHandler(ConflictException.class)
-    ResponseEntity<ProblemDetail> conflict(ConflictException exception) {
-        return problem(HttpStatus.CONFLICT, "Resource conflict", exception.getMessage());
-    }
-
-    @ExceptionHandler(SQLTimeoutException.class)
-    ResponseEntity<ProblemDetail> timeout(SQLTimeoutException exception) {
-        return problem(
-                HttpStatus.GATEWAY_TIMEOUT,
-                "Source preview timed out",
-                "The upstream source did not respond before the timeout");
-    }
-
     @ExceptionHandler(IllegalStateException.class)
     ResponseEntity<ProblemDetail> unavailable(IllegalStateException exception) {
         return problem(
                 HttpStatus.UNPROCESSABLE_ENTITY,
-                "Data source unavailable",
-                "The data source is inactive or unavailable");
+                "Platform operation unavailable",
+                "The requested operation is temporarily unavailable");
     }
 
     @ExceptionHandler(SQLException.class)
     ResponseEntity<ProblemDetail> upstream(SQLException exception) {
         return problem(
                 HttpStatus.BAD_GATEWAY,
-                "Query execution failed",
-                "The upstream query could not be completed");
+                "Database operation failed",
+                "The database operation could not be completed");
     }
 
     private ResponseEntity<ProblemDetail> problem(HttpStatus status, String title, String detail) {

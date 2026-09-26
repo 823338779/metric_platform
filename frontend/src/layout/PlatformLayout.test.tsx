@@ -10,16 +10,18 @@ afterEach(() => {
 });
 
 describe('PlatformLayout', () => {
-  it('shows resource centers and workbench', () => {
+  it('shows only dbt project navigation', () => {
     render(
       <MemoryRouter>
         <PlatformLayout />
       </MemoryRouter>,
     );
-    expect(screen.getByText('数据集')).toBeTruthy();
-    expect(screen.getByText('指标')).toBeTruthy();
-    expect(screen.getByText('维度')).toBeTruthy();
-    expect(screen.getByText('查询工作台')).toBeTruthy();
+    expect(screen.getByText('dbt 项目')).toBeTruthy();
+    expect(screen.queryByText('数据源')).toBeNull();
+    expect(screen.queryByText('数据集')).toBeNull();
+    expect(screen.queryByText('指标')).toBeNull();
+    expect(screen.queryByText('维度')).toBeNull();
+    expect(screen.queryByText('查询工作台')).toBeNull();
   });
 
   it('clears the session and navigates to login when the user logs out', async () => {

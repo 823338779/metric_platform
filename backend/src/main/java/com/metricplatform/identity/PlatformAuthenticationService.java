@@ -19,9 +19,9 @@ import java.util.Base64;
 import java.util.HexFormat;
 import java.util.Locale;
 import java.util.UUID;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.security.crypto.password.PasswordEncoder;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -102,7 +102,8 @@ public class PlatformAuthenticationService {
         UUID tokenId = UUID.randomUUID();
         Instant expiresAt = now.plus(properties.getTokenTtl());
         if (redisTokens != null) {
-            redisTokens.save(hash(rawToken), tokenId, user.getId(), user.getAuthVersion(), expiresAt);
+            redisTokens.save(
+                    hash(rawToken), tokenId, user.getId(), user.getAuthVersion(), expiresAt);
         } else {
             PlatformAccessTokenEntity token = new PlatformAccessTokenEntity();
             token.setId(tokenId);

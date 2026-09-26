@@ -2,7 +2,7 @@ package com.metricplatform.persistence;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-import com.metricplatform.persistence.entity.DatasetEntity;
+import com.metricplatform.persistence.entity.PlatformUserEntity;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.ZoneOffset;
@@ -16,7 +16,7 @@ class AuditMetaObjectHandlerTest {
 
     @Test
     void fillsCreationAndInitialUpdateTimestampsOnInsert() {
-        DatasetEntity entity = new DatasetEntity();
+        PlatformUserEntity entity = new PlatformUserEntity();
 
         handler.insertFill(SystemMetaObject.forObject(entity));
 
@@ -28,7 +28,7 @@ class AuditMetaObjectHandlerTest {
 
     @Test
     void normalUpdateDoesNotPopulateDeletedAt() {
-        DatasetEntity entity = new DatasetEntity();
+        PlatformUserEntity entity = new PlatformUserEntity();
 
         handler.updateFill(SystemMetaObject.forObject(entity));
 
@@ -38,7 +38,7 @@ class AuditMetaObjectHandlerTest {
 
     @Test
     void logicalDeletePopulatesDeletedAt() {
-        DatasetEntity entity = new DatasetEntity();
+        PlatformUserEntity entity = new PlatformUserEntity();
         entity.setDeleted(true);
 
         handler.updateFill(SystemMetaObject.forObject(entity));

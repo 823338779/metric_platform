@@ -4,14 +4,6 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import com.metricplatform.persistence.mapper.AuditEventMapper;
 import com.metricplatform.persistence.mapper.AuditableBaseMapper;
-import com.metricplatform.persistence.mapper.DataSourceMapper;
-import com.metricplatform.persistence.mapper.DatasetFieldMapper;
-import com.metricplatform.persistence.mapper.DatasetMapper;
-import com.metricplatform.persistence.mapper.DatasetRelationshipFieldPairMapper;
-import com.metricplatform.persistence.mapper.DatasetRelationshipMapper;
-import com.metricplatform.persistence.mapper.DimensionMapper;
-import com.metricplatform.persistence.mapper.DimensionTimeGranularityMapper;
-import com.metricplatform.persistence.mapper.MetricMapper;
 import com.metricplatform.persistence.mapper.PlatformUserMapper;
 import java.io.Serializable;
 import java.lang.annotation.Annotation;
@@ -22,18 +14,7 @@ import org.junit.jupiter.api.Test;
 class AuditableMapperContractTest {
     @Test
     void everyMapperUsesTheAuditableBaseContract() throws Exception {
-        assertThat(
-                        List.of(
-                                AuditEventMapper.class,
-                                DataSourceMapper.class,
-                                DatasetFieldMapper.class,
-                                DatasetMapper.class,
-                                DatasetRelationshipFieldPairMapper.class,
-                                DatasetRelationshipMapper.class,
-                                DimensionMapper.class,
-                                DimensionTimeGranularityMapper.class,
-                                MetricMapper.class,
-                                PlatformUserMapper.class))
+        assertThat(List.of(AuditEventMapper.class, PlatformUserMapper.class))
                 .allMatch(AuditableBaseMapper.class::isAssignableFrom);
         assertThat(AuditableBaseMapper.class.getMethod("softDeleteById", Serializable.class))
                 .isNotNull();
@@ -42,18 +23,7 @@ class AuditableMapperContractTest {
     @Test
     void mapperSqlIsDeclaredInXmlInsteadOfAnnotations() {
         Set<String> sqlAnnotations = Set.of("Select", "Insert", "Update", "Delete");
-        List<Class<?>> mappers =
-                List.of(
-                        AuditEventMapper.class,
-                        DataSourceMapper.class,
-                        DatasetFieldMapper.class,
-                        DatasetMapper.class,
-                        DatasetRelationshipFieldPairMapper.class,
-                        DatasetRelationshipMapper.class,
-                        DimensionMapper.class,
-                        DimensionTimeGranularityMapper.class,
-                        MetricMapper.class,
-                        PlatformUserMapper.class);
+        List<Class<?>> mappers = List.of(AuditEventMapper.class, PlatformUserMapper.class);
 
         List<String> violations =
                 mappers.stream()
@@ -67,8 +37,7 @@ class AuditableMapperContractTest {
                                                                         annotation
                                                                                 .annotationType()
                                                                                 .getSimpleName()))
-                                                .map(
-                                                        Annotation::annotationType)
+                                                .map(Annotation::annotationType)
                                                 .map(
                                                         annotation ->
                                                                 method.getDeclaringClass()
@@ -76,7 +45,8 @@ class AuditableMapperContractTest {
                                                                         + "#"
                                                                         + method.getName()
                                                                         + " @"
-                                                                        + annotation.getSimpleName()))
+                                                                        + annotation
+                                                                                .getSimpleName()))
                         .toList();
 
         assertThat(violations).isEmpty();

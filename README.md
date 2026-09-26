@@ -1,44 +1,32 @@
 # Metric Platform
 
-Metric Platform is the governed metric and semantic layer used by Data Agent. It manages data sources, datasets and fields, dimensions, metrics, dataset relationships, semantic models, validation, query execution, identity, and the management console.
+Metric Platform 控制 Git `main` 上 dbt 项目的全量构建和版本发布，保存已发布的只读目录，并将固定 `releaseId` 的类型化查询交给外部 dbt/MetricFlow 运行服务。平台不再维护数据源、数据集、指标或维度的独立定义，也不自行编译语义 SQL。
 
-## Project layout
+## 项目结构
 
-| Path | Responsibility |
+| 路径 | 职责 |
 | --- | --- |
-| `backend/` | Spring Boot API, domain services, persistence, security, Flyway migrations, and semantic/query execution. |
-| `metric-git-sync/` | 独立的 Git 快照读取、Ossie Profile 解析与 dbt 项目输入摘要模块。 |
-| `frontend/` | React and Vite management console. |
-| `api/openapi.yaml` | Published HTTP API contract. |
-| `docker-compose.yml` | Standalone PostgreSQL development service. |
+| `metric-git-sync/` | 安全读取 Git `main` 和计算 dbt 项目输入摘要。 |
+| `backend/` | 发布控制、版本目录、查询门面、身份认证与数据库迁移。 |
+| `frontend/` | dbt 项目、发布历史、只读目录和查询界面。 |
+| `api/openapi.yaml` | 公开 HTTP 契约。 |
 
-## Prerequisites
+## 本地运行
 
-- JDK 21
-- Node.js and npm
-- PostgreSQL
-- Redis on `localhost:6379` for identity token state
-
-## Run in the Agent Workspace
-
-When this repository is checked out under `agent-root`, use the workspace Compose project. It supplies PostgreSQL, creates the `metric_platform` database with the application's default credentials, and starts Redis:
+需要 JDK 21、Node.js、npm、PostgreSQL 和 Redis。位于 Agent 工作区时，从工作区根目录启动共享基础设施：
 
 ```powershell
 docker compose -f .\infra\compose\compose.yml up -d
 ```
 
-From the workspace root, start `MetricPlatformApplication` from `.run/`, or run the backend from this repository:
+从工作区根目录启动后端：
 
 ```powershell
 mvn -f .\metric-platform\pom.xml -pl metric-git-sync -am install -DskipTests
 mvn -f .\metric-platform\backend\pom.xml spring-boot:run
 ```
 
-The API listens on port `8090`.
-
-## Run as a standalone repository
-
-The repository-local Compose file exposes PostgreSQL on port `5433` with standalone credentials. Override the datasource settings for that service:
+独立运行时使用仓库内的 PostgreSQL 服务，并配置对应连接：
 
 ```powershell
 docker compose up -d postgres
@@ -49,38 +37,29 @@ mvn -pl metric-git-sync -am install -DskipTests
 mvn -f .\backend\pom.xml spring-boot:run
 ```
 
-Redis must be supplied separately or configured through the standard `SPRING_DATA_REDIS_*` properties.
-
-Start the management console in another terminal:
+Redis 通过标准 `SPRING_DATA_REDIS_*` 属性配置。前端从 `frontend/` 运行：
 
 ```powershell
-Set-Location frontend
 npm ci
 npm run dev
 ```
 
-The Vite development server proxies `/api` to `http://localhost:8090`.
+前端代理 `/api` 至 `http://localhost:8090`。
 
-## Build and verify
+## 验证
 
 ```powershell
 mvn -B verify
+```
 
-Set-Location frontend
+在 `frontend/` 目录执行：
+
+```powershell
 npm ci
+npm test
 npm run build
 ```
 
-## API boundary
+## 发布与契约
 
-[The OpenAPI contract](api/openapi.yaml) is the integration boundary for Data Agent and other clients. Changes to public routes, payloads, authentication, or error behavior must update the contract together with the implementation.
-
-## Git 定义订阅
-
-默认的 Ossie 模式消费 Ossie 0.1.1 的 `ossie-metrics` Profile v1，
-以单个配置仓库的 `main:semantic/model.yaml` 为定义来源。默认关闭；启用后使用
-Webhook、启动扫描和轮询同步，整份快照原子发布，重复提交不会重复创建对象。
-Git 托管对象通过仓库维护，管理写接口返回 409；人工对象继续沿用既有流程。
-
-部署参数、Git hook、协议边界及恢复方法见 [Git 订阅与消费说明](docs/git-sync.md)。dbt 全量构建与版本发布见 [dbt 发布运行说明](docs/dbt-publication.md)。
-Git 服务端示例 hook 位于 [ops/git/post-receive](ops/git/post-receive)。
+Git 订阅默认关闭，部署参数、发布语义和真实 StarRocks 验收门槛见 [dbt 发布运行说明](docs/dbt-publication.md)。已应用的旧版 Flyway 迁移与历史数据保留，但旧管理 API 不再暴露。公开接口以 [OpenAPI 契约](api/openapi.yaml) 为准。

@@ -8,13 +8,12 @@
 
 ## 开关和固定绑定
 
-默认 `metric-platform.git-sync.enabled=false`，即不访问 Git。启用 DBT 模式必须同时配置运行服务，并先完成下述真实库验收。示意配置：
+默认 `metric-platform.git-sync.enabled=false`，即不访问 Git。启用发布必须同时配置运行服务，并先完成下述真实库验收。示意配置：
 
 ```yaml
 metric-platform:
   git-sync:
     enabled: false
-    mode: DBT
     repository-id: metrics
     remote: ${METRIC_GIT_REMOTE}
     cache-directory: ${METRIC_GIT_CACHE_DIRECTORY}
@@ -31,7 +30,7 @@ metric-platform:
     timeout: PT30S
 ```
 
-`mode` 默认 `OSSIE`，现有流程和同步 `/api/v1/queries` 不变。`remote`、profile、schema、运行服务地址及密钥只由部署配置决定，不接受 Git 内容、Webhook 或公开 API 覆盖。`config-version` 在 profile、环境变量或工具链等构建输入改变时必须变更，促使重新构建。Git Webhook 与轮询方式见 [现有 Git 订阅说明](git-sync.md)。
+平台只支持 dbt 项目发布。`remote`、profile、schema、运行服务地址及密钥只由部署配置决定，不接受 Git 内容、Webhook 或公开 API 覆盖。`config-version` 在 profile、环境变量或工具链等构建输入改变时必须变更，促使重新构建。`POST /internal/git-sync/events` 仅唤醒刷新；启动扫描和周期轮询负责补偿丢失通知。
 
 ## 服务接口与运营
 

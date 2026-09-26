@@ -1,8 +1,16 @@
 import { describe, expect, it, vi } from 'vitest';
-import type { AuthIdentity } from './auth';
+import { safeReturnTo, type AuthIdentity } from './auth';
 import { createAuthApi } from './authApi';
 
 describe('authentication API', () => {
+  it('returns to dbt projects after login by default', () => {
+    expect(safeReturnTo(null)).toBe('/dbt/projects');
+    expect(safeReturnTo('/metrics')).toBe('/dbt/projects');
+    expect(safeReturnTo('/dbt/projects/sales/catalog?releaseId=one')).toBe(
+      '/dbt/projects/sales/catalog?releaseId=one',
+    );
+  });
+
   it('uses the authentication-only identity contract', async () => {
     const identity: AuthIdentity = {
       identityId: 'user-1',

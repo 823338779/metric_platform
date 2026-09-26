@@ -1,4 +1,5 @@
 const STORAGE_KEY = 'metric-platform.auth-session';
+const DBT_PROJECTS_PATH = '/dbt/projects';
 
 let redirecting = false;
 
@@ -49,9 +50,12 @@ export function currentInternalLocation() {
 }
 
 export function safeReturnTo(value: string | null) {
-  return value?.startsWith('/') && !value.startsWith('//') && !value.startsWith('/\\')
+  if (!value?.startsWith('/') || value.startsWith('//') || value.startsWith('/\\'))
+    return DBT_PROJECTS_PATH;
+  const pathname = value.split(/[?#]/, 1)[0];
+  return pathname === DBT_PROJECTS_PATH || pathname.startsWith(`${DBT_PROJECTS_PATH}/`)
     ? value
-    : '/data-sources';
+    : DBT_PROJECTS_PATH;
 }
 
 export function redirectToLogin(reason: 'required' | 'expired' = 'expired') {

@@ -3,19 +3,17 @@ import { ApiProblem, createHttpClient } from './httpClient';
 import { createMetricPlatformApi } from './metricPlatformApi';
 
 describe('typed API client', () => {
-  it('sends the breaking query shape without datasetId', async () => {
+  it('submits a versioned typed query without SQL', async () => {
     const fetcher = vi
       .fn()
       .mockResolvedValue({ ok: true, status: 200, json: async () => ({ valid: true }) });
     const api = createMetricPlatformApi(fetcher);
-    await api.validateQuery({
-      metricIds: ['m1'],
-      dimensions: [{ dimensionId: 'd1', granularity: 'MONTH' }],
-      relationshipIds: [],
-    });
+    await api.submitDbtQuery('sales', { releaseId: 'release-1', metrics: ['revenue'] });
     expect(fetcher).toHaveBeenCalledWith(
-      expect.stringContaining('/queries:validate'),
-      expect.objectContaining({ body: expect.not.stringContaining('datasetId') }),
+      expect.stringContaining('/semantic-projects/sales/queries'),
+      expect.objectContaining({
+        body: JSON.stringify({ releaseId: 'release-1', metrics: ['revenue'] }),
+      }),
     );
   });
   it('parses Problem Details', async () => {
@@ -25,7 +23,7 @@ describe('typed API client', () => {
       json: async () => ({ title: 'Conflict', status: 409, detail: 'stale version' }),
     });
     await expect(
-      createHttpClient(fetcher)('/datasets/d', { method: 'PATCH' }),
+      createHttpClient(fetcher)('/semantic-projects/sales/catalog'),
     ).rejects.toMatchObject({
       problem: expect.objectContaining({ status: 409, detail: 'stale version' }),
     });

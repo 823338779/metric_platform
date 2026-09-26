@@ -13,7 +13,6 @@ import java.util.concurrent.*;
 
 /** 只从固定远端读取 main，使用本地裸仓库，不检出文件、不执行仓库脚本。 */
 public final class GitSnapshotReader {
-    public static final String FILE = "semantic/model.yaml";
     private static final String INIT = "init",
             BARE = "--bare",
             FETCH = "fetch",
@@ -25,7 +24,6 @@ public final class GitSnapshotReader {
             VERIFY = "--verify",
             LS_TREE = "ls-tree",
             CAT_FILE = "cat-file",
-            SIZE = "-s",
             PRINT = "-p",
             HEAD = "HEAD",
             CONFIG = "-c",
@@ -77,37 +75,6 @@ public final class GitSnapshotReader {
         this.remote = remote;
         this.directory = directory.toAbsolutePath().normalize();
         this.timeout = timeout;
-    }
-
-    public synchronized GitSnapshot read() {
-        try {
-            if (!Files.exists(directory.resolve(HEAD))) {
-                if (Files.exists(directory))
-                    try (var entries = Files.list(directory)) {
-                        if (entries.findAny().isPresent())
-                            throw new IllegalStateException("Git 缓存目录必须为空或为专用裸仓库");
-                    }
-                Files.createDirectories(directory);
-                run(INIT, BARE);
-            }
-            run(FETCH, NO_TAGS, SEPARATOR, remote, MAIN);
-            String commit = text(run(REV_PARSE, VERIFY, FETCH_HEAD));
-            if (!commit.matches(HASH)) throw new IllegalStateException("Git 返回了无效的提交标识");
-            String entry = text(run(LS_TREE, commit, SEPARATOR, FILE));
-            String[] parts = entry.split("[\\s]+", 4);
-            if (parts.length != 4
-                    || !Set.of(REGULAR, EXECUTABLE).contains(parts[0])
-                    || !parts[2].matches(HASH)
-                    || !FILE.equals(parts[3])) throw new IllegalStateException("协议文件缺失或不是普通文件");
-            long size = Long.parseLong(text(run(CAT_FILE, SIZE, parts[2])));
-            if (size <= 0 || size > OssieParser.MAX_BYTES)
-                throw new IllegalStateException("协议文件大小超限");
-            return new GitSnapshot(commit, run(CAT_FILE, PRINT, parts[2]));
-        } catch (IllegalStateException e) {
-            throw e;
-        } catch (Exception e) {
-            throw new IllegalStateException("Git 快照读取失败");
-        }
     }
 
     public synchronized DbtProjectRevision readDbtRevision(String projectSubdir) {
@@ -213,7 +180,7 @@ public final class GitSnapshotReader {
     }
 
     private byte[] run(String... arguments) throws Exception {
-        return run(OssieParser.MAX_BYTES + 1024, arguments);
+        return run(TREE_LIMIT, arguments);
     }
 
     private byte[] run(int limit, String... arguments) throws Exception {

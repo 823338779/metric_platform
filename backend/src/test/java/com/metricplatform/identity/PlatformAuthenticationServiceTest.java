@@ -14,8 +14,8 @@ import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
 import java.time.ZoneOffset;
-import java.util.UUID;
 import java.util.Arrays;
+import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -69,8 +69,9 @@ class PlatformAuthenticationServiceTest {
         assertThat(response.identity().subject()).isEqualTo("admin");
         assertThat(response.identity().displayName()).isEqualTo("Platform Administrator");
         assertThat(response.identity().authVersion()).isEqualTo(2);
-        assertThat(Arrays.stream(response.identity().getClass().getRecordComponents())
-                        .map(java.lang.reflect.RecordComponent::getName))
+        assertThat(
+                        Arrays.stream(response.identity().getClass().getRecordComponents())
+                                .map(java.lang.reflect.RecordComponent::getName))
                 .containsExactly("identityId", "subject", "displayName", "authVersion");
 
         ArgumentCaptor<PlatformAccessTokenEntity> savedToken =

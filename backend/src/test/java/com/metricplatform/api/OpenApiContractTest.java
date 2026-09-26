@@ -12,11 +12,11 @@ import org.junit.jupiter.api.Test;
 
 class OpenApiContractTest {
     @Test
-    void publishesEverySemanticResourceAndTheBreakingQueryShape() throws IOException {
+    void publishesOnlyDbtFacadeAndAuthenticationRoutes() throws IOException {
         String contract = Files.readString(Path.of("../api/openapi.yaml"));
         JsonNode document = new ObjectMapper(new YAMLFactory()).readTree(contract);
         assertThat(document.path("openapi").asText()).isEqualTo("3.1.0");
-        assertThat(document.path("paths").size()).isEqualTo(52);
+        assertThat(document.path("paths").size()).isEqualTo(13);
         assertThat(
                         document.at(
                                         "/paths/~1api~1v1~1semantic-projects~1{projectId}~1queries/post/responses/202")
@@ -34,40 +34,12 @@ class OpenApiContractTest {
                                         "/paths/~1internal~1git-sync~1events/post/security/0/gitWebhookHmac")
                                 .isArray())
                 .isTrue();
-        assertThat(document.at("/paths/~1api~1v1~1git-sync~1status/get/responses/200").isObject())
-                .isTrue();
-        assertThat(contract)
-                .contains(
-                        "/api/v1/datasets:",
-                        "/api/v1/dataset-relationships:",
-                        "/api/v1/metrics:",
-                        "/api/v1/dimensions:",
-                        "/api/v1/query-connectivity:",
-                        "/api/v1/semantic-objects:search:",
-                        "/api/v1/semantic-objects:query:",
-                        "/api/v1/dimensions/{dimensionId}/members:query:",
-                        "/api/v1/metrics/{id}/deletion-impact:",
-                        "/api/v1/dimensions/{id}/deletion-impact:",
-                        "/api/v1/dataset-relationships/{id}/deletion-impact:",
-                        "/api/v1/queries:validate:",
-                        "/api/v1/queries:");
-        assertThat(document.at("/components/schemas/SemanticObjectQueryRequest").isObject())
-                .isTrue();
-        assertThat(document.at("/components/schemas/SemanticObjectQueryResponse").isObject())
-                .isTrue();
-        assertThat(document.at("/components/schemas/DimensionMemberQueryRequest").isObject())
-                .isTrue();
-        assertThat(document.at("/components/schemas/DimensionMemberQueryResponse").isObject())
-                .isTrue();
-        assertThat(document.at("/components/schemas/ResourceDeletionImpact").isObject()).isTrue();
-        String queryRequest =
-                contract.substring(
-                        contract.indexOf("    QueryRequest:"),
-                        contract.indexOf("    QueryResponse:"));
-        assertThat(queryRequest).contains("required: [metricIds]").doesNotContain("datasetId:");
-        JsonNode querySchema = document.at("/components/schemas/QueryRequest");
-        assertThat(querySchema.path("required").toString()).contains("\"metricIds\"");
-        assertThat(querySchema.path("properties").has("datasetId")).isFalse();
+        assertThat(document.path("paths").has("/api/v1/metrics")).isFalse();
+        assertThat(document.path("paths").has("/api/v1/dimensions")).isFalse();
+        assertThat(document.path("paths").has("/api/v1/datasets")).isFalse();
+        assertThat(document.path("paths").has("/api/v1/queries")).isFalse();
+        assertThat(document.path("paths").has("/api/v1/data-sources")).isFalse();
+        assertThat(document.path("paths").has("/api/v1/git-sync/status")).isFalse();
         assertThat(contract)
                 .doesNotContain(
                         "/api/v1/admin/platform-users",

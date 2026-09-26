@@ -1,12 +1,4 @@
-import {
-  ApartmentOutlined,
-  CloudServerOutlined,
-  DatabaseOutlined,
-  FieldTimeOutlined,
-  LineChartOutlined,
-  PlayCircleOutlined,
-  FolderOpenOutlined,
-} from '@ant-design/icons';
+import { ApartmentOutlined, FolderOpenOutlined } from '@ant-design/icons';
 import { Button, Layout, Menu, Space, Typography } from 'antd';
 import { Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { clearAuthSession, getAuthSession } from '../api/auth';
@@ -14,10 +6,7 @@ import { clearAuthSession, getAuthSession } from '../api/auth';
 export function PlatformLayout() {
   const navigate = useNavigate();
   const { pathname } = useLocation();
-  const selected =
-    ['/data-sources', '/datasets', '/metrics', '/dimensions', '/query', '/dbt/projects'].find(
-      (path) => pathname.startsWith(path),
-    ) ?? '/data-sources';
+  const selected = pathname.startsWith('/dbt/projects') ? '/dbt/projects' : '';
   const displayName = getAuthSession()?.identity.displayName;
   const handleLogout = () => {
     clearAuthSession();
@@ -46,14 +35,7 @@ export function PlatformLayout() {
           mode="inline"
           selectedKeys={[selected]}
           onClick={({ key }) => navigate(key)}
-          items={[
-            { key: '/data-sources', icon: <CloudServerOutlined />, label: '数据源' },
-            { key: '/datasets', icon: <DatabaseOutlined />, label: '数据集' },
-            { key: '/metrics', icon: <LineChartOutlined />, label: '指标' },
-            { key: '/dimensions', icon: <FieldTimeOutlined />, label: '维度' },
-            { key: '/query', icon: <PlayCircleOutlined />, label: '查询工作台' },
-            { key: '/dbt/projects', icon: <FolderOpenOutlined />, label: 'dbt 项目' },
-          ]}
+          items={[{ key: '/dbt/projects', icon: <FolderOpenOutlined />, label: 'dbt 项目' }]}
         />
       </Layout.Sider>
       <Layout style={{ minWidth: 0 }}>

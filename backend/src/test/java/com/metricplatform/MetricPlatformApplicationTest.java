@@ -37,11 +37,7 @@ class MetricPlatformApplicationTest {
         Map<String, String> entityTables =
                 Map.of(
                         "PlatformUserEntity", "platform_user",
-                        "DataSourceEntity", "data_source",
-                        "DatasetEntity", "dataset",
-                        "DatasetFieldEntity", "dataset_field",
-                        "DimensionEntity", "dimension",
-                        "MetricEntity", "metric",
+                        "PlatformAccessTokenEntity", "platform_access_token",
                         "AuditEventEntity", "audit_event");
 
         for (Map.Entry<String, String> entityTable : entityTables.entrySet()) {

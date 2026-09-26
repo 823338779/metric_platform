@@ -20,7 +20,7 @@ class GitWebhookControllerTest {
         var properties = new GitSyncProperties();
         properties.setRepositoryId("metrics");
         properties.setWebhookSecret(SECRET);
-        var controller = new GitWebhookController(properties, mock(GitSyncCoordinator.class));
+        var controller = new GitWebhookController(properties, mock(GitRefreshTrigger.class));
         for (var input :
                 new String[] {
                     "null",
@@ -42,7 +42,7 @@ class GitWebhookControllerTest {
         var properties = new GitSyncProperties();
         properties.setRepositoryId("metrics");
         properties.setWebhookSecret(SECRET);
-        var coordinator = mock(GitSyncCoordinator.class);
+        var coordinator = mock(GitRefreshTrigger.class);
         var controller = new GitWebhookController(properties, coordinator);
         var mac = Mac.getInstance("HmacSHA256");
         mac.init(new SecretKeySpec(SECRET.getBytes(StandardCharsets.UTF_8), "HmacSHA256"));

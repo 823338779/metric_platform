@@ -43,7 +43,7 @@ export function LoginPage() {
       <Card className="login-card" variant="borderless">
         <div className="login-brand">
           <Typography.Title level={2}>Metric Platform</Typography.Title>
-          <Typography.Text type="secondary">登录后管理数据源与语义指标</Typography.Text>
+          <Typography.Text type="secondary">登录后查看 dbt 项目发布与指标目录</Typography.Text>
         </div>
 
         {expired && (

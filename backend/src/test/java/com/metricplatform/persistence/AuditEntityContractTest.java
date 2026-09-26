@@ -7,31 +7,13 @@ import com.baomidou.mybatisplus.annotation.TableField;
 import com.baomidou.mybatisplus.annotation.TableLogic;
 import com.metricplatform.persistence.entity.AuditEventEntity;
 import com.metricplatform.persistence.entity.BaseAuditEntity;
-import com.metricplatform.persistence.entity.DataSourceEntity;
-import com.metricplatform.persistence.entity.DatasetEntity;
-import com.metricplatform.persistence.entity.DatasetFieldEntity;
-import com.metricplatform.persistence.entity.DatasetRelationshipEntity;
-import com.metricplatform.persistence.entity.DatasetRelationshipFieldPairEntity;
-import com.metricplatform.persistence.entity.DimensionEntity;
-import com.metricplatform.persistence.entity.DimensionTimeGranularityEntity;
-import com.metricplatform.persistence.entity.MetricEntity;
 import com.metricplatform.persistence.entity.PlatformUserEntity;
 import java.util.List;
 import org.junit.jupiter.api.Test;
 
 class AuditEntityContractTest {
     private static final List<Class<?>> ENTITIES =
-            List.of(
-                    AuditEventEntity.class,
-                    DataSourceEntity.class,
-                    DatasetEntity.class,
-                    DatasetFieldEntity.class,
-                    DatasetRelationshipEntity.class,
-                    DatasetRelationshipFieldPairEntity.class,
-                    DimensionEntity.class,
-                    DimensionTimeGranularityEntity.class,
-                    MetricEntity.class,
-                    PlatformUserEntity.class);
+            List.of(AuditEventEntity.class, PlatformUserEntity.class);
 
     @Test
     void everyEntityInheritsTheAuditedFields() throws Exception {

@@ -49,5 +49,4 @@ public class PlatformSecurityConfig {
                 .addFilterBefore(tokenFilter, UsernamePasswordAuthenticationFilter.class)
                 .build();
     }
-
 }

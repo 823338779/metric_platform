@@ -6,5 +6,4 @@ import com.metricplatform.persistence.mapper.AuditEventMapper;
 import org.springframework.stereotype.Service;
 
 @Service
-public class AuditEventPersistenceService
-        extends ServiceImpl<AuditEventMapper, AuditEventEntity> {}
+public class AuditEventPersistenceService extends ServiceImpl<AuditEventMapper, AuditEventEntity> {}
