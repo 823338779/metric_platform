@@ -4,7 +4,6 @@ import static org.assertj.core.api.Assertions.*;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.metricplatform.dbt.DbtRuntimeDtos.*;
-import com.metricplatform.gitsync.DbtProjectRevision;
 import java.util.List;
 import java.util.UUID;
 import org.junit.jupiter.api.AfterEach;

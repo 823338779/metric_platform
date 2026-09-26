@@ -3,6 +3,7 @@ package com.metricplatform.dbt;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.metricplatform.dbt.DbtQueryDtos.*;
+import java.util.List;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
@@ -21,7 +22,9 @@ public class DbtQueryController {
     private static final String QUERIES = "/queries",
             EXPLAIN = "/queries:explain",
             QUERY = "/queries/{queryId}",
-            PREVIEW = "/datasets/{resourceId}:preview";
+            PREVIEW = "/datasets/{resourceId}:preview",
+            OPTIONS = "/query-options",
+            DIMENSION_VALUES = "/queries:dimension-values";
     private final DbtQueryService service;
     private final ObjectMapper mapper = new ObjectMapper();
 
@@ -56,6 +59,31 @@ public class DbtQueryController {
         return service.get(projectId, queryId);
     }
 
+    @GetMapping(OPTIONS)
+    public java.util.Map<String, Object> queryOptions(
+            @PathVariable String projectId,
+            @RequestParam UUID releaseId,
+            @RequestParam List<String> metrics) {
+        return service.queryOptions(projectId, releaseId, metrics);
+    }
+
+    @PostMapping(DIMENSION_VALUES)
+    @ResponseStatus(HttpStatus.ACCEPTED)
+    public QuerySubmission dimensionValues(
+            @PathVariable String projectId, @RequestBody String body) {
+        JsonNode node = parse(body);
+        if (node == null || !node.isObject() || node.has("sql"))
+            throw new IllegalArgumentException("查询参数无效");
+        var names = node.fieldNames();
+        while (names.hasNext()) {
+            String name = names.next();
+            if (!List.of("releaseId", "metrics", "dimension", "filters", "limit").contains(name))
+                throw new IllegalArgumentException("查询参数无效");
+        }
+        return service.dimensionValues(
+                projectId, mapper.convertValue(node, DimensionValuesRequest.class));
+    }
+
     private TypedQuery typed(String body) {
         JsonNode node = parse(body);
         rejectUnsupported(node, false);
@@ -81,7 +109,10 @@ public class DbtQueryController {
                     && (preview
                             || !name.equals("metrics")
                                     && !name.equals("groupBy")
-                                    && !name.equals("filters")))
+                                    && !name.equals("filters")
+                                    && !name.equals("startTime")
+                                    && !name.equals("endTime")
+                                    && !name.equals("orderBy")))
                 throw new IllegalArgumentException("查询参数无效");
         }
     }

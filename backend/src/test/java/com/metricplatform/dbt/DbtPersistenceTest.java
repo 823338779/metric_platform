@@ -2,7 +2,6 @@ package com.metricplatform.dbt;
 
 import static org.assertj.core.api.Assertions.*;
 
-import com.metricplatform.gitsync.DbtProjectRevision;
 import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.CountDownLatch;
@@ -170,6 +169,30 @@ class DbtPersistenceTest {
                 .containsExactly(
                         new DbtCatalogStore.Dependency(
                                 "model.sales.orders", "metric.sales.revenue", "semantic"));
+    }
+
+    @Test
+    void catalogJsonbAndCompositeReleaseKeyRoundTrip() {
+        UUID first = releases.observe(projectId, revision('a', '1'), "config-1").releaseId();
+        UUID second = releases.observe(projectId, revision('b', '2'), "config-1").releaseId();
+        String nativeDefinition = "{\"meta\":{\"label\":\"营业额\",\"precision\":18}}";
+        var resource =
+                new DbtCatalogStore.Resource(
+                        "metric.sales.revenue",
+                        "metric.sales.revenue",
+                        "METRIC",
+                        "revenue",
+                        "营业额",
+                        "models/orders.yml",
+                        nativeDefinition,
+                        true);
+        catalog.replace(first, List.of(resource), List.of());
+        catalog.replace(second, List.of(resource), List.of());
+        assertThat(catalog.resources(first).getFirst().definitionJson())
+                .contains("营业额", "precision");
+        catalog.replace(second, List.of(), List.of());
+        assertThat(catalog.resources(first)).hasSize(1);
+        assertThat(catalog.resources(second)).isEmpty();
     }
 
     private static DbtProjectRevision revision(char sha, char digest) {

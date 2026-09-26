@@ -1,5 +1,6 @@
 package com.metricplatform.api;
 
+import com.metricplatform.dbt.DbtReleaseGoneException;
 import com.metricplatform.dbt.DbtRuntimeClient;
 import com.metricplatform.identity.LoginRateLimitException;
 import java.sql.SQLException;
@@ -15,6 +16,11 @@ import org.springframework.web.method.annotation.MethodArgumentTypeMismatchExcep
 @RestControllerAdvice
 public class ApiExceptionHandler {
     private static final String DBT_QUERY_REJECTED = "DBT_QUERY_REJECTED";
+
+    @ExceptionHandler(DbtReleaseGoneException.class)
+    ResponseEntity<ProblemDetail> releaseGone(DbtReleaseGoneException exception) {
+        return problem(HttpStatus.GONE, "Release cleaned", exception.getMessage());
+    }
 
     /** 外部服务的 422 仅暴露固定错误码，鉴权和服务故障不伪装成用户认证问题。 */
     @ExceptionHandler(DbtRuntimeClient.ServiceFailure.class)

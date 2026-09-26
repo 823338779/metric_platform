@@ -9,7 +9,6 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.metricplatform.dbt.DbtRuntimeDtos.*;
-import com.metricplatform.gitsync.DbtProjectRevision;
 import com.metricplatform.identity.PlatformAuthenticationService;
 import com.metricplatform.security.PlatformPrincipal;
 import java.util.UUID;
@@ -90,6 +89,8 @@ class DbtQueryControllerTest {
                         .getResponse()
                         .getContentAsString();
         UUID queryId = UUID.fromString(mapper.readTree(body).path("queryId").asText());
+        verify(runtime)
+                .submitQuery(argThat(job -> job.orderBy() != null && job.orderBy().isEmpty()));
         assertThat(
                         jdbc.queryForObject(
                                 "select release_id from semantic_query where query_id=?",
@@ -224,5 +225,133 @@ class DbtQueryControllerTest {
                                 .content(payload))
                 .andExpect(status().isUnprocessableEntity())
                 .andExpect(jsonPath("$.code").value("DBT_QUERY_REJECTED"));
+    }
+
+    @Test
+    void multiMetricOptionsAreFixedToRelease() throws Exception {
+        when(runtime.queryOptions(runId, java.util.List.of("revenue", "orders")))
+                .thenReturn(
+                        mapper.readTree(
+                                "{\"metrics\":[{\"name\":\"revenue\"},{\"name\":\"orders\"}],\"dimensions\":[],\"timeDimensions\":[{\"token\":\"metric_time__month\",\"granularity\":\"month\"}],\"allowedFilters\":[\"=\"]}"));
+        mvc.perform(
+                        get("/api/v1/semantic-projects/{projectId}/query-options", projectId)
+                                .header("Authorization", "Bearer " + TOKEN)
+                                .param("releaseId", releaseId.toString())
+                                .param("metrics", "revenue", "orders"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.releaseId").value(releaseId.toString()))
+                .andExpect(jsonPath("$.timeDimensions[0].token").value("metric_time__month"));
+        verify(runtime).queryOptions(runId, java.util.List.of("revenue", "orders"));
+    }
+
+    @Test
+    void dimensionValuesHoldReleaseReference() throws Exception {
+        String payload =
+                "{\"releaseId\":\""
+                        + releaseId
+                        + "\",\"metrics\":[\"revenue\"],\"dimension\":\"region\",\"limit\":10}";
+        mvc.perform(
+                        post(
+                                        "/api/v1/semantic-projects/{projectId}/queries:dimension-values",
+                                        projectId)
+                                .header("Authorization", "Bearer " + TOKEN)
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content(payload))
+                .andExpect(status().isAccepted())
+                .andExpect(jsonPath("$.releaseId").value(releaseId.toString()));
+        assertThat(
+                        jdbc.queryForObject(
+                                "select count(*) from semantic_query where release_id=? and mode='DIMENSION_VALUES'",
+                                Integer.class,
+                                releaseId))
+                .isEqualTo(1);
+        verify(runtime)
+                .submitQuery(
+                        argThat(
+                                job ->
+                                        job.runId().equals(runId)
+                                                && "region".equals(job.dimension())));
+    }
+
+    @Test
+    void unsupportedOperatorAndOversizeDimensionValueLimitAreRejected() throws Exception {
+        String route = "/api/v1/semantic-projects/{projectId}/queries";
+        mvc.perform(
+                        post(route, projectId)
+                                .header("Authorization", "Bearer " + TOKEN)
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content(
+                                        "{\"releaseId\":\""
+                                                + releaseId
+                                                + "\",\"metrics\":[\"revenue\"],\"filters\":[{\"field\":\"region\",\"operator\":\"LIKE\",\"value\":\"A\"}]}"))
+                .andExpect(status().isUnprocessableEntity());
+        mvc.perform(
+                        post(
+                                        "/api/v1/semantic-projects/{projectId}/queries:dimension-values",
+                                        projectId)
+                                .header("Authorization", "Bearer " + TOKEN)
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content(
+                                        "{\"releaseId\":\""
+                                                + releaseId
+                                                + "\",\"metrics\":[\"revenue\"],\"dimension\":\"region\",\"limit\":10001}"))
+                .andExpect(status().isUnprocessableEntity());
+        verify(runtime, never()).submitQuery(any());
+    }
+
+    @Test
+    void anotherProjectCannotReadQueryStatus() throws Exception {
+        String payload = "{\"releaseId\":\"" + releaseId + "\",\"metrics\":[\"revenue\"]}";
+        String body =
+                mvc.perform(
+                                post("/api/v1/semantic-projects/{projectId}/queries", projectId)
+                                        .header("Authorization", "Bearer " + TOKEN)
+                                        .contentType(MediaType.APPLICATION_JSON)
+                                        .content(payload))
+                        .andExpect(status().isAccepted())
+                        .andReturn()
+                        .getResponse()
+                        .getContentAsString();
+        UUID queryId = UUID.fromString(mapper.readTree(body).path("queryId").asText());
+        mvc.perform(
+                        get(
+                                        "/api/v1/semantic-projects/{projectId}/queries/{queryId}",
+                                        "another-project",
+                                        queryId)
+                                .header("Authorization", "Bearer " + TOKEN))
+                .andExpect(status().isNotFound());
+        verify(runtime, never()).getQuery(any());
+    }
+
+    @Test
+    void readyRuntimeQueryIsCompletedForPlatformClients() throws Exception {
+        String payload = "{\"releaseId\":\"" + releaseId + "\",\"metrics\":[\"revenue\"]}";
+        String body =
+                mvc.perform(
+                                post("/api/v1/semantic-projects/{projectId}/queries", projectId)
+                                        .header("Authorization", "Bearer " + TOKEN)
+                                        .contentType(MediaType.APPLICATION_JSON)
+                                        .content(payload))
+                        .andExpect(status().isAccepted())
+                        .andReturn()
+                        .getResponse()
+                        .getContentAsString();
+        UUID queryId = UUID.fromString(mapper.readTree(body).path("queryId").asText());
+        when(runtime.getQuery(queryJobId))
+                .thenReturn(
+                        new QuerySnapshot(
+                                queryJobId,
+                                "READY",
+                                mapper.readTree("[]"),
+                                mapper.readTree("[]"),
+                                null));
+        mvc.perform(
+                        get(
+                                        "/api/v1/semantic-projects/{projectId}/queries/{queryId}",
+                                        projectId,
+                                        queryId)
+                                .header("Authorization", "Bearer " + TOKEN))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("COMPLETED"));
     }
 }

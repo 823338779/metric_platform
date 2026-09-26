@@ -6,8 +6,11 @@ Metric Platform 控制 Git `main` 上 dbt 项目的全量构建和版本发布�
 
 | 路径 | 职责 |
 | --- | --- |
+| `metric-core/` | dbt/MetricFlow 业务 DTO、版本规则与临时产物展示转换。 |
+| `metric-persistence/` | MyBatis Plus 实体、Mapper、JSONB 映射与发布状态仓储。 |
+| `metric-runtime-client/` | 运行服务固定 SHA 任务、目录和查询 HTTP 客户端。 |
 | `metric-git-sync/` | 安全读取 Git `main` 和计算 dbt 项目输入摘要。 |
-| `backend/` | 发布控制、版本目录、查询门面、身份认证与数据库迁移。 |
+| `backend/` | 唯一可执行的 Spring Boot Web、调度与装配模块，负责认证和数据库迁移。 |
 | `frontend/` | dbt 项目、发布历史、只读目录和查询界面。 |
 | `api/openapi.yaml` | 公开 HTTP 契约。 |
 
@@ -22,7 +25,7 @@ docker compose -f .\infra\compose\compose.yml up -d
 从工作区根目录启动后端：
 
 ```powershell
-mvn -f .\metric-platform\pom.xml -pl metric-git-sync -am install -DskipTests
+mvn -f .\metric-platform\pom.xml -pl backend -am install -DskipTests
 mvn -f .\metric-platform\backend\pom.xml spring-boot:run
 ```
 
@@ -33,7 +36,7 @@ docker compose up -d postgres
 $env:SPRING_DATASOURCE_URL = 'jdbc:postgresql://localhost:5433/metric_platform'
 $env:SPRING_DATASOURCE_USERNAME = 'metric_platform'
 $env:SPRING_DATASOURCE_PASSWORD = 'metric_platform'
-mvn -pl metric-git-sync -am install -DskipTests
+mvn -pl backend -am install -DskipTests
 mvn -f .\backend\pom.xml spring-boot:run
 ```
 

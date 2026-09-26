@@ -2,7 +2,7 @@ package com.metricplatform.gitsync;
 
 import com.metricplatform.dbt.DbtPublicationService;
 import com.metricplatform.dbt.DbtReleaseCoordinator;
-import com.metricplatform.dbt.DbtReleaseStore;
+import com.metricplatform.dbt.DbtReleaseRepository;
 import com.metricplatform.dbt.DbtRuntimeClient;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
@@ -20,9 +20,21 @@ public class GitSyncConfiguration {
             prefix = "metric-platform.git-sync",
             name = "enabled",
             havingValue = "true")
+    GitSnapshotReader dbtGitSnapshotReader(GitSyncProperties properties) {
+        return new GitSnapshotReader(
+                properties.getExecutable(), properties.getRemote(),
+                properties.getCacheDirectory(), properties.getGitTimeout());
+    }
+
+    @Bean
+    @ConditionalOnProperty(
+            prefix = "metric-platform.git-sync",
+            name = "enabled",
+            havingValue = "true")
     DbtReleaseCoordinator dbtReleaseCoordinator(
             GitSyncProperties p,
-            DbtReleaseStore releases,
+            GitSnapshotReader reader,
+            DbtReleaseRepository releases,
             DbtPublicationService publication,
             DbtRuntimeClient runtime) {
         if (p.getRepositoryId() == null
@@ -42,12 +54,6 @@ public class GitSyncConfiguration {
                 || p.getPollInterval() == null
                 || p.getPollInterval().toMillis() < 1000)
             throw new IllegalStateException("dbt Git 同步配置不完整或轮询间隔过短");
-        return new DbtReleaseCoordinator(
-                new GitSnapshotReader(
-                        p.getExecutable(), p.getRemote(), p.getCacheDirectory(), p.getGitTimeout()),
-                releases,
-                publication,
-                runtime,
-                p);
+        return new DbtReleaseCoordinator(reader, releases, publication, runtime, p);
     }
 }

@@ -78,6 +78,19 @@ class GitSnapshotReaderTest {
     }
 
     @Test
+    void sourceUsesBuildShaNotCurrentMain() throws Exception {
+        Path remote = dbtRemote();
+        var reader = dbtReader(remote);
+        String first = reader.readDbtRevision(PROJECT).sha();
+        Files.writeString(remote.resolve(MODEL_FILE), "models:\n  - name: changed\n");
+        git(remote, "commit", "-am", "changed");
+        assertThat(reader.readYamlAtSha(PROJECT, first, "models/orders.yml"))
+                .isEqualTo("models: []\n");
+        assertThatThrownBy(() -> reader.readYamlAtSha(PROJECT, first, "../outside.yml"))
+                .isInstanceOf(IllegalArgumentException.class);
+    }
+
+    @Test
     void modelDocsMarkdownChangeChangesDigest() throws Exception {
         Path remote = dbtRemote();
         var reader = dbtReader(remote);

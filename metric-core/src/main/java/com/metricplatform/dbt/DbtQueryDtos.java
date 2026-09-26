@@ -10,13 +10,30 @@ public final class DbtQueryDtos {
     public enum QueryMode {
         QUERY,
         EXPLAIN,
-        PREVIEW
+        PREVIEW,
+        DIMENSION_VALUES
     }
 
     public record TypedQuery(
             UUID releaseId,
             List<String> metrics,
             List<String> groupBy,
+            List<DbtRuntimeDtos.QueryFilter> filters,
+            Integer limit,
+            String startTime,
+            String endTime,
+            List<String> orderBy) {
+        public TypedQuery(
+                UUID releaseId, List<String> metrics, List<String> groupBy,
+                List<DbtRuntimeDtos.QueryFilter> filters, Integer limit) {
+            this(releaseId, metrics, groupBy, filters, limit, null, null, List.of());
+        }
+    }
+
+    public record DimensionValuesRequest(
+            UUID releaseId,
+            List<String> metrics,
+            String dimension,
             List<DbtRuntimeDtos.QueryFilter> filters,
             Integer limit) {}
 

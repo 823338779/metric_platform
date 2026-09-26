@@ -2,13 +2,18 @@ package com.metricplatform.dbt;
 
 import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.JsonNode;
 import com.metricplatform.dbt.DbtRuntimeDtos.*;
 import java.io.IOException;
 import java.net.URI;
+import java.net.URLEncoder;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.time.Duration;
+import java.nio.charset.StandardCharsets;
+import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
@@ -30,7 +35,12 @@ public final class HttpDbtRuntimeClient implements DbtRuntimeClient {
             CONTENT_TYPE = "Content-Type",
             GET = "GET",
             POST = "POST",
-            READY = "READY";
+            READY = "READY",
+            QUERY_OPTIONS = "/query-options";
+    private static final Map<String, String> SUPPORTED_SCHEMAS = Map.of(
+            "manifest", "https://schemas.getdbt.com/dbt/manifest/v12.json",
+            "semanticManifest", "dbt-metricflow/0.15.0",
+            "catalog", "https://schemas.getdbt.com/dbt/catalog/v1.json");
     private static final int MAX_RESPONSE_BYTES = 8 * 1024 * 1024;
     private final URI baseUri;
     private final Duration timeout;
@@ -77,9 +87,19 @@ public final class HttpDbtRuntimeClient implements DbtRuntimeClient {
     public CatalogSnapshot getCatalog(UUID runId) {
         CatalogSnapshot result =
                 call(GET, RUNS + "/" + runId + CATALOG, null, CatalogSnapshot.class);
-        if (result == null || result.resources() == null || result.dependencies() == null)
+        if (result == null || result.resources() == null || result.dependencies() == null
+                || !SUPPORTED_SCHEMAS.equals(result.artifactSchemas()))
             throw new ServiceFailure(false, 200);
         return result;
+    }
+
+    @Override
+    public JsonNode queryOptions(UUID runId, List<String> metrics) {
+        if (metrics == null || metrics.isEmpty()) throw new IllegalArgumentException("指标不能为空");
+        String query = metrics.stream()
+                .map(metric -> "metrics=" + URLEncoder.encode(metric, StandardCharsets.UTF_8))
+                .collect(java.util.stream.Collectors.joining("&"));
+        return call(GET, RUNS + "/" + runId + QUERY_OPTIONS + "?" + query, null, JsonNode.class);
     }
 
     @Override

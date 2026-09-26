@@ -7,12 +7,12 @@ import com.fasterxml.jackson.databind.node.JsonNodeFactory;
 import com.metricplatform.dbt.DbtQueryDtos.*;
 import com.metricplatform.dbt.DbtRuntimeDtos.*;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.http.HttpStatus;
-import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import org.springframework.web.server.ResponseStatusException;
@@ -26,21 +26,22 @@ import org.springframework.web.server.ResponseStatusException;
 @RequiredArgsConstructor
 @Slf4j
 public class DbtQueryService {
-    private static final String RUN =
-            "select runtime_run_id from semantic_release where release_id=?";
     private static final String PENDING = "PENDING", FAILED = "FAILED", COMPLETED = "COMPLETED";
+    private static final String RUNTIME_READY = "READY";
+    private static final java.util.Set<String> FILTER_OPERATORS =
+            java.util.Set.of("=", "!=", ">", ">=", "<", "<=", "IN");
     private static final int MAX_LIMIT = 10000;
     private static final int RECONCILE_BATCH = 100;
     private final DbtCatalogService catalog;
-    private final DbtQueryStore queries;
+    private final DbtQueryRepository queries;
     private final DbtRuntimeClient runtime;
-    private final JdbcTemplate jdbc;
+    private final SemanticReleaseMapper releases;
     private final ObjectMapper mapper = new ObjectMapper();
 
     /** 查询无需由浏览器持续轮询；重启后也按幂等键恢复并释放终态引用。 */
     @Scheduled(fixedDelayString = "${metric-platform.dbt-query.poll-ms:30000}")
     public void reconcilePending() {
-        for (DbtQueryStore.PendingQuery pending : queries.pending(RECONCILE_BATCH)) {
+        for (DbtQueryRepository.PendingQuery pending : queries.pending(RECONCILE_BATCH)) {
             try {
                 get(pending.projectId(), pending.queryId());
             } catch (DbtRuntimeClient.ServiceFailure failure) {
@@ -60,8 +61,9 @@ public class DbtQueryService {
                 || mode != QueryMode.PREVIEW
                         && (request.metrics() == null || request.metrics().isEmpty()))
             throw new IllegalArgumentException("查询参数无效");
+        validateFilters(request.filters());
         catalog.resolvePublished(projectId, releaseId);
-        UUID runId = jdbc.queryForObject(RUN, UUID.class, releaseId);
+        UUID runId = releases.selectById(releaseId).getRuntimeRunId();
         if (runId == null) throw new IllegalStateException("发布版本缺少运行标识");
         UUID queryId = UUID.randomUUID();
         UUID key = UUID.randomUUID();
@@ -75,8 +77,66 @@ public class DbtQueryService {
                         request.groupBy(),
                         request.filters(),
                         request.limit(),
+                        null,
+                        request.startTime(),
+                        request.endTime(),
+                        request.orderBy() == null ? List.of() : request.orderBy(),
                         null);
         submitRuntime(queryId, job);
+        return new QuerySubmission(queryId, releaseId, PENDING);
+    }
+
+    public Map<String, Object> queryOptions(
+            String projectId, UUID releaseId, List<String> metrics) {
+        if (releaseId == null || metrics == null || metrics.isEmpty())
+            throw new IllegalArgumentException("指标不能为空");
+        catalog.resolvePublished(projectId, releaseId);
+        UUID runId = releases.selectById(releaseId).getRuntimeRunId();
+        if (runId == null) throw new IllegalStateException("发布版本缺少运行标识");
+        JsonNode options = runtime.queryOptions(runId, metrics);
+        if (options == null
+                || !options.isObject()
+                || !options.path("metrics").isArray()
+                || !options.path("dimensions").isArray()
+                || !options.path("timeDimensions").isArray())
+            throw new DbtRuntimeClient.ServiceFailure(false, 200);
+        var result = options.deepCopy();
+        ((com.fasterxml.jackson.databind.node.ObjectNode) result)
+                .put("releaseId", releaseId.toString());
+        return mapper.convertValue(result, Map.class);
+    }
+
+    public QuerySubmission dimensionValues(String projectId, DimensionValuesRequest request) {
+        if (request == null
+                || request.releaseId() == null
+                || request.metrics() == null
+                || request.metrics().isEmpty()
+                || request.dimension() == null
+                || request.dimension().isBlank()
+                || request.limit() != null && (request.limit() < 1 || request.limit() > MAX_LIMIT))
+            throw new IllegalArgumentException("维度值查询参数无效");
+        validateFilters(request.filters());
+        UUID releaseId = catalog.resolvePublished(projectId, request.releaseId());
+        UUID runId = releases.selectById(releaseId).getRuntimeRunId();
+        if (runId == null) throw new IllegalStateException("发布版本缺少运行标识");
+        UUID queryId = UUID.randomUUID();
+        UUID key = UUID.randomUUID();
+        queries.reserve(queryId, projectId, releaseId, key, QueryMode.DIMENSION_VALUES.name());
+        submitRuntime(
+                queryId,
+                new QueryJobRequest(
+                        runId,
+                        key,
+                        QueryMode.DIMENSION_VALUES.name(),
+                        request.metrics(),
+                        List.of(),
+                        request.filters() == null ? List.of() : request.filters(),
+                        request.limit(),
+                        null,
+                        null,
+                        null,
+                        List.of(),
+                        request.dimension()));
         return new QuerySubmission(queryId, releaseId, PENDING);
     }
 
@@ -88,7 +148,7 @@ public class DbtQueryService {
         UUID releaseId = catalog.resolvePublished(projectId, request.releaseId());
         DbtCatalogStore.Resource resource = catalog.resource(projectId, releaseId, resourceId);
         if (!resource.queryable()) throw new IllegalArgumentException("资源不支持预览");
-        UUID runId = jdbc.queryForObject(RUN, UUID.class, releaseId);
+        UUID runId = releases.selectById(releaseId).getRuntimeRunId();
         UUID queryId = UUID.randomUUID();
         UUID key = UUID.randomUUID();
         queries.reserve(queryId, projectId, releaseId, key, QueryMode.PREVIEW.name());
@@ -107,7 +167,7 @@ public class DbtQueryService {
     }
 
     public QueryStatus get(String projectId, UUID queryId) {
-        DbtQueryStore.QueryRecord record = queries.find(projectId, queryId);
+        DbtQueryRepository.QueryRecord record = queries.find(projectId, queryId);
         var release = catalog.release(projectId, record.releaseId());
         if (!PENDING.equals(release.cleanupState()))
             throw new ResponseStatusException(HttpStatus.GONE, "发布版本已清理");
@@ -129,13 +189,15 @@ public class DbtQueryService {
                     null);
         if (snapshot.queryId() != null && record.runtimeQueryId() == null)
             queries.attach(queryId, snapshot.queryId());
-        queries.update(queryId, snapshot.queryId(), snapshot.state(), snapshot.errorCode());
+        // 运行服务以 READY 表示查询成功；平台公开契约使用 COMPLETED。
+        String status = RUNTIME_READY.equals(snapshot.state()) ? COMPLETED : snapshot.state();
+        queries.update(queryId, snapshot.queryId(), status, snapshot.errorCode());
         return new QueryStatus(
                 queryId,
                 record.releaseId(),
                 release.targetCommitSha(),
                 record.mode(),
-                snapshot.state(),
+                status,
                 plain(snapshot.columns()),
                 plain(exactRows(snapshot.columns(), snapshot.rows())),
                 snapshot.errorCode(),
@@ -145,6 +207,25 @@ public class DbtQueryService {
 
     private Object plain(JsonNode node) {
         return node == null ? null : mapper.convertValue(node, Object.class);
+    }
+
+    private static void validateFilters(List<QueryFilter> filters) {
+        if (filters == null) return;
+        if (filters.size() > 20) throw new IllegalArgumentException("筛选条件过多");
+        for (QueryFilter filter : filters) {
+            if (filter == null
+                    || filter.field() == null
+                    || filter.field().isBlank()
+                    || !FILTER_OPERATORS.contains(filter.operator())
+                    || filter.value() == null) throw new IllegalArgumentException("筛选条件无效");
+            if ("IN".equals(filter.operator())) {
+                if (!filter.value().isArray()
+                        || filter.value().isEmpty()
+                        || filter.value().size() > 100)
+                    throw new IllegalArgumentException("IN 筛选值超限");
+            } else if (filter.value().isContainerNode())
+                throw new IllegalArgumentException("筛选值必须是标量");
+        }
     }
 
     private void submitRuntime(UUID queryId, QueryJobRequest job) {

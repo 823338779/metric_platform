@@ -1,12 +1,16 @@
 package com.metricplatform.dbt;
 
+import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
+import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.metricplatform.gitsync.GitSyncProperties;
+import java.time.OffsetDateTime;
+import java.time.ZoneOffset;
 import java.util.List;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
-import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.support.TransactionTemplate;
@@ -20,25 +24,16 @@ import org.springframework.transaction.support.TransactionTemplate;
 @RequiredArgsConstructor
 @Slf4j
 public class DbtReleaseCleanupService {
-    private static final String GROUPS =
-            "select distinct runtime_run_id from semantic_release where project_id=? and runtime_run_id is not null and cleanup_state<>'CLEANED' order by runtime_run_id";
-    private static final String LOCK_GROUP =
-            "select release_id,state,cleanup_state from semantic_release where project_id=? and runtime_run_id=? order by release_id for update";
-    private static final String ACTIVE =
-            "select active_release_id from semantic_project where project_id=? for update";
-    private static final String PREVIOUS =
-            "select release_id from semantic_release where project_id=? and state='PUBLISHED' and release_id<>? order by published_at desc,release_sequence desc limit 1";
-    private static final String IN_FLIGHT =
-            "select count(*) from semantic_query where release_id in (select release_id from semantic_release where project_id=? and runtime_run_id=?) and status in ('PENDING','RUNNING')";
-    private static final String MARK =
-            "update semantic_release set cleanup_state=? where project_id=? and runtime_run_id=? and cleanup_state<>'CLEANED'";
+    private static final String PUBLISHED = "PUBLISHED", FAILED = "FAILED";
+    private static final String SUPERSEDED = "SUPERSEDED";
     private static final String PENDING = "PENDING", CLEANING = "CLEANING", CLEANED = "CLEANED";
-    private final JdbcTemplate jdbc;
+    private static final String RUNNING = "RUNNING";
+    private final SemanticProjectMapper projects;
+    private final SemanticReleaseMapper releases;
+    private final SemanticQueryMapper queries;
     private final TransactionTemplate transactions;
     private final DbtRuntimeClient runtime;
     private final GitSyncProperties properties;
-
-    private record Member(UUID id, String state, String cleanupState) {}
 
     @Scheduled(fixedDelayString = "${metric-platform.dbt-cleanup.poll-ms:60000}")
     public void scheduledCleanup() {
@@ -48,18 +43,26 @@ public class DbtReleaseCleanupService {
 
     public int cleanupEligible(String projectId) {
         int completed = 0;
-        List<UUID> groups = jdbc.query(GROUPS, (rs, row) -> rs.getObject(1, UUID.class), projectId);
+        List<UUID> groups =
+                releases
+                        .selectList(
+                                new LambdaQueryWrapper<SemanticReleaseEntity>()
+                                        .eq(SemanticReleaseEntity::getProjectId, projectId)
+                                        .isNotNull(SemanticReleaseEntity::getRuntimeRunId)
+                                        .ne(SemanticReleaseEntity::getCleanupState, CLEANED))
+                        .stream()
+                        .map(SemanticReleaseEntity::getRuntimeRunId)
+                        .distinct()
+                        .toList();
         for (UUID runId : groups) {
             Boolean claimed = transactions.execute(status -> claim(projectId, runId));
             if (!Boolean.TRUE.equals(claimed)) continue;
             try {
                 runtime.cleanup(runId);
-                transactions.executeWithoutResult(
-                        status -> jdbc.update(MARK, CLEANED, projectId, runId));
+                transactions.executeWithoutResult(status -> mark(projectId, runId, CLEANED));
                 completed++;
             } catch (DbtRuntimeClient.ServiceFailure failure) {
-                transactions.executeWithoutResult(
-                        status -> jdbc.update(MARK, PENDING, projectId, runId));
+                transactions.executeWithoutResult(status -> mark(projectId, runId, PENDING));
                 log.warn(
                         "dbt schema cleanup failed for run {} with status {}",
                         runId,
@@ -70,37 +73,57 @@ public class DbtReleaseCleanupService {
     }
 
     private boolean claim(String projectId, UUID runId) {
-        // 与发布事务先锁项目，再锁版本；查询受理锁版本，清理认领提交后即拒绝新任务。
-        UUID active = jdbc.queryForObject(ACTIVE, UUID.class, projectId);
-        List<Member> members =
-                jdbc.query(
-                        LOCK_GROUP,
-                        (rs, row) ->
-                                new Member(
-                                        rs.getObject(1, UUID.class),
-                                        rs.getString(2),
-                                        rs.getString(3)),
-                        projectId,
-                        runId);
+        // 锁顺序与发布事务一致：先项目，后同一物理 run 的全部 release。
+        SemanticProjectEntity project = projects.lockProject(projectId);
+        if (project == null) return false;
+        List<SemanticReleaseEntity> members = releases.lockGroup(projectId, runId);
         if (members.isEmpty()
-                || members.stream().anyMatch(member -> CLEANED.equals(member.cleanupState())))
+                || members.stream().anyMatch(member -> CLEANED.equals(member.getCleanupState())))
             return false;
-        UUID previous =
-                jdbc.query(
-                        PREVIOUS,
-                        rs -> rs.next() ? rs.getObject(1, UUID.class) : null,
-                        projectId,
-                        active == null ? new UUID(0, 0) : active);
-        for (Member member : members) {
-            if (member.id().equals(active)
-                    || member.id().equals(previous)
-                    || !member.state().equals("PUBLISHED")
-                            && !member.state().equals("FAILED")
-                            && !member.state().equals("SUPERSEDED")) return false;
+        OffsetDateTime recoveryBefore = OffsetDateTime.now(ZoneOffset.UTC).minusMinutes(5);
+        if (members.stream()
+                .anyMatch(
+                        member ->
+                                CLEANING.equals(member.getCleanupState())
+                                        && (member.getUpdatedAt() == null
+                                                || member.getUpdatedAt().isAfter(recoveryBefore))))
+            return false;
+        UUID active = project.getActiveReleaseId();
+        LambdaQueryWrapper<SemanticReleaseEntity> previousQuery =
+                new LambdaQueryWrapper<SemanticReleaseEntity>()
+                        .eq(SemanticReleaseEntity::getProjectId, projectId)
+                        .eq(SemanticReleaseEntity::getState, PUBLISHED)
+                        .orderByDesc(SemanticReleaseEntity::getPublishedAt)
+                        .orderByDesc(SemanticReleaseEntity::getReleaseSequence);
+        if (active != null) previousQuery.ne(SemanticReleaseEntity::getReleaseId, active);
+        List<SemanticReleaseEntity> previousPage =
+                releases.selectPage(new Page<>(1, 1, false), previousQuery).getRecords();
+        UUID previous = previousPage.isEmpty() ? null : previousPage.getFirst().getReleaseId();
+        for (SemanticReleaseEntity member : members) {
+            if (member.getReleaseId().equals(active)
+                    || member.getReleaseId().equals(previous)
+                    || !List.of(PUBLISHED, FAILED, SUPERSEDED).contains(member.getState()))
+                return false;
         }
-        int inFlight = jdbc.queryForObject(IN_FLIGHT, Integer.class, projectId, runId);
-        if (inFlight > 0) return false;
-        jdbc.update(MARK, CLEANING, projectId, runId);
+        List<UUID> ids = members.stream().map(SemanticReleaseEntity::getReleaseId).toList();
+        if (queries.selectCount(
+                        new LambdaQueryWrapper<SemanticQueryEntity>()
+                                .in(SemanticQueryEntity::getReleaseId, ids)
+                                .in(SemanticQueryEntity::getStatus, PENDING, RUNNING))
+                > 0) return false;
+        mark(projectId, runId, CLEANING);
         return true;
+    }
+
+    private void mark(String projectId, UUID runId, String state) {
+        releases.update(
+                new LambdaUpdateWrapper<SemanticReleaseEntity>()
+                        .eq(SemanticReleaseEntity::getProjectId, projectId)
+                        .eq(SemanticReleaseEntity::getRuntimeRunId, runId)
+                        .ne(SemanticReleaseEntity::getCleanupState, CLEANED)
+                        .set(SemanticReleaseEntity::getCleanupState, state)
+                        .set(
+                                SemanticReleaseEntity::getUpdatedAt,
+                                OffsetDateTime.now(ZoneOffset.UTC)));
     }
 }

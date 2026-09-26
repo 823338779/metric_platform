@@ -122,7 +122,9 @@ class DbtPublicationFlowTest {
         coordinator.refresh();
         UUID first = releases.active(projectId);
         assertThat(first).isNotNull();
-        assertThat(catalog.catalog(projectId, first, null, 0, 20).resources()).hasSize(1);
+        assertThat(catalog.catalog(projectId, first, null, null, 0, 20).resources()).hasSize(1);
+        assertThat(catalog.catalog(projectId, first, null, "METRIC", 0, 20).total()).isEqualTo(1);
+        assertThat(catalog.catalog(projectId, first, null, "TABLE", 0, 20).total()).isZero();
         UUID pinned =
                 queries.submit(
                                 projectId,

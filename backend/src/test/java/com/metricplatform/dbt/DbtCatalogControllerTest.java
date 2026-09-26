@@ -5,7 +5,6 @@ import static org.mockito.Mockito.*;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
-import com.metricplatform.gitsync.DbtProjectRevision;
 import com.metricplatform.identity.PlatformAuthenticationService;
 import com.metricplatform.security.PlatformPrincipal;
 import java.util.List;
@@ -144,5 +143,31 @@ class DbtCatalogControllerTest {
                                 .param("size", "1001")
                                 .header("Authorization", "Bearer " + TOKEN))
                 .andExpect(status().isUnprocessableEntity());
+    }
+
+    @Test
+    void presentationUsesPublishedArtifactVersionsAndRejectsCleanedRelease() throws Exception {
+        String validation =
+                "{\"artifactSchemas\":{\"manifest\":\"https://schemas.getdbt.com/dbt/manifest/v12.json\",\"semanticManifest\":\"dbt-metricflow/0.15.0\",\"catalog\":\"https://schemas.getdbt.com/dbt/catalog/v1.json\"}}";
+        jdbc.update(
+                "update semantic_release set validation_json=?::jsonb where release_id=?",
+                validation,
+                releaseId);
+        String path = "/api/v1/semantic-projects/{projectId}/resources/{resourceId}/presentation";
+        mvc.perform(
+                        get(path, projectId, "metric.sales.revenue")
+                                .param("releaseId", releaseId.toString())
+                                .header("Authorization", "Bearer " + TOKEN))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.releaseId").value(releaseId.toString()))
+                .andExpect(jsonPath("$.nativeDetails").exists());
+        jdbc.update(
+                "update semantic_release set cleanup_state='CLEANED' where release_id=?",
+                releaseId);
+        mvc.perform(
+                        get(path, projectId, "metric.sales.revenue")
+                                .param("releaseId", releaseId.toString())
+                                .header("Authorization", "Bearer " + TOKEN))
+                .andExpect(status().isGone());
     }
 }

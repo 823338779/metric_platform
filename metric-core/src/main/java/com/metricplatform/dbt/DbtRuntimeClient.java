@@ -1,5 +1,6 @@
 package com.metricplatform.dbt;
 
+import com.fasterxml.jackson.databind.JsonNode;
 import com.metricplatform.dbt.DbtRuntimeDtos.*;
 import java.util.UUID;
 
@@ -12,6 +13,8 @@ public interface DbtRuntimeClient {
     RunSnapshot getRunByKey(UUID idempotencyKey);
 
     CatalogSnapshot getCatalog(UUID runId);
+
+    JsonNode queryOptions(UUID runId, java.util.List<String> metrics);
 
     QueryReceipt submitQuery(QueryJobRequest request);
 

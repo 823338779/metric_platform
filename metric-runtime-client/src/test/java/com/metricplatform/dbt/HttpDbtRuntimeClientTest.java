@@ -123,7 +123,7 @@ class HttpDbtRuntimeClientTest {
         UUID queryId = UUID.fromString("d1a00000-0000-0000-0000-000000000003");
         server.createContext(
                 "/v1/project-runs/" + RUN_ID + "/catalog",
-                exchange -> respond(exchange, 200, "{\"resources\":[],\"dependencies\":[]}"));
+                exchange -> respond(exchange, 200, "{\"resources\":[],\"dependencies\":[],\"artifactSchemas\":{\"manifest\":\"https://schemas.getdbt.com/dbt/manifest/v12.json\",\"semanticManifest\":\"dbt-metricflow/0.15.0\",\"catalog\":\"https://schemas.getdbt.com/dbt/catalog/v1.json\"}}"));
         server.createContext(
                 "/v1/project-runs/" + RUN_ID + ":cleanup", exchange -> respond(exchange, 204, ""));
         server.createContext(
@@ -161,6 +161,31 @@ class HttpDbtRuntimeClientTest {
         assertThat(requestBody.get()).contains(RUN_ID.toString()).doesNotContain("select ");
         assertThat(client.getQueryByKey(KEY).queryId()).isEqualTo(queryId);
         client.cleanup(RUN_ID);
+    }
+
+    @Test
+    void queryOptionsUsesFixedRunAndEncodedMetricNames() {
+        var requested = new AtomicReference<String>();
+        server.createContext(
+                "/v1/project-runs/" + RUN_ID + "/query-options",
+                exchange -> {
+                    requested.set(exchange.getRequestURI().getRawQuery());
+                    respond(exchange, 200, "{\"metrics\":[],\"dimensions\":[]}");
+                });
+        var client = new HttpDbtRuntimeClient(baseUri, Duration.ofSeconds(2));
+        assertThat(client.queryOptions(RUN_ID, List.of("gross revenue", "orders")).get("metrics"))
+                .isNotNull();
+        assertThat(requested.get()).isEqualTo("metrics=gross+revenue&metrics=orders");
+    }
+
+    @Test
+    void catalogRejectsMissingArtifactVersions() {
+        server.createContext(
+                "/v1/project-runs/" + RUN_ID + "/catalog",
+                exchange -> respond(exchange, 200, "{\"resources\":[],\"dependencies\":[]}"));
+        var client = new HttpDbtRuntimeClient(baseUri, Duration.ofSeconds(2));
+        assertThatThrownBy(() -> client.getCatalog(RUN_ID))
+                .isInstanceOf(DbtRuntimeClient.ServiceFailure.class);
     }
 
     private static String runningSnapshot() {

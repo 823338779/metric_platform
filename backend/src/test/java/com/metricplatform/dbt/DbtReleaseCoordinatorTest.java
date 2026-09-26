@@ -6,7 +6,6 @@ import static org.mockito.Mockito.*;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.metricplatform.dbt.DbtRuntimeDtos.*;
-import com.metricplatform.gitsync.DbtProjectRevision;
 import com.metricplatform.gitsync.GitSnapshotReader;
 import com.metricplatform.gitsync.GitSyncProperties;
 import java.util.List;

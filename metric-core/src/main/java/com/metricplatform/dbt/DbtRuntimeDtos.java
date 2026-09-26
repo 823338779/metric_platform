@@ -3,6 +3,7 @@ package com.metricplatform.dbt;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.databind.JsonNode;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 /** 与外部 dbt/MetricFlow 服务交换的结构化、无凭据 DTO。 */
@@ -40,7 +41,13 @@ public final class DbtRuntimeDtos {
 
     @JsonIgnoreProperties(ignoreUnknown = true)
     public record CatalogSnapshot(
-            List<CatalogResource> resources, List<CatalogDependency> dependencies) {}
+            List<CatalogResource> resources,
+            List<CatalogDependency> dependencies,
+            Map<String, String> artifactSchemas) {
+        public CatalogSnapshot(List<CatalogResource> resources, List<CatalogDependency> dependencies) {
+            this(resources, dependencies, Map.of());
+        }
+    }
 
     @JsonIgnoreProperties(ignoreUnknown = true)
     public record CatalogResource(
@@ -51,7 +58,16 @@ public final class DbtRuntimeDtos {
             String description,
             String sourcePath,
             JsonNode definition,
-            boolean queryable) {}
+            boolean queryable,
+            String relation,
+            JsonNode columns) {
+        public CatalogResource(
+                String resourceId, String nativeId, String kind, String name,
+                String description, String sourcePath, JsonNode definition, boolean queryable) {
+            this(resourceId, nativeId, kind, name, description, sourcePath,
+                    definition, queryable, null, null);
+        }
+    }
 
     @JsonIgnoreProperties(ignoreUnknown = true)
     public record CatalogDependency(
@@ -67,7 +83,18 @@ public final class DbtRuntimeDtos {
             List<String> groupBy,
             List<QueryFilter> filters,
             Integer limit,
-            String datasetResourceId) {}
+            String datasetResourceId,
+            String startTime,
+            String endTime,
+            List<String> orderBy,
+            String dimension) {
+        public QueryJobRequest(
+                UUID runId, UUID idempotencyKey, String mode, List<String> metrics,
+                List<String> groupBy, List<QueryFilter> filters, Integer limit, String datasetResourceId) {
+            this(runId, idempotencyKey, mode, metrics, groupBy, filters, limit,
+                    datasetResourceId, null, null, List.of(), null);
+        }
+    }
 
     @JsonIgnoreProperties(ignoreUnknown = true)
     public record QueryReceipt(UUID queryId) {}

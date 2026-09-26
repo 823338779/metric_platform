@@ -3,6 +3,8 @@ package com.metricplatform.gitsync;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
+import com.metricplatform.dbt.DbtGitHeadGateway;
+import com.metricplatform.dbt.DbtProjectRevision;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.*;
@@ -12,7 +14,7 @@ import java.util.*;
 import java.util.concurrent.*;
 
 /** 只从固定远端读取 main，使用本地裸仓库，不检出文件、不执行仓库脚本。 */
-public final class GitSnapshotReader {
+public final class GitSnapshotReader implements DbtGitHeadGateway {
     private static final String INIT = "init",
             BARE = "--bare",
             FETCH = "fetch",
@@ -137,6 +139,47 @@ public final class GitSnapshotReader {
         } catch (IllegalStateException e) {
             throw e;
         } catch (Exception e) {
+            throw new IllegalStateException(PROJECT_ERROR);
+        }
+    }
+
+    /** 从已验证 main 祖先的固定 SHA 读取单个 YAML 源文件，不读取工作树。 */
+    public synchronized String readYamlAtSha(
+            String projectSubdir, String commitSha, String sourcePath) {
+        String prefix = validateProjectSubdir(projectSubdir);
+        if (commitSha == null
+                || !commitSha.matches(HASH)
+                || sourcePath == null
+                || sourcePath.isBlank()
+                || sourcePath.startsWith("/")
+                || sourcePath.contains("\\")
+                || sourcePath.contains(":")
+                || !isDbtInput(sourcePath)
+                || !(sourcePath.endsWith(".yml") || sourcePath.endsWith(".yaml")))
+            throw new IllegalArgumentException(PATH_ERROR);
+        for (String segment : sourcePath.split("/"))
+            if (segment.isBlank() || ".".equals(segment) || "..".equals(segment))
+                throw new IllegalArgumentException(PATH_ERROR);
+        try {
+            readDbtRevision(projectSubdir);
+            run("merge-base", "--is-ancestor", commitSha, FETCH_HEAD);
+            String path = prefix.isEmpty() ? sourcePath : prefix + "/" + sourcePath;
+            String tree =
+                    new String(
+                            run(TREE_LIMIT, LS_TREE, NUL_TERMINATED, commitSha, SEPARATOR, path),
+                            StandardCharsets.UTF_8);
+            String[] lines = tree.split("\u0000");
+            if (lines.length != 1 || !lines[0].endsWith("\t" + path))
+                throw new IllegalStateException(PROJECT_ERROR);
+            String[] metadata = lines[0].substring(0, lines[0].indexOf('\t')).split(" ");
+            if (metadata.length != 3
+                    || !BLOB.equals(metadata[1])
+                    || !Set.of(REGULAR, EXECUTABLE).contains(metadata[0])
+                    || !metadata[2].matches(HASH)) throw new IllegalStateException(PROJECT_ERROR);
+            return new String(run(CAT_FILE, PRINT, metadata[2]), StandardCharsets.UTF_8);
+        } catch (IllegalArgumentException | IllegalStateException error) {
+            throw error;
+        } catch (Exception error) {
             throw new IllegalStateException(PROJECT_ERROR);
         }
     }
