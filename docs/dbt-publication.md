@@ -41,4 +41,4 @@ metric-platform:
 
 ## 启用前验收门槛
 
-当前外部 MetricFlow 对 StarRocks 查询仍存在 `metricflow_adapter_not_supported`，因此保持上述两个开关为 `false`。平台的 PostgreSQL、临时 Git 和桩服务测试只验证平台编排，不能代替真实库验收。上线前必须在真实 StarRocks 验证简单聚合、精确去重、日期与地区分组、事实维表联接、比率及派生指标均与基准 SQL 一致；再验证一次提交对应一次全量构建、每次使用独立 schema、失败不影响旧版、manifest 和 semantic manifest 中的物理 relation 指向正确。两组验收均通过后才允许启用 DBT 发布。
+平台固定版本运行服务已在本机 StarRocks 上验证电商示例的全量构建、独立 schema、目录、成交金额、精确去重订单数、月份与地区分组、客户维表关联、比率指标、筛选、维度值和表预览。通用 `/v1/metricflow/jobs` 仍使用上游 CLI，并继续对 StarRocks 返回 `metricflow_adapter_not_supported`。上述两个开关保持 `false`，直到部署环境完成平台发布与浏览器端到端验收，包括失败不影响旧版、manifest 和 semantic manifest 的物理 relation 指向，以及指标结果与基准 SQL 一致。平台的 PostgreSQL、临时 Git 和桩服务测试不能代替这些真实库验收。

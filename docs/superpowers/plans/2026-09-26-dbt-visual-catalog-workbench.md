@@ -48,7 +48,7 @@
 
 **Files:** Modify `frontend/src/api/types.ts`, `metricPlatformApi.ts`; create `frontend/src/api/metricPlatformApi.test.ts`。
 
-**Interfaces:** `DbtResourcePresentation` 包含 `releaseId/resourceId/kind/title/sections/nativeDetails/queryable`；`DbtQueryOptions` 包含 `metrics/dimensions/timeDimensions`，每个维度或粒度有 API 返回的 `token`；新增 `getDbtPresentation`、`getDbtSource`、`getDbtQueryOptions`、`submitDbtDimensionValues` 方法。
+**Interfaces:** `DbtResourcePresentation` 包含 `releaseId/resourceId/kind/title/sections/nativeDetails/queryable`；`DbtQueryOptions` 包含 `../../../../metrics_store`，每个维度或粒度有 API 返回的 `token`；新增 `getDbtPresentation`、`getDbtSource`、`getDbtQueryOptions`、`submitDbtDimensionValues` 方法。
 
 - [ ] **Step 1: 写失败测试。** `queryOptionsEncodesMultipleMetricsAndRelease`、`presentationAndSourceUseSameRelease`、`dimensionValuesBodyContainsFixedReleaseAndTypedFilters`。
 - [ ] **Step 2: 验证测试失败。** 在 `frontend/` 运行 `npm test -- --run src/api/metricPlatformApi.test.ts`，预期方法尚不存在。

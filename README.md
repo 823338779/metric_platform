@@ -1,18 +1,29 @@
 # Metric Platform
 
-Metric Platform 控制 Git `main` 上 dbt 项目的全量构建和版本发布，保存已发布的只读目录，并将固定 `releaseId` 的类型化查询交给外部 dbt/MetricFlow 运行服务。平台不再维护数据源、数据集、指标或维度的独立定义，也不自行编译语义 SQL。
+Metric Platform 负责语义项目的版本发布、只读目录、查询和身份认证。平台控制 Git `main` 上项目的全量构建与发布，并将固定 `releaseId` 的类型化查询交给计算引擎。当前引擎实现为 dbt/MetricFlow，指标、维度等定义来自项目源码。
 
 ## 项目结构
 
 | 路径 | 职责 |
 | --- | --- |
-| `metric-core/` | dbt/MetricFlow 业务 DTO、版本规则与临时产物展示转换。 |
-| `metric-persistence/` | MyBatis Plus 实体、Mapper、JSONB 映射与发布状态仓储。 |
-| `metric-runtime-client/` | 运行服务固定 SHA 任务、目录和查询 HTTP 客户端。 |
-| `metric-git-sync/` | 安全读取 Git `main` 和计算 dbt 项目输入摘要。 |
-| `backend/` | 唯一可执行的 Spring Boot Web、调度与装配模块，负责认证和数据库迁移。 |
-| `frontend/` | dbt 项目、发布历史、只读目录和查询界面。 |
+| `backend/` | Java 聚合模块，统一管理下面四个子模块的构建。 |
+| `backend/metric-core/` | 目录、发布、查询、身份契约与发布规则；声明计算引擎、项目源码和资源展示端口。 |
+| `backend/metric-persistence/` | 平台数据的 MyBatis Plus 实体、Mapper、`IService`、仓储、Redis 令牌存储、MyBatis 配置及 Flyway 迁移。 |
+| `backend/metric-engine/` | dbt/MetricFlow 引擎适配：运行服务 HTTP 客户端、dbt 产物展示解析、受控 Git 项目读取与输入摘要。 |
+| `backend/metric-app/` | 可执行 Spring Boot 应用，负责 Web、发布调度、认证流程、安全配置和模块装配。 |
+| `frontend/` | 项目、发布历史、只读目录和查询界面。 |
 | `api/openapi.yaml` | 公开 HTTP 契约。 |
+
+Java 包统一以 `com.metricplatform` 为根，按平台职责组织：
+
+- `metric-core`：`catalog`、`publication`、`query`、`identity` 和 `engine`。业务类使用 `ReleaseWorkflow`、`CatalogRepository`、`QueryDtos` 等平台名称。
+- `metric-persistence`：所有持久化实现统一放在 `persistence` 下，包括 `entity`、`mapper`、`service`、`store`、`catalog`、`publication`、`identity`、`mapping`、`redis`、`typehandler` 和 `config`。
+- `metric-engine`：具体实现放在 `engine.dbt.runtime`、`engine.dbt.catalog` 和 `engine.dbt.git`。`HttpDbtRuntimeClient`、`DbtArtifactPresenter`、`DbtProjectReader` 分别实现核心模块中的 `EngineClient`、`ResourcePresenter`、`ProjectSourceReader`。
+- `metric-app`：目录、发布与查询分别放在 `catalog`、`publication`、`query`，控制器放在各自的 `api` 子包；身份、安全、Git 调度及全局异常处理分别位于 `identity`、`security`、`gitsync`、`api`。
+
+`metric-app` 装配引擎与持久化实现，业务服务通过 `metric-core` 的端口调用它们。`metric-engine` 与 `metric-persistence` 只依赖 `metric-core`，两者没有相互依赖。MyBatis Plus 查询条件、实体映射和发布清理的数据库事务保留在 `metric-persistence`。
+
+兼容边界：现有 HTTP 路由、OpenAPI schema 名称与错误码、`metric-platform.dbt-runtime` / `dbt-query` / `dbt-cleanup` 部署配置、数据库表名和已应用的 Flyway 迁移保持兼容。dbt 原生文件名与产物 schema 标识属于引擎协议。前端源码命名本次未调整。
 
 ## 本地运行
 
@@ -25,8 +36,8 @@ docker compose -f .\infra\compose\compose.yml up -d
 从工作区根目录启动后端：
 
 ```powershell
-mvn -f .\metric-platform\pom.xml -pl backend -am install -DskipTests
-mvn -f .\metric-platform\backend\pom.xml spring-boot:run
+mvn -f .\metric-platform\pom.xml install -DskipTests
+mvn -f .\metric-platform\backend\metric-app\pom.xml spring-boot:run
 ```
 
 独立运行时使用仓库内的 PostgreSQL 服务，并配置对应连接：
@@ -36,8 +47,8 @@ docker compose up -d postgres
 $env:SPRING_DATASOURCE_URL = 'jdbc:postgresql://localhost:5433/metric_platform'
 $env:SPRING_DATASOURCE_USERNAME = 'metric_platform'
 $env:SPRING_DATASOURCE_PASSWORD = 'metric_platform'
-mvn -pl backend -am install -DskipTests
-mvn -f .\backend\pom.xml spring-boot:run
+mvn install -DskipTests
+mvn -f .\backend\metric-app\pom.xml spring-boot:run
 ```
 
 Redis 通过标准 `SPRING_DATA_REDIS_*` 属性配置。前端从 `frontend/` 运行：

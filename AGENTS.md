@@ -1,10 +1,11 @@
 # Metric Platform 规则
 
-本仓库负责 dbt 项目的版本发布、只读语义目录和查询门面。必须保持独立构建，并且不得依赖 Data Agent 的实现类。
+本仓库负责语义项目的版本发布、只读语义目录和查询门面，dbt/MetricFlow 是当前计算引擎实现。必须保持独立构建，并且不得依赖 Data Agent 的实现类。
 
 ## 项目结构
 
-- `backend/`：Spring Boot API、dbt 发布控制、目录和查询门面、身份认证以及 Flyway 迁移。
+- `backend/`：Java 聚合模块；`metric-core` 负责平台契约、引擎端口与发布规则，`metric-persistence` 统一负责 PostgreSQL、Redis 与 Flyway，`metric-engine` 封装 dbt/MetricFlow HTTP、产物解析与项目 Git 读取；`metric-app` 承载 Spring Boot API、发布控制、认证流程与装配。
+- Java 包按目录、发布、查询、身份等职责划分；dbt 专属实现放在 `metric-engine` 的 `com.metricplatform.engine.dbt` 下，平台业务类与持久化类不得使用 `Dbt` 前缀。
 - `frontend/`：React/Vite dbt 项目、发布、目录和查询控制台。
 - `api/openapi.yaml`：已发布的集成契约。
 - `docker-compose.yml`：独立的 PostgreSQL 开发服务。
