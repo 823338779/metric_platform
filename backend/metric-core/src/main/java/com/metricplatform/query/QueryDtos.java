@@ -55,5 +55,7 @@ public final class QueryDtos {
             Object rows,
             String errorCode,
             Boolean truncated,
-            Long durationMs) {}
+            Long durationMs,
+            /** 固定发布版本下解释查询生成的 SQL，不代表已执行取数。 */
+            String sql) {}
 }

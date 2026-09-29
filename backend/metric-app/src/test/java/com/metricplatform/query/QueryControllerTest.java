@@ -218,6 +218,45 @@ class QueryControllerTest {
     }
 
     @Test
+    void explainResultPreservesSqlFromRuntimeResponse() throws Exception {
+        String sql = "select count(distinct order_id) as order_count from orders";
+        String payload = "{\"releaseId\":\"" + releaseId + "\",\"metrics\":[\"order_count\"]}";
+        String body =
+                mvc.perform(
+                                post(
+                                                "/api/v1/semantic-projects/{projectId}/queries:explain",
+                                                projectId)
+                                        .header("Authorization", "Bearer " + TOKEN)
+                                        .contentType(MediaType.APPLICATION_JSON)
+                                        .content(payload))
+                        .andExpect(status().isAccepted())
+                        .andReturn()
+                        .getResponse()
+                        .getContentAsString();
+        UUID queryId = UUID.fromString(mapper.readTree(body).path("queryId").asText());
+        var response =
+                mapper.createObjectNode()
+                        .put("queryId", queryJobId.toString())
+                        .put("state", "READY")
+                        .put("sql", sql);
+        response.putArray("columns");
+        response.putArray("rows");
+        when(runtime.getQuery(queryJobId))
+                .thenReturn(mapper.treeToValue(response, QuerySnapshot.class));
+
+        mvc.perform(
+                        get(
+                                        "/api/v1/semantic-projects/{projectId}/queries/{queryId}",
+                                        projectId,
+                                        queryId)
+                                .header("Authorization", "Bearer " + TOKEN))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.mode").value("EXPLAIN"))
+                .andExpect(jsonPath("$.status").value("COMPLETED"))
+                .andExpect(jsonPath("$.sql").value(sql));
+    }
+
+    @Test
     void synchronousMetricFlowRejectionUses422Problem() throws Exception {
         when(runtime.submitQuery(any())).thenThrow(new EngineClient.ServiceFailure(false, 422));
         String payload = "{\"releaseId\":\"" + releaseId + "\",\"metrics\":[\"unknown\"]}";
@@ -264,7 +303,8 @@ class QueryControllerTest {
                 .andExpect(jsonPath("$.releaseId").value(releaseId.toString()));
         assertThat(
                         jdbc.queryForObject(
-                                "select count(*) from semantic_query where release_id=? and mode='DIMENSION_VALUES'",
+                                "select count(*) from semantic_query where release_id=? and"
+                                        + " mode='DIMENSION_VALUES'",
                                 Integer.class,
                                 releaseId))
                 .isEqualTo(1);

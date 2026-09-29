@@ -5,6 +5,28 @@ info:
   description: 平台控制 dbt 项目的版本发布，展示已发布目录，并代理固定版本的类型化查询。
 security: [{ bearerAuth: [] }]
 paths:
+  /api/v1/semantic-projects:refresh:
+    post:
+      summary: 手动请求同步固定配置仓库的 main 分支
+      description: >-
+        需要登录。请求不接受仓库或分支参数。刷新信号在下一轮 Git 同步调度中处理，
+        默认间隔为 30 秒；重复信号合并。202 仅表示已受理，不表示构建或发布完成。
+        构建和校验成功后才切换当前发布版本，失败保留旧版。
+      responses:
+        '202':
+          description: 刷新请求已受理
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [accepted]
+                properties:
+                  accepted: { type: boolean, const: true, description: 刷新信号已加入后台调度 }
+        '401': { $ref: '#/components/responses/Problem' }
+        '503':
+          description: Git 同步未开启
+          content:
+            application/problem+json: { schema: { $ref: '#/components/schemas/Problem' } }
   /internal/git-sync/events:
     post:
       summary: 通知平台刷新配置仓库的 main 快照
@@ -372,6 +394,9 @@ components:
         errorCode: { type: [string, 'null'] }
         truncated: { type: [boolean, 'null'] }
         durationMs: { type: [integer, 'null'], format: int64 }
+        sql:
+          type: [string, 'null']
+          description: EXPLAIN 模式完成后生成的 SQL；仅用于查看查询逻辑，不表示已经执行取数。其他模式或未完成时可为空。
     DbtProjectSummary:
       type: object
       required: [projectId]

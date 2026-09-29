@@ -51,13 +51,50 @@ it('groups resources and searches only within the pinned release', async () => {
     </MemoryRouter>,
   );
   expect(await screen.findByText('revenue')).toBeTruthy();
-  expect(screen.getByText('指标')).toBeTruthy();
-  expect(screen.getByText('数据表')).toBeTruthy();
+  expect(screen.getByRole('tab', { name: '指标' })).toBeTruthy();
+  expect(screen.getByRole('tab', { name: '数据表' })).toBeTruthy();
+  expect(screen.getByRole('link', { name: '探索数据' }).getAttribute('href')).toBe(
+    '/dbt/projects/demo/query?releaseId=A&metric=revenue',
+  );
   fireEvent.change(screen.getByPlaceholderText('搜索资源'), { target: { value: 'orders' } });
   fireEvent.click(screen.getByRole('button', { name: 'search' }));
   await waitFor(() =>
     expect(api.getDbtCatalog).toHaveBeenLastCalledWith('demo', 'A', 'orders', 0, 20, undefined),
   );
+});
+
+it('includes unknown resource types from later pages in the other column', async () => {
+  const api = {
+    getDbtCatalog: vi.fn().mockImplementation((_: string, __: string, ___: string, page: number) =>
+      Promise.resolve({
+        releaseId: 'A',
+        page,
+        size: 100,
+        total: 101,
+        resources:
+          page === 0
+            ? Array.from({ length: 100 }, (_, index) => ({
+                resourceId: String(index),
+                kind: 'TABLE',
+                name: `table_${index}`,
+              }))
+            : [{ resourceId: 'custom', kind: 'CUSTOM', name: 'custom resource' }],
+      }),
+    ),
+  };
+  render(
+    <MemoryRouter initialEntries={['/dbt/projects/demo/catalog?releaseId=A&kind=OTHER']}>
+      <Routes>
+        <Route
+          path="/dbt/projects/:projectId/catalog"
+          element={<DbtCatalogPage api={api as never} />}
+        />
+      </Routes>
+    </MemoryRouter>,
+  );
+  expect(await screen.findByText('custom resource')).toBeTruthy();
+  expect(screen.queryByText('table_0')).toBeNull();
+  expect(api.getDbtCatalog).toHaveBeenLastCalledWith('demo', 'A', '', 1, 100);
 });
 
 it('asks the server to filter resource kinds before pagination', async () => {
@@ -88,8 +125,7 @@ it('asks the server to filter resource kinds before pagination', async () => {
     </MemoryRouter>,
   );
   expect(await screen.findByText('first table')).toBeTruthy();
-  fireEvent.mouseDown(screen.getByRole('combobox', { name: '资源类型' }));
-  fireEvent.click(await screen.findByText('指标'));
+  fireEvent.click(screen.getByRole('tab', { name: '指标' }));
   expect(await screen.findByText('later metric')).toBeTruthy();
   expect(api.getDbtCatalog).toHaveBeenLastCalledWith('demo', 'A', '', 0, 20, 'METRIC');
 });

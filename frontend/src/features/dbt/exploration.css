@@ -1,0 +1,66 @@
+.exploration-heading {
+  display: flex;
+  justify-content: space-between;
+  align-items: start;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.exploration-heading h3 {
+  margin: 12px 0 6px;
+}
+
+.exploration-workspace {
+  display: grid;
+  grid-template-columns: minmax(300px, 360px) minmax(0, 1fr);
+  gap: 20px;
+  align-items: start;
+}
+
+.exploration-fields {
+  display: grid;
+  gap: 16px;
+}
+
+.exploration-fields label,
+.chart-controls label {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+
+.exploration-fields .ant-select,
+.exploration-fields .ant-input-number,
+.chart-controls .ant-select {
+  width: 100%;
+}
+
+.exploration-dates {
+  display: grid;
+  gap: 12px;
+}
+
+.exploration-filter {
+  display: grid;
+  grid-template-columns: 90px minmax(0, 1fr);
+  gap: 8px;
+}
+
+.chart-controls,
+.metric-value-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 12px;
+  width: 100%;
+}
+
+.exploration-results {
+  min-width: 0;
+}
+
+@media (max-width: 1100px) {
+  .exploration-workspace {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}

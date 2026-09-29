@@ -1,4 +1,4 @@
-import { Alert, Card, Input, Select, Space, Table, Tag, Typography } from 'antd';
+import { Alert, Card, Input, Space, Table, Tabs, Tag, Typography } from 'antd';
 import { useEffect, useState } from 'react';
 import { Link, useParams, useSearchParams } from 'react-router-dom';
 import { ApiProblem } from '../../api/httpClient';
@@ -19,11 +19,12 @@ type CatalogApi = Pick<MetricPlatformApi, 'getDbtCatalog'> &
     >
   >;
 
+const ALL = 'ALL';
+const OTHER = 'OTHER';
 const labels: Record<string, string> = {
   METRIC: '指标',
   DIMENSION: '维度',
   SEMANTIC_MODEL: '语义模型',
-  MODEL: 'dbt 模型',
   TABLE: '数据表',
   VIEW: '视图',
 };
@@ -31,13 +32,13 @@ const labels: Record<string, string> = {
 /** 版本切换立即清空目录和选择，所有后续请求固定到本次响应的 releaseId。 */
 export function DbtCatalogPage({ api = metricPlatformApi }: { api?: CatalogApi }) {
   const { projectId = '' } = useParams();
-  const [params] = useSearchParams();
+  const [params, setParams] = useSearchParams();
   const requestedRelease = params.get('releaseId') ?? '';
   const [catalog, setCatalog] = useState<DbtCatalog>();
   const [releases, setReleases] = useState<DbtRelease[]>([]);
   const [selected, setSelected] = useState('');
   const [search, setSearch] = useState('');
-  const [kind, setKind] = useState<string>();
+  const kind = params.get('kind') ?? undefined;
   const [page, setPage] = useState(0);
   const [error, setError] = useState('');
   useEffect(() => {
@@ -51,8 +52,26 @@ export function DbtCatalogPage({ api = metricPlatformApi }: { api?: CatalogApi }
         active = false;
       };
     }
-    void api
-      .getDbtCatalog(projectId, requestedRelease, search, page, 20, kind)
+    // 常见类型在服务端分页；其他资源遍历当前版本后筛选，避免漏掉后续页。
+    const loadCatalog = async () => {
+      if (kind !== OTHER)
+        return api.getDbtCatalog(projectId, requestedRelease, search, page, 20, kind);
+      const resources: DbtResource[] = [];
+      for (let index = 0; active; index++) {
+        const value = await api.getDbtCatalog(projectId, requestedRelease, search, index, 100);
+        if (value.releaseId !== requestedRelease) throw new Error('目录版本与请求不一致');
+        resources.push(...value.resources.filter((resource) => !labels[resource.kind]));
+        if (value.resources.length < 100 || (index + 1) * 100 >= value.total) break;
+      }
+      return {
+        releaseId: requestedRelease,
+        page,
+        size: 20,
+        total: resources.length,
+        resources: resources.slice(page * 20, (page + 1) * 20),
+      };
+    };
+    void loadCatalog()
       .then((value) => {
         if (active && value.releaseId === requestedRelease) setCatalog(value);
         else if (active) setError('目录版本与请求不一致');
@@ -96,7 +115,7 @@ export function DbtCatalogPage({ api = metricPlatformApi }: { api?: CatalogApi }
     <Space direction="vertical" style={{ width: '100%' }}>
       {error && <Alert type="error" title={error} />}
       <Card
-        title="dbt 只读目录"
+        title="资源目录"
         extra={
           <Typography.Text>
             releaseId：{catalog?.releaseId ?? requestedRelease ?? '读取中'}
@@ -118,19 +137,31 @@ export function DbtCatalogPage({ api = metricPlatformApi }: { api?: CatalogApi }
               setSearch(value);
             }}
           />
-          <Select
-            allowClear
-            placeholder="资源类型"
-            aria-label="资源类型"
-            value={kind}
-            onChange={(value) => {
-              setPage(0);
-              setKind(value);
-            }}
-            style={{ minWidth: 140 }}
-            options={Object.entries(labels).map(([value, label]) => ({ value, label }))}
-          />
         </Space>
+        <Tabs
+          aria-label="资源栏目"
+          activeKey={kind ?? ALL}
+          onChange={(value) => {
+            setPage(0);
+            setSelected('');
+            setParams((current) => {
+              const next = new URLSearchParams(current);
+              if (value === ALL) next.delete('kind');
+              else next.set('kind', value);
+              return next;
+            });
+          }}
+          items={[
+            { key: ALL, label: '全部资源' },
+            ...Object.entries(labels).map(([key, label]) => ({ key, label })),
+            { key: OTHER, label: '其他资源' },
+          ]}
+        />
+        <Typography.Paragraph type="secondary">
+          {kind === 'METRIC'
+            ? '从指标进入探索数据，选择维度与日期范围，即时查看图表。'
+            : '按栏目浏览当前版本的资源，点击名称查看定义、来源与血缘。'}
+        </Typography.Paragraph>
         <Table
           rowKey="resourceId"
           dataSource={resources}
@@ -153,6 +184,7 @@ export function DbtCatalogPage({ api = metricPlatformApi }: { api?: CatalogApi }
               dataIndex: 'kind',
               render: (value: string) => <Tag>{labels[value] ?? value}</Tag>,
             },
+            { title: '说明', dataIndex: 'description', ellipsis: true },
             { title: '定义来源', dataIndex: 'sourcePath' },
             {
               title: '查询',
@@ -161,8 +193,10 @@ export function DbtCatalogPage({ api = metricPlatformApi }: { api?: CatalogApi }
                   <Link
                     to={`/dbt/projects/${encodeURIComponent(projectId)}/query?releaseId=${catalog.releaseId}&metric=${encodeURIComponent(row.name)}`}
                   >
-                    固定版本查询
+                    探索数据
                   </Link>
+                ) : row.kind === 'METRIC' ? (
+                  <Typography.Text type="secondary">当前版本不可查询</Typography.Text>
                 ) : null,
             },
           ]}

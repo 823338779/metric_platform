@@ -100,4 +100,6 @@ export type DbtQueryStatus = {
   errorCode: string | null;
   truncated: boolean | null;
   durationMs: number | null;
+  /** EXPLAIN 完成后生成的 SQL，其他模式或未完成时可为空。 */
+  sql?: string | null;
 };

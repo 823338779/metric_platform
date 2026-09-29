@@ -35,7 +35,7 @@ export function PlatformLayout() {
           mode="inline"
           selectedKeys={[selected]}
           onClick={({ key }) => navigate(key)}
-          items={[{ key: '/dbt/projects', icon: <FolderOpenOutlined />, label: 'dbt 项目' }]}
+          items={[{ key: '/dbt/projects', icon: <FolderOpenOutlined />, label: '语义项目' }]}
         />
       </Layout.Sider>
       <Layout style={{ minWidth: 0 }}>

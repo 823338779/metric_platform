@@ -16,7 +16,12 @@ class OpenApiContractTest {
         String contract = Files.readString(Path.of("..", "..", "api", "openapi.yaml"));
         JsonNode document = new ObjectMapper(new YAMLFactory()).readTree(contract);
         assertThat(document.path("openapi").asText()).isEqualTo("3.1.0");
-        assertThat(document.path("paths").size()).isEqualTo(17);
+        assertThat(document.path("paths").size()).isEqualTo(18);
+        assertThat(
+                        document.at(
+                                        "/paths/~1api~1v1~1semantic-projects:refresh/post/responses/202")
+                                .isObject())
+                .isTrue();
         assertThat(
                         document.at(
                                         "/paths/~1api~1v1~1semantic-projects~1{projectId}~1queries/post/responses/202")

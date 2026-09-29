@@ -6,9 +6,11 @@ import java.sql.ResultSet;
 import java.sql.SQLException;
 import org.apache.ibatis.type.BaseTypeHandler;
 import org.apache.ibatis.type.JdbcType;
+import org.apache.ibatis.type.MappedJdbcTypes;
 import org.postgresql.util.PGobject;
 
 /** 引擎原生定义以 JSONB 原样往返，不在持久化层解释字段。 */
+@MappedJdbcTypes(JdbcType.OTHER)
 public final class JsonbTypeHandler extends BaseTypeHandler<String> {
     @Override
     public void setNonNullParameter(

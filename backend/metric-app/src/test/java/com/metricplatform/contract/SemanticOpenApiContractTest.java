@@ -30,5 +30,12 @@ class SemanticOpenApiContractTest {
                                 .path("enum")
                                 .toString())
                 .contains("DIMENSION_VALUES");
+        assertThat(
+                        api.path("components")
+                                .path("schemas")
+                                .path("DbtQueryStatus")
+                                .path("properties")
+                                .has("sql"))
+                .isTrue();
     }
 }

@@ -190,6 +190,7 @@ public class QueryService {
                     null,
                     record.errorCode(),
                     null,
+                    null,
                     null);
         if (snapshot.queryId() != null && record.runtimeQueryId() == null)
             queries.attach(queryId, snapshot.queryId());
@@ -206,7 +207,8 @@ public class QueryService {
                 plain(exactRows(snapshot.columns(), snapshot.rows())),
                 snapshot.errorCode(),
                 snapshot.truncated(),
-                snapshot.durationMs());
+                snapshot.durationMs(),
+                snapshot.sql());
     }
 
     private Object plain(JsonNode node) {

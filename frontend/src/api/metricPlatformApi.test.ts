@@ -1,6 +1,19 @@
 import { expect, it, vi } from 'vitest';
 import { createMetricPlatformApi } from './metricPlatformApi';
 
+it('requests server-side refresh without choosing a repository or branch', async () => {
+  const fetcher = vi
+    .fn()
+    .mockResolvedValue(new Response(JSON.stringify({ accepted: true }), { status: 202 }));
+  const result = await createMetricPlatformApi(fetcher).refreshDbtProjects();
+  expect(result.accepted).toBe(true);
+  expect(fetcher).toHaveBeenCalledWith(
+    '/api/v1/semantic-projects:refresh',
+    expect.objectContaining({ method: 'POST' }),
+  );
+  expect(fetcher.mock.calls[0][1].body).toBeUndefined();
+});
+
 it('submits a dbt query against the selected catalog release without SQL', async () => {
   const fetcher = vi.fn().mockResolvedValue(
     new Response(JSON.stringify({ queryId: 'q', releaseId: 'r', status: 'PENDING' }), {

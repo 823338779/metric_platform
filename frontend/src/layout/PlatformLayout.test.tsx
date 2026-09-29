@@ -16,7 +16,7 @@ describe('PlatformLayout', () => {
         <PlatformLayout />
       </MemoryRouter>,
     );
-    expect(screen.getByText('dbt 项目')).toBeTruthy();
+    expect(screen.getByText('语义项目')).toBeTruthy();
     expect(screen.queryByText('数据源')).toBeNull();
     expect(screen.queryByText('数据集')).toBeNull();
     expect(screen.queryByText('指标')).toBeNull();

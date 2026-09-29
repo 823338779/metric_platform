@@ -140,10 +140,12 @@ public final class EngineDtos {
             JsonNode rows,
             String errorCode,
             Boolean truncated,
-            Long durationMs) {
+            Long durationMs,
+            /** 解释查询生成的 SQL；其他模式或未完成时可为空。 */
+            String sql) {
         public QuerySnapshot(
                 UUID queryId, String state, JsonNode columns, JsonNode rows, String errorCode) {
-            this(queryId, state, columns, rows, errorCode, null, null);
+            this(queryId, state, columns, rows, errorCode, null, null, null);
         }
     }
 }

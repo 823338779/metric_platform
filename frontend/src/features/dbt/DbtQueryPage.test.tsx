@@ -29,6 +29,7 @@ const options = {
   allowedFilters: ['=', 'IN'],
 };
 const api = () => ({
+  listDbtProjects: vi.fn().mockResolvedValue([{ projectId: 'demo', activeReleaseId: 'A' }]),
   getDbtCatalog: vi.fn().mockResolvedValue({
     releaseId: 'A',
     resources: [
@@ -77,7 +78,7 @@ it('loads fixed-release options and submits the returned metric_time token', asy
     expect(client.getDbtQueryOptions).toHaveBeenCalledWith('demo', 'A', ['revenue']),
   );
   fireEvent.mouseDown(screen.getByRole('combobox', { name: '日期粒度' }));
-  fireEvent.click(await screen.findByText('metric_time · month'));
+  fireEvent.click(await screen.findByText('月'));
   fireEvent.click(screen.getByRole('button', { name: '运行查询' }));
   await waitFor(() =>
     expect(client.submitDbtQuery).toHaveBeenCalledWith(
@@ -98,6 +99,18 @@ it('clears query state when the URL release changes', async () => {
   fireEvent.click(screen.getByRole('button', { name: '切换版本' }));
   await waitFor(() => expect(screen.queryByText('queryId：q')).toBeNull());
   expect(screen.getByText('releaseId：B')).toBeTruthy();
+});
+
+it('shows a way back to the active release when querying a historical release', async () => {
+  const client = {
+    ...api(),
+    listDbtProjects: vi.fn().mockResolvedValue([{ projectId: 'demo', activeReleaseId: 'B' }]),
+  };
+  page(client);
+  expect(await screen.findByText('当前查看的是历史发布版本')).toBeTruthy();
+  fireEvent.click(screen.getByRole('link', { name: '切换到当前发布版本' }));
+  await waitFor(() => expect(screen.getByText('releaseId：B')).toBeTruthy());
+  expect(screen.queryByText('当前查看的是历史发布版本')).toBeNull();
 });
 
 it('loads metrics beyond the first catalog page', async () => {
@@ -230,6 +243,99 @@ it('passes the current typed filter into dimension value enumeration', async () 
       expect.objectContaining({
         releaseId: 'A',
         filters: [{ field: 'region', operator: '=', value: 'North' }],
+      }),
+    ),
+  );
+});
+
+it('rejects an inverted date range before submitting a query', async () => {
+  const client = api();
+  page(client);
+  await waitFor(() =>
+    expect(screen.getByRole('button', { name: '运行查询' }).hasAttribute('disabled')).toBe(false),
+  );
+  fireEvent.change(screen.getByLabelText('开始时间'), { target: { value: '2026-10-01T00:00' } });
+  fireEvent.change(screen.getByLabelText('结束时间'), { target: { value: '2026-09-01T00:00' } });
+  fireEvent.click(screen.getByRole('button', { name: '运行查询' }));
+  expect(await screen.findByText('开始时间不能晚于结束时间')).toBeTruthy();
+  expect(client.submitDbtQuery).not.toHaveBeenCalled();
+});
+
+it('generates SQL through the explain action and displays its result', async () => {
+  const client = api();
+  let finish: ((value: unknown) => void) | undefined;
+  client.explainDbtQuery.mockImplementation(
+    () =>
+      new Promise((resolve) => {
+        finish = resolve;
+      }),
+  );
+  client.getDbtQuery.mockResolvedValue({
+    queryId: 'explain',
+    releaseId: 'A',
+    status: 'COMPLETED',
+    mode: 'EXPLAIN',
+    columns: [],
+    rows: [],
+    sql: 'select 42 as revenue',
+    errorCode: null,
+  });
+  page(client);
+  await waitFor(() =>
+    expect(screen.getByRole('button', { name: '解释查询' }).hasAttribute('disabled')).toBe(false),
+  );
+  fireEvent.click(screen.getByRole('button', { name: '解释查询' }));
+  expect(await screen.findByText('正在生成 SQL，请稍候…')).toBeTruthy();
+  expect(client.submitDbtQuery).not.toHaveBeenCalled();
+  finish?.({ queryId: 'explain', releaseId: 'A', status: 'PENDING' });
+  expect((await screen.findByLabelText('生成的 SQL')).textContent).toBe('select 42 as revenue');
+});
+
+it('distinguishes same-name dimensions and submits the selected source token', async () => {
+  const client = api();
+  client.getDbtQueryOptions.mockResolvedValue({
+    ...options,
+    dimensions: [
+      { token: 'shop__region', name: 'region' },
+      { token: 'user__region', name: 'region' },
+    ],
+  });
+  page(client);
+  await waitFor(() =>
+    expect(screen.getByRole('button', { name: '运行查询' }).hasAttribute('disabled')).toBe(false),
+  );
+  fireEvent.mouseDown(screen.getByRole('combobox', { name: '维度' }));
+  expect(await screen.findByText('region（shop__region）')).toBeTruthy();
+  fireEvent.click(screen.getByText('region（user__region）'));
+  fireEvent.click(screen.getByRole('button', { name: '运行查询' }));
+  await waitFor(() =>
+    expect(client.submitDbtQuery).toHaveBeenCalledWith(
+      'demo',
+      expect.objectContaining({ groupBy: ['user__region'] }),
+    ),
+  );
+});
+
+it('submits the selected dimension and date grain for the current metric', async () => {
+  const client = api();
+  page(client);
+  await waitFor(() =>
+    expect(screen.getByRole('button', { name: '运行查询' }).hasAttribute('disabled')).toBe(false),
+  );
+  fireEvent.mouseDown(screen.getByRole('combobox', { name: '维度' }));
+  fireEvent.click(await screen.findByText('Region'));
+  fireEvent.mouseDown(screen.getByRole('combobox', { name: '日期粒度' }));
+  fireEvent.click(await screen.findByText('月'));
+  fireEvent.click(screen.getByRole('button', { name: '运行查询' }));
+  await waitFor(() =>
+    expect(client.submitDbtQuery).toHaveBeenCalledWith(
+      'demo',
+      expect.objectContaining({
+        releaseId: 'A',
+        metrics: ['revenue'],
+        groupBy: ['region', 'metric_time__month'],
+        filters: [],
+        orderBy: ['metric_time__month'],
       }),
     ),
   );

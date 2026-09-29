@@ -23,7 +23,9 @@ Java 包统一以 `com.metricplatform` 为根，按平台职责组织：
 
 `metric-app` 装配引擎与持久化实现，业务服务通过 `metric-core` 的端口调用它们。`metric-engine` 与 `metric-persistence` 只依赖 `metric-core`，两者没有相互依赖。MyBatis Plus 查询条件、实体映射和发布清理的数据库事务保留在 `metric-persistence`。
 
-兼容边界：现有 HTTP 路由、OpenAPI schema 名称与错误码、`metric-platform.dbt-runtime` / `dbt-query` / `dbt-cleanup` 部署配置、数据库表名和已应用的 Flyway 迁移保持兼容。dbt 原生文件名与产物 schema 标识属于引擎协议。前端源码命名本次未调整。
+兼容边界：现有 HTTP 路由、OpenAPI schema 名称与错误码、`metric-platform.dbt-runtime` / `dbt-query` / `dbt-cleanup` 部署配置、现役数据库表名和已应用的 Flyway 迁移保持兼容。dbt 原生文件名与产物 schema 标识属于引擎协议。前端源码命名本次未调整。
+
+`V14` 清理不再使用的人工目录表和旧 Git 同步表。升级前应检查并备份这些表中的历史数据；只要其中任意一张非空，迁移就会停止，避免自动丢失数据。当前发布、查询、身份和审计使用的表继续保留。
 
 ## 本地运行
 
@@ -81,4 +83,4 @@ npm run test:e2e
 
 ## 发布与契约
 
-Git 订阅默认关闭，部署参数、发布语义和真实 StarRocks 验收门槛见 [dbt 发布运行说明](docs/dbt-publication.md)。已应用的旧版 Flyway 迁移与历史数据保留，但旧管理 API 不再暴露。公开接口以 [OpenAPI 契约](api/openapi.yaml) 为准。
+Git 订阅默认关闭，部署参数、发布语义和真实 StarRocks 验收门槛见 [dbt 发布运行说明](docs/dbt-publication.md)。旧版 Flyway 迁移文件保留以支持从空库初始化；旧管理 API 不再暴露，旧目录表由 `V14` 清理。公开接口以 [OpenAPI 契约](api/openapi.yaml) 为准。

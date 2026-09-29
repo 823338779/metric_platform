@@ -1,11 +1,16 @@
 import { createHttpClient, type Fetcher } from './httpClient';
 import type * as T from './types';
 
+const REFRESH_PROJECTS_PATH = '/semantic-projects:refresh';
+const POST = 'POST';
+
 export function createMetricPlatformApi(fetcher?: Fetcher) {
   const request = createHttpClient(fetcher);
   return {
     // 新 dbt API 固定项目及版本，定义仅由 Git main 发布。
     listDbtProjects: () => request<T.DbtProject[]>('/semantic-projects'),
+    refreshDbtProjects: () =>
+      request<{ accepted: boolean }>(REFRESH_PROJECTS_PATH, { method: POST }),
     listDbtReleases: (projectId: string) =>
       request<T.DbtRelease[]>(`/semantic-projects/${encodeURIComponent(projectId)}/releases`),
     getDbtCatalog: (projectId: string, releaseId: string, q = '', page = 0, size = 20, kind = '') =>
