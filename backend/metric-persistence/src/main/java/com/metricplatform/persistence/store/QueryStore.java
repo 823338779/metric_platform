@@ -4,6 +4,8 @@ import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.metricplatform.persistence.entity.SemanticQueryEntity;
+import com.metricplatform.persistence.entity.SemanticProjectEntity;
+import com.metricplatform.persistence.service.SemanticProjectService;
 import com.metricplatform.persistence.service.SemanticQueryService;
 import com.metricplatform.query.QueryRepository;
 import com.metricplatform.query.ReleaseGoneException;
@@ -24,6 +26,7 @@ public class QueryStore implements QueryRepository {
     private static final String QUERY = "QUERY", COMPLETED = "COMPLETED", FAILED = "FAILED";
     private static final String CANCELLED = "CANCELLED";
     private final SemanticQueryService mapper;
+    private final SemanticProjectService projects;
 
     public List<PendingQuery> pending(int limit) {
         // 使用分页插件生成 PostgreSQL LIMIT，避免拼接 SQL。
@@ -47,6 +50,11 @@ public class QueryStore implements QueryRepository {
     @Transactional
     public void reserve(
             UUID queryId, String projectId, UUID releaseId, UUID idempotencyKey, String mode) {
+        // 与发布、清理共用项目锁，确保受理时版本仍是活动指针。
+        SemanticProjectEntity project = projects.lockProject(projectId);
+        if (project == null) throw new NoSuchElementException("项目不存在");
+        if (!releaseId.equals(project.getActiveReleaseId()))
+            throw new ReleaseGoneException("历史发布版本不可查询");
         Map<String, Object> release = mapper.lockRelease(releaseId, projectId);
         if (release == null) throw new NoSuchElementException("发布版本不存在");
         if (!PUBLISHED.equals(release.get("state"))) throw new IllegalStateException("发布版本不可查询");

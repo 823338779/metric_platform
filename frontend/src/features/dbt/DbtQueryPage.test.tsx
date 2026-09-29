@@ -77,6 +77,9 @@ it('loads fixed-release options and submits the returned metric_time token', asy
   await waitFor(() =>
     expect(client.getDbtQueryOptions).toHaveBeenCalledWith('demo', 'A', ['revenue']),
   );
+  await waitFor(() =>
+    expect(screen.getByRole('button', { name: '运行查询' }).hasAttribute('disabled')).toBe(false),
+  );
   fireEvent.mouseDown(screen.getByRole('combobox', { name: '日期粒度' }));
   fireEvent.click(await screen.findByText('月'));
   fireEvent.click(screen.getByRole('button', { name: '运行查询' }));
@@ -108,6 +111,9 @@ it('shows a way back to the active release when querying a historical release', 
   };
   page(client);
   expect(await screen.findByText('当前查看的是历史发布版本')).toBeTruthy();
+  expect(client.getDbtCatalog).not.toHaveBeenCalled();
+  expect(client.getDbtQueryOptions).not.toHaveBeenCalled();
+  expect(screen.getByRole('button', { name: '运行查询' }).hasAttribute('disabled')).toBe(true);
   fireEvent.click(screen.getByRole('link', { name: '切换到当前发布版本' }));
   await waitFor(() => expect(screen.getByText('releaseId：B')).toBeTruthy());
   expect(screen.queryByText('当前查看的是历史发布版本')).toBeNull();

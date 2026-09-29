@@ -11,6 +11,8 @@ type CatalogApi = Pick<MetricPlatformApi, 'getDbtCatalog'> &
     Pick<
       MetricPlatformApi,
       | 'listDbtReleases'
+      | 'getDbtRelease'
+      | 'listDbtProjects'
       | 'getDbtPresentation'
       | 'getDbtSource'
       | 'getDbtLineage'
@@ -36,11 +38,52 @@ export function DbtCatalogPage({ api = metricPlatformApi }: { api?: CatalogApi }
   const requestedRelease = params.get('releaseId') ?? '';
   const [catalog, setCatalog] = useState<DbtCatalog>();
   const [releases, setReleases] = useState<DbtRelease[]>([]);
+  const [historicalRelease, setHistoricalRelease] = useState<DbtRelease>();
+  const [activeReleaseId, setActiveReleaseId] = useState<string | null>();
   const [selected, setSelected] = useState('');
   const [search, setSearch] = useState('');
   const kind = params.get('kind') ?? undefined;
   const [page, setPage] = useState(0);
   const [error, setError] = useState('');
+  const historical = activeReleaseId != null && requestedRelease !== activeReleaseId;
+  useEffect(() => {
+    if (!api.listDbtProjects) {
+      setActiveReleaseId(null);
+      return;
+    }
+    let active = true;
+    setActiveReleaseId(undefined);
+    void api
+      .listDbtProjects()
+      .then((projects) => {
+        if (active)
+          setActiveReleaseId(
+            projects.find((project) => project.projectId === projectId)?.activeReleaseId ?? null,
+          );
+      })
+      .catch(() => {
+        if (active) setActiveReleaseId(null);
+      });
+    return () => {
+      active = false;
+    };
+  }, [api, projectId]);
+  useEffect(() => {
+    setHistoricalRelease(undefined);
+    if (!historical || !api.getDbtRelease) return;
+    let active = true;
+    void api
+      .getDbtRelease(projectId, requestedRelease)
+      .then((release) => {
+        if (active && release.releaseId === requestedRelease) setHistoricalRelease(release);
+      })
+      .catch(() => {
+        if (active) setError('发布记录读取失败');
+      });
+    return () => {
+      active = false;
+    };
+  }, [api, historical, projectId, requestedRelease]);
   useEffect(() => {
     let active = true;
     setCatalog(undefined);
@@ -52,6 +95,10 @@ export function DbtCatalogPage({ api = metricPlatformApi }: { api?: CatalogApi }
         active = false;
       };
     }
+    if (activeReleaseId === undefined || historical)
+      return () => {
+        active = false;
+      };
     // 常见类型在服务端分页；其他资源遍历当前版本后筛选，避免漏掉后续页。
     const loadCatalog = async () => {
       if (kind !== OTHER)
@@ -80,14 +127,14 @@ export function DbtCatalogPage({ api = metricPlatformApi }: { api?: CatalogApi }
         if (active)
           setError(
             cause instanceof ApiProblem && cause.problem.status === 410
-              ? '该发布版本已清理'
+              ? '该发布版本仅保留发布记录'
               : '目录读取失败',
           );
       });
     return () => {
       active = false;
     };
-  }, [api, projectId, requestedRelease, search, page, kind]);
+  }, [api, projectId, requestedRelease, search, page, kind, activeReleaseId, historical]);
   useEffect(() => {
     if (!api.listDbtReleases) return;
     let active = true;
@@ -103,7 +150,7 @@ export function DbtCatalogPage({ api = metricPlatformApi }: { api?: CatalogApi }
       active = false;
     };
   }, [api, projectId]);
-  const release = releases.find((item) => item.releaseId === catalog?.releaseId);
+  const release = historicalRelease ?? releases.find((item) => item.releaseId === requestedRelease);
   const resources = catalog?.resources ?? [];
   const detailReady =
     api.getDbtPresentation &&
@@ -111,6 +158,28 @@ export function DbtCatalogPage({ api = metricPlatformApi }: { api?: CatalogApi }
     api.getDbtLineage &&
     api.previewDbtDataset &&
     api.getDbtQuery;
+  if (historical)
+    return (
+      <Space direction="vertical" style={{ width: '100%' }}>
+        <Alert type="info" title="该发布版本仅保留发布记录" />
+        {error && <Alert type="error" title={error} />}
+        <Card title="历史发布">
+          <Typography.Text>releaseId：{requestedRelease}</Typography.Text>
+          {release && (
+            <>
+              <Typography.Paragraph>发布提交：{release.targetCommitSha}</Typography.Paragraph>
+              <Typography.Paragraph>发布状态：{release.state}</Typography.Paragraph>
+              <Typography.Paragraph>清理状态：{release.cleanupState}</Typography.Paragraph>
+            </>
+          )}
+          <Link
+            to={`/dbt/projects/${encodeURIComponent(projectId)}/catalog?releaseId=${encodeURIComponent(activeReleaseId)}`}
+          >
+            查看当前发布版本
+          </Link>
+        </Card>
+      </Space>
+    );
   return (
     <Space direction="vertical" style={{ width: '100%' }}>
       {error && <Alert type="error" title={error} />}

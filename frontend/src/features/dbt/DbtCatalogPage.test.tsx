@@ -186,8 +186,39 @@ it('shows a cleaned release without loading the current catalog', async () => {
       </Routes>
     </MemoryRouter>,
   );
-  expect(await screen.findByText('该发布版本已清理')).toBeTruthy();
+  expect(await screen.findByText('该发布版本仅保留发布记录')).toBeTruthy();
   expect(api.getDbtCatalog).toHaveBeenCalledWith('demo', 'old', '', 0, 20, undefined);
+});
+
+it('shows a historical release record without loading its catalog', async () => {
+  const client = {
+    listDbtProjects: vi.fn().mockResolvedValue([{ projectId: 'demo', activeReleaseId: 'new' }]),
+    listDbtReleases: vi.fn().mockResolvedValue([]),
+    getDbtRelease: vi.fn().mockResolvedValue({
+      releaseId: 'old',
+      targetCommitSha: 'a'.repeat(40),
+      state: 'PUBLISHED',
+      cleanupState: 'CLEANED',
+    }),
+    getDbtCatalog: vi.fn(),
+  };
+  render(
+    <MemoryRouter initialEntries={['/dbt/projects/demo/catalog?releaseId=old']}>
+      <Routes>
+        <Route
+          path="/dbt/projects/:projectId/catalog"
+          element={<DbtCatalogPage api={client as never} />}
+        />
+      </Routes>
+    </MemoryRouter>,
+  );
+
+  expect(await screen.findByText('该发布版本仅保留发布记录')).toBeTruthy();
+  expect(await screen.findByText('发布状态：PUBLISHED')).toBeTruthy();
+  expect(screen.getByText('清理状态：CLEANED')).toBeTruthy();
+  expect(client.getDbtRelease).toHaveBeenCalledWith('demo', 'old');
+  expect(client.getDbtCatalog).not.toHaveBeenCalled();
+  expect(screen.getByRole('link', { name: '查看当前发布版本' })).toBeTruthy();
 });
 
 it('requires a releaseId and rejects a different catalog release', async () => {

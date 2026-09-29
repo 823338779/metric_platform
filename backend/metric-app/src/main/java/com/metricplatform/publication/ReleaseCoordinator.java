@@ -45,7 +45,8 @@ public final class ReleaseCoordinator implements GitRefreshTrigger {
                                 properties.getProjectSubdir(),
                                 properties.getProfileBindingId(),
                                 properties.getConfigVersion(),
-                                properties.getToolchainVersion()));
+                                properties.getToolchainVersion(),
+                                properties.getSchemaName()));
     }
 
     @PostConstruct

@@ -2,7 +2,6 @@ package com.metricplatform.persistence.store;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
-import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.metricplatform.persistence.entity.SemanticProjectEntity;
 import com.metricplatform.persistence.entity.SemanticQueryEntity;
 import com.metricplatform.persistence.entity.SemanticReleaseEntity;
@@ -61,19 +60,8 @@ public class CleanupStore implements CleanupRepository {
                                                 || member.getUpdatedAt().isAfter(recoveryBefore))))
             return false;
         UUID active = project.getActiveReleaseId();
-        LambdaQueryWrapper<SemanticReleaseEntity> previousQuery =
-                new LambdaQueryWrapper<SemanticReleaseEntity>()
-                        .eq(SemanticReleaseEntity::getProjectId, projectId)
-                        .eq(SemanticReleaseEntity::getState, PUBLISHED)
-                        .orderByDesc(SemanticReleaseEntity::getPublishedAt)
-                        .orderByDesc(SemanticReleaseEntity::getReleaseSequence);
-        if (active != null) previousQuery.ne(SemanticReleaseEntity::getReleaseId, active);
-        List<SemanticReleaseEntity> previousPage =
-                releases.page(new Page<>(1, 1, false), previousQuery).getRecords();
-        UUID previous = previousPage.isEmpty() ? null : previousPage.getFirst().getReleaseId();
         for (SemanticReleaseEntity member : members) {
             if (member.getReleaseId().equals(active)
-                    || member.getReleaseId().equals(previous)
                     || !List.of(PUBLISHED, FAILED, SUPERSEDED).contains(member.getState()))
                 return false;
         }

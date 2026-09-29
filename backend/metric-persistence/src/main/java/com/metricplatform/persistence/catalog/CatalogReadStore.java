@@ -152,11 +152,13 @@ public class CatalogReadStore implements CatalogReadRepository {
     }
 
     public UUID resolvePublished(String projectId, UUID requestedReleaseId) {
-        UUID releaseId =
-                requestedReleaseId == null ? requireProject(projectId) : requestedReleaseId;
+        UUID activeReleaseId = requireProject(projectId);
+        UUID releaseId = requestedReleaseId == null ? activeReleaseId : requestedReleaseId;
         if (releaseId == null) throw new NoSuchElementException("项目尚未发布版本");
         ReleaseSummary summary = release(projectId, releaseId);
         if (!PUBLISHED.equals(summary.state())) throw new NoSuchElementException("版本尚未发布");
+        if (!releaseId.equals(activeReleaseId))
+            throw new ReleaseGoneException("历史发布版本不可查询");
         if (!PENDING.equals(summary.cleanupState()))
             throw new ReleaseGoneException("发布版本已清理");
         return releaseId;

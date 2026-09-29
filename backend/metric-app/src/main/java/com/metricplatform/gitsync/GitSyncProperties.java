@@ -29,6 +29,9 @@ public class GitSyncProperties {
     /** 外部运行服务中固定的 StarRocks profile 绑定标识。 */
     private String profileBindingId;
 
+    /** StarRocks 中固定的 dbt 目标 schema；为空时沿用独立 run schema。 */
+    private String schemaName;
+
     /** 会影响项目编译或结果的受控 profile、环境与工具链配置版本。 */
     private String configVersion;
 

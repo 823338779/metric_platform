@@ -65,7 +65,7 @@ class ReleaseCleanupServiceTest {
     }
 
     @Test
-    void protectsActivePreviousAndInFlightQueries() {
+    void protectsActiveAndInFlightQueriesWhileCleaningOlderRun() {
         UUID oldRun = UUID.randomUUID(),
                 previousRun = UUID.randomUUID(),
                 activeRun = UUID.randomUUID();
@@ -74,13 +74,18 @@ class ReleaseCleanupServiceTest {
         UUID active = release('c', '3', activeRun, "PUBLISHED");
         jdbc.update(
                 "update semantic_project set active_release_id=? where project_id=?",
-                active,
+                old,
                 projectId);
         queries.reserve(UUID.randomUUID(), projectId, old, UUID.randomUUID());
-        assertThat(cleanup.cleanupEligible(projectId)).isZero();
-        verify(runtime, never()).cleanup(any());
+        jdbc.update(
+                "update semantic_project set active_release_id=? where project_id=?",
+                active,
+                projectId);
+        assertThat(cleanup.cleanupEligible(projectId)).isEqualTo(1);
+        verify(runtime).cleanup(previousRun);
+        verify(runtime, never()).cleanup(oldRun);
         assertThat(cleanupState(old)).isEqualTo("PENDING");
-        assertThat(cleanupState(previous)).isEqualTo("PENDING");
+        assertThat(cleanupState(previous)).isEqualTo("CLEANED");
         assertThat(cleanupState(active)).isEqualTo("PENDING");
         when(runtime.getQueryByKey(any()))
                 .thenReturn(
@@ -105,11 +110,11 @@ class ReleaseCleanupServiceTest {
         UUID d = release('d', '3', UUID.randomUUID(), "PUBLISHED");
         jdbc.update(
                 "update semantic_project set active_release_id=? where project_id=?", d, projectId);
-        assertThat(cleanup.cleanupEligible(projectId)).isEqualTo(1);
+        assertThat(cleanup.cleanupEligible(projectId)).isEqualTo(2);
         verify(runtime).cleanup(shared);
         assertThat(cleanupState(a)).isEqualTo("CLEANED");
         assertThat(cleanupState(b)).isEqualTo("CLEANED");
-        assertThat(cleanupState(c)).isEqualTo("PENDING");
+        assertThat(cleanupState(c)).isEqualTo("CLEANED");
     }
 
     @Test

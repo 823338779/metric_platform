@@ -2,7 +2,7 @@ openapi: 3.1.0
 info:
   title: Metric Platform API
   version: v1
-  description: 平台控制 dbt 项目的版本发布，展示已发布目录，并代理固定版本的类型化查询。
+  description: 平台控制 dbt 项目的版本发布，只开放活动发布的目录和新查询；历史发布仅保留元数据，代理已受理任务的固定版本结果。
 security: [{ bearerAuth: [] }]
 paths:
   /api/v1/semantic-projects:refresh:

@@ -80,6 +80,9 @@ it('renders a read-only catalog pinned to its response release', async () => {
 
 it('queries the selected release and renders exact decimal strings', async () => {
   const api = {
+    listDbtProjects: vi
+      .fn()
+      .mockResolvedValue([{ projectId: 'demo', activeReleaseId: 'release-1' }]),
     getDbtCatalog: vi.fn().mockResolvedValue({
       releaseId: 'release-1',
       resources: [
@@ -147,5 +150,5 @@ it('explains a cleaned catalog release', async () => {
       </Routes>
     </MemoryRouter>,
   );
-  expect(await screen.findByText('该发布版本已清理')).toBeTruthy();
+  expect(await screen.findByText('该发布版本仅保留发布记录')).toBeTruthy();
 });

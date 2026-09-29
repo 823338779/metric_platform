@@ -42,6 +42,16 @@ public class PublicationStore implements PublicationGateway {
             ProjectRevision verifiedHead,
             RunSnapshot run,
             CatalogSnapshot catalog) {
+        return promote(releaseId, verifiedHead, run, catalog, null);
+    }
+
+    @Transactional
+    public boolean promote(
+            UUID releaseId,
+            ProjectRevision verifiedHead,
+            RunSnapshot run,
+            CatalogSnapshot catalog,
+            String expectedSchemaName) {
         SemanticReleaseEntity initial = releases.getById(releaseId);
         if (initial == null) throw new IllegalArgumentException("发布版本不存在");
         SemanticProjectEntity project = projects.lockProject(initial.getProjectId());
@@ -70,7 +80,7 @@ public class PublicationStore implements PublicationGateway {
                 project.getActiveReleaseId() == null
                         ? null
                         : releases.getById(project.getActiveReleaseId()).getSchemaName();
-        if (!validRun(run, release, project, activeSchema)
+        if (!validRun(run, release, project, activeSchema, expectedSchemaName)
                 || catalog == null
                 || catalog.resources() == null
                 || catalog.resources().isEmpty()
@@ -79,6 +89,15 @@ public class PublicationStore implements PublicationGateway {
             return false;
         }
         if (releases.count(
+                        new LambdaQueryWrapper<SemanticReleaseEntity>()
+                                .eq(SemanticReleaseEntity::getRuntimeRunId, run.runId())
+                                .ne(SemanticReleaseEntity::getReleaseId, releaseId)
+                                .eq(SemanticReleaseEntity::getState, PUBLISHED))
+                > 0) {
+            mark(releaseId, FAILED, INVALID_RUN);
+            return false;
+        }
+        if (expectedSchemaName == null && releases.count(
                         new LambdaQueryWrapper<SemanticReleaseEntity>()
                                 .eq(SemanticReleaseEntity::getSchemaName, run.schemaName())
                                 .ne(SemanticReleaseEntity::getReleaseId, releaseId)
@@ -181,7 +200,8 @@ public class PublicationStore implements PublicationGateway {
             RunSnapshot run,
             SemanticReleaseEntity release,
             SemanticProjectEntity project,
-            String activeSchema) {
+            String activeSchema,
+            String expectedSchemaName) {
         return run != null
                 && run.runId() != null
                 && READY.equals(run.state())
@@ -196,7 +216,9 @@ public class PublicationStore implements PublicationGateway {
                                 run.toolchainVersion(), release.getExpectedToolchainVersion()))
                 && run.schemaName() != null
                 && run.schemaName().matches(SCHEMA_PATTERN)
-                && !Objects.equals(run.schemaName(), activeSchema)
+                && (expectedSchemaName == null
+                        ? !Objects.equals(run.schemaName(), activeSchema)
+                        : Objects.equals(run.schemaName(), expectedSchemaName))
                 && run.manifestDigest() != null
                 && run.semanticManifestDigest() != null
                 && run.runResultsDigest() != null

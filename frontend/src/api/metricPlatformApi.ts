@@ -13,6 +13,10 @@ export function createMetricPlatformApi(fetcher?: Fetcher) {
       request<{ accepted: boolean }>(REFRESH_PROJECTS_PATH, { method: POST }),
     listDbtReleases: (projectId: string) =>
       request<T.DbtRelease[]>(`/semantic-projects/${encodeURIComponent(projectId)}/releases`),
+    getDbtRelease: (projectId: string, releaseId: string) =>
+      request<T.DbtRelease>(
+        `/semantic-projects/${encodeURIComponent(projectId)}/releases/${encodeURIComponent(releaseId)}`,
+      ),
     getDbtCatalog: (projectId: string, releaseId: string, q = '', page = 0, size = 20, kind = '') =>
       request<T.DbtCatalog>(
         `/semantic-projects/${encodeURIComponent(projectId)}/catalog?${new URLSearchParams({ releaseId, q, page: String(page), size: String(size), ...(kind ? { kind } : {}) })}`,

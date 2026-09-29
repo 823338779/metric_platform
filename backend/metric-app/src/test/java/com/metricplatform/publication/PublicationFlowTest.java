@@ -13,7 +13,9 @@ import com.metricplatform.gitsync.GitSyncProperties;
 import com.metricplatform.persistence.publication.PublicationStore;
 import com.metricplatform.persistence.store.ReleaseStore;
 import com.metricplatform.query.QueryDtos.*;
+import com.metricplatform.query.QueryRepository;
 import com.metricplatform.query.QueryService;
+import com.metricplatform.query.ReleaseGoneException;
 import java.nio.file.*;
 import java.time.Duration;
 import java.util.*;
@@ -35,6 +37,7 @@ class PublicationFlowTest {
     @Autowired PublicationStore publication;
     @Autowired CatalogReadRepository catalog;
     @Autowired QueryService queries;
+    @Autowired QueryRepository queryReferences;
     @Autowired ReleaseCleanupService cleanup;
     @Autowired JdbcTemplate jdbc;
     @MockitoBean EngineClient runtime;
@@ -57,8 +60,8 @@ class PublicationFlowTest {
         Files.createDirectories(remote.resolve("project/models"));
         Files.writeString(
                 remote.resolve("project/dbt_project.yml"),
-                "name: sales\nversion: '1.0'\nconfig-version: 2\n");
-        Files.writeString(remote.resolve(MODEL), "models: []\n");
+                "name: sales\r\nversion: '1.0'\r\nconfig-version: 2\r\n");
+        Files.writeString(remote.resolve(MODEL), "models: []\r\n");
         git(remote, "add", ".");
         git(remote, "commit", "-m", "first");
 
@@ -139,13 +142,38 @@ class PublicationFlowTest {
                         .queryId();
         assertThat(queries.get(projectId, pinned).releaseId()).isEqualTo(first);
 
-        Files.writeString(remote.resolve(MODEL), "models:\n  - name: orders\n");
+        Files.writeString(remote.resolve(MODEL), "models:\r\n  - name: orders\r\n");
         git(remote, "commit", "-am", "second");
         coordinator.refresh();
         UUID second = releases.active(projectId);
         assertThat(second).isNotEqualTo(first);
         assertThat(runs).hasSize(2);
-        Files.writeString(remote.resolve("project/README.md"), "notes\n");
+        assertThatThrownBy(() -> catalog.catalog(projectId, first, null, null, 0, 20))
+                .isInstanceOf(ReleaseGoneException.class);
+        assertThatThrownBy(
+                        () ->
+                                queries.submit(
+                                        projectId,
+                                        first,
+                                        QueryMode.QUERY,
+                                        new TypedQuery(
+                                                first,
+                                                List.of("revenue"),
+                                                List.of(),
+                                                List.of(),
+                                                10)))
+                .isInstanceOf(ReleaseGoneException.class);
+        assertThatThrownBy(
+                        () ->
+                                queryReferences.reserve(
+                                        UUID.randomUUID(),
+                                        projectId,
+                                        first,
+                                        UUID.randomUUID(),
+                                        "QUERY"))
+                .isInstanceOf(ReleaseGoneException.class);
+        assertThat(catalog.release(projectId, first).state()).isEqualTo("PUBLISHED");
+        Files.writeString(remote.resolve("project/README.md"), "notes\r\n");
         git(remote, "add", ".");
         git(remote, "commit", "-m", "readme");
         coordinator.refresh();
@@ -153,16 +181,17 @@ class PublicationFlowTest {
         assertThat(runs).hasSize(2);
 
         Files.writeString(
-                remote.resolve(MODEL), "models:\n  - name: orders\n    description: changed\n");
+                remote.resolve(MODEL),
+                "models:\r\n  - name: orders\r\n    description: changed\r\n");
         git(remote, "commit", "-am", "third");
         coordinator.refresh();
         UUID third = releases.active(projectId);
         assertThat(third).isNotEqualTo(second);
         assertThat(runs).hasSize(3);
         assertThat(queries.get(projectId, pinned).releaseId()).isEqualTo(first);
-        assertThat(cleanup.cleanupEligible(projectId)).isEqualTo(1);
+        assertThat(cleanup.cleanupEligible(projectId)).isEqualTo(2);
         assertThat(catalog.release(projectId, first).cleanupState()).isEqualTo("CLEANED");
-        assertThat(catalog.release(projectId, second).cleanupState()).isEqualTo("PENDING");
+        assertThat(catalog.release(projectId, second).cleanupState()).isEqualTo("CLEANED");
     }
 
     private void git(Path cwd, String... args) throws Exception {

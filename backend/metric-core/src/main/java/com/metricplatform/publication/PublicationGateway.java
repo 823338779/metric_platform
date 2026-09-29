@@ -10,5 +10,6 @@ public interface PublicationGateway {
             UUID releaseId,
             ProjectRevision verifiedHead,
             RunSnapshot run,
-            CatalogSnapshot catalog);
+            CatalogSnapshot catalog,
+            String expectedSchemaName);
 }

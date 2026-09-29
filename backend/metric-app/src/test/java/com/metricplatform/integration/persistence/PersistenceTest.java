@@ -21,6 +21,9 @@ import org.springframework.test.context.ActiveProfiles;
 @SpringBootTest
 @ActiveProfiles("test")
 class PersistenceTest {
+    private static final String ACTIVATE_RELEASE_SQL =
+            "update semantic_project set active_release_id=? where project_id=?";
+
     @Autowired JdbcTemplate jdbc;
     @Autowired ReleaseStore releases;
     @Autowired QueryStore queries;
@@ -132,6 +135,7 @@ class PersistenceTest {
     void nonTerminalQueryReferencesRelease() {
         UUID releaseId = releases.observe(projectId, revision('a', '1'), "config-1").releaseId();
         jdbc.update("update semantic_release set state='PUBLISHED' where release_id=?", releaseId);
+        jdbc.update(ACTIVATE_RELEASE_SQL, releaseId, projectId);
         UUID queryId = UUID.randomUUID();
         queries.reserve(queryId, projectId, releaseId, UUID.randomUUID());
         assertThat(queries.countNonTerminal(releaseId)).isEqualTo(1);

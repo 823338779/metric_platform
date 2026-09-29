@@ -204,6 +204,67 @@ class ReleaseCoordinatorTest {
         assertThat(releases.active(projectId)).isNull();
     }
 
+    @Test
+    void fixedSchemaPublishesSecondRun() {
+        properties.setSchemaName("dbt_ecom");
+        runState.set("READY");
+        when(runtime.getRun(runId)).thenReturn(snapshotWithSchema(runId, 'a', '1', "dbt_ecom"));
+        var coordinator = coordinator();
+        coordinator.refresh();
+        UUID first = releases.active(projectId);
+        UUID nextRun = UUID.randomUUID();
+        head.set(revision('b', '2'));
+        when(runtime.submitRun(any())).thenReturn(new RunReceipt(nextRun));
+        when(runtime.getRun(nextRun)).thenReturn(snapshotWithSchema(nextRun, 'b', '2', "dbt_ecom"));
+        when(runtime.getCatalog(nextRun)).thenReturn(catalog());
+
+        coordinator.refresh();
+
+        assertThat(releases.active(projectId)).isNotEqualTo(first);
+        assertThat(
+                        jdbc.queryForObject(
+                                "select count(*) from semantic_release where project_id=? and state='PUBLISHED'",
+                                Integer.class,
+                                projectId))
+                .isEqualTo(2);
+    }
+
+    @Test
+    void wrongSchemaKeepsActiveRelease() {
+        properties.setSchemaName("dbt_ecom");
+        runState.set("READY");
+        when(runtime.getRun(runId)).thenReturn(snapshotWithSchema(runId, 'a', '1', "dbt_ecom"));
+        var coordinator = coordinator();
+        coordinator.refresh();
+        UUID first = releases.active(projectId);
+        UUID nextRun = UUID.randomUUID();
+        head.set(revision('b', '2'));
+        when(runtime.submitRun(any())).thenReturn(new RunReceipt(nextRun));
+        when(runtime.getRun(nextRun))
+                .thenReturn(snapshotWithSchema(nextRun, 'b', '2', "run_unexpected"));
+        when(runtime.getCatalog(nextRun)).thenReturn(catalog());
+
+        coordinator.refresh();
+
+        assertThat(releases.active(projectId)).isEqualTo(first);
+    }
+
+    @Test
+    void fixedSchemaRejectsReusedPhysicalRun() {
+        properties.setSchemaName("dbt_ecom");
+        runState.set("READY");
+        when(runtime.getRun(runId)).thenReturn(snapshotWithSchema(runId, 'a', '1', "dbt_ecom"));
+        var coordinator = coordinator();
+        coordinator.refresh();
+        UUID first = releases.active(projectId);
+        head.set(revision('b', '2'));
+        when(runtime.getRun(runId)).thenReturn(snapshotWithSchema(runId, 'b', '2', "dbt_ecom"));
+
+        coordinator.refresh();
+
+        assertThat(releases.active(projectId)).isEqualTo(first);
+    }
+
     private ReleaseCoordinator coordinator() {
         return new ReleaseCoordinator(reader, releases, publication, runtime, properties);
     }
@@ -218,6 +279,25 @@ class ReleaseCoordinatorTest {
                 "config-1",
                 "dbt-1/mf-1",
                 "release_" + sha,
+                "m".repeat(64),
+                "s".repeat(64),
+                "r".repeat(64),
+                true,
+                true,
+                true,
+                true);
+    }
+
+    private static RunSnapshot snapshotWithSchema(UUID id, char sha, char digest, String schema) {
+        return new RunSnapshot(
+                id,
+                "READY",
+                String.valueOf(sha).repeat(40),
+                String.valueOf(digest).repeat(64),
+                "starrocks-profile",
+                "config-1",
+                "dbt-1/mf-1",
+                schema,
                 "m".repeat(64),
                 "s".repeat(64),
                 "r".repeat(64),

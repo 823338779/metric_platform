@@ -36,6 +36,7 @@ const SQL_PROGRESS = '正在生成 SQL，请稍候…';
 const QUERY_PROGRESS = '查询正在执行，请稍候…';
 const HISTORICAL_RELEASE_TITLE = '当前查看的是历史发布版本';
 const SWITCH_TO_ACTIVE_RELEASE = '切换到当前发布版本';
+const HISTORICAL_RELEASE_DESCRIPTION = '历史发布仅保留记录，不能发起新查询。';
 
 /** 指标、共同维度与 metric_time 粒度均从固定 release 的能力选项选择。 */
 export function DbtQueryPage({ api = metricPlatformApi }: { api?: QueryApi }) {
@@ -44,6 +45,7 @@ export function DbtQueryPage({ api = metricPlatformApi }: { api?: QueryApi }) {
   const releaseId = params.get('releaseId') ?? '';
   const initialMetric = params.get('metric') ?? '';
   const [activeReleaseId, setActiveReleaseId] = useState<string | null>(null);
+  const [activeChecked, setActiveChecked] = useState(false);
   const [availableMetrics, setAvailableMetrics] = useState<string[]>([]);
   const [metrics, setMetrics] = useState<string[]>(initialMetric ? [initialMetric] : []);
   const [options, setOptions] = useState<DbtQueryOptions>();
@@ -69,10 +71,11 @@ export function DbtQueryPage({ api = metricPlatformApi }: { api?: QueryApi }) {
   // 窄屏下结果位于表单下方，解释查询提交后将反馈区域带入视口。
   const resultPanel = useRef<HTMLDivElement>(null);
 
-  // 查询仍固定在 URL 指定版本；读取当前发布指针只用于提示并提供显式切换入口。
+  // 先读取活动指针，再决定是否加载当前版本的指标与查询选项。
   useEffect(() => {
     let active = true;
     setActiveReleaseId(null);
+    setActiveChecked(false);
     void api
       .listDbtProjects()
       .then((projects) => {
@@ -80,9 +83,13 @@ export function DbtQueryPage({ api = metricPlatformApi }: { api?: QueryApi }) {
           setActiveReleaseId(
             projects.find((project) => project.projectId === projectId)?.activeReleaseId ?? null,
           );
+        if (active) setActiveChecked(true);
       })
       .catch(() => {
-        if (active) setActiveReleaseId(null);
+        if (active) {
+          setActiveReleaseId(null);
+          setActiveChecked(true);
+        }
       });
     return () => {
       active = false;
@@ -109,7 +116,7 @@ export function DbtQueryPage({ api = metricPlatformApi }: { api?: QueryApi }) {
     setQueryId('');
     setResult(undefined);
     setError('');
-    if (releaseId) {
+    if (releaseId && activeChecked && (!activeReleaseId || releaseId === activeReleaseId)) {
       // 类型筛选先于分页；遍历指标页保证后续页仍能用于组合查询。
       const loadMetrics = async () => {
         const names: string[] = [];
@@ -140,7 +147,7 @@ export function DbtQueryPage({ api = metricPlatformApi }: { api?: QueryApi }) {
     return () => {
       active = false;
     };
-  }, [api, projectId, releaseId, initialMetric]);
+  }, [api, projectId, releaseId, initialMetric, activeChecked, activeReleaseId]);
 
   useEffect(() => {
     let active = true;
@@ -152,7 +159,12 @@ export function DbtQueryPage({ api = metricPlatformApi }: { api?: QueryApi }) {
     setOrderBy([]);
     setLoadingOptions(false);
     setError('');
-    if (!releaseId || metrics.length === 0)
+    if (
+      !releaseId ||
+      !activeChecked ||
+      (activeReleaseId && releaseId !== activeReleaseId) ||
+      metrics.length === 0
+    )
       return () => {
         active = false;
       };
@@ -181,7 +193,7 @@ export function DbtQueryPage({ api = metricPlatformApi }: { api?: QueryApi }) {
     return () => {
       active = false;
     };
-  }, [api, projectId, releaseId, metrics]);
+  }, [api, projectId, releaseId, metrics, activeChecked, activeReleaseId]);
 
   useEffect(() => {
     if (!queryId) return;
@@ -278,7 +290,13 @@ export function DbtQueryPage({ api = metricPlatformApi }: { api?: QueryApi }) {
     })) ?? [];
   const busy = submitting || (!!queryId && !terminal.has(result?.status ?? '') && !error);
   const disabled =
-    !releaseId || !options || options.releaseId !== releaseId || loadingOptions || busy;
+    !releaseId ||
+    !activeChecked ||
+    (activeReleaseId && releaseId !== activeReleaseId) ||
+    !options ||
+    options.releaseId !== releaseId ||
+    loadingOptions ||
+    busy;
   const filterValues =
     filterOperator === 'IN' ? filterValue.split(',').map((value) => value.trim()) : filterValue;
   return (
@@ -301,7 +319,7 @@ export function DbtQueryPage({ api = metricPlatformApi }: { api?: QueryApi }) {
         <Alert
           type="warning"
           title={HISTORICAL_RELEASE_TITLE}
-          description={`本页查询固定使用历史版本 ${releaseId}。当前发布版本为 ${activeReleaseId}。`}
+          description={`${HISTORICAL_RELEASE_DESCRIPTION}当前发布版本为 ${activeReleaseId}。`}
           action={
             <Link
               to={`/dbt/projects/${encodeURIComponent(projectId)}/query?releaseId=${encodeURIComponent(activeReleaseId)}${initialMetric ? `&metric=${encodeURIComponent(initialMetric)}` : ''}`}

@@ -29,7 +29,8 @@ public final class ReleaseWorkflow {
             String projectSubdir,
             String profileBindingId,
             String configVersion,
-            String toolchainVersion) {}
+            String toolchainVersion,
+            String schemaName) {}
 
     public ReleaseWorkflow(
             GitHeadGateway reader,
@@ -85,7 +86,7 @@ public final class ReleaseWorkflow {
                 releases.markReady(releaseId);
                 var catalog = runtime.getCatalog(runId);
                 var verifiedHead = reader.readRevision(config.projectSubdir());
-                publication.promote(releaseId, verifiedHead, run, catalog);
+                publication.promote(releaseId, verifiedHead, run, catalog, config.schemaName());
                 releases.clearTransientFailure(releaseId);
             } else if (FAILED.equals(run.state())) {
                 releases.markFailed(releaseId, RUN_FAILED);
