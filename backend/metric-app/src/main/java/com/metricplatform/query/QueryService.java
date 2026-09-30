@@ -34,6 +34,7 @@ import org.springframework.web.server.ResponseStatusException;
 public class QueryService {
     private static final String PENDING = "PENDING", FAILED = "FAILED", COMPLETED = "COMPLETED";
     private static final String RUNTIME_READY = "READY";
+    private static final String RUNTIME_QUEUED = "QUEUED";
     private static final java.util.Set<String> FILTER_OPERATORS =
             java.util.Set.of("=", "!=", ">", ">=", "<", "<=", "IN");
     private static final int MAX_LIMIT = 10000;
@@ -196,8 +197,13 @@ public class QueryService {
                     null);
         if (snapshot.queryId() != null && record.runtimeQueryId() == null)
             queries.attach(queryId, snapshot.queryId());
-        // 运行服务以 READY 表示查询成功；平台公开契约使用 COMPLETED。
-        String status = RUNTIME_READY.equals(snapshot.state()) ? COMPLETED : snapshot.state();
+        // 转换运行服务的排队与成功状态，保持平台公开契约和数据库状态约束一致。
+        String status =
+                switch (snapshot.state()) {
+                    case RUNTIME_READY -> COMPLETED;
+                    case RUNTIME_QUEUED -> PENDING;
+                    default -> snapshot.state();
+                };
         queries.update(queryId, snapshot.queryId(), status, snapshot.errorCode());
         return new QueryStatus(
                 queryId,

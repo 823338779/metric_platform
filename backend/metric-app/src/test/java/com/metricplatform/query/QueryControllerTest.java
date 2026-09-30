@@ -34,6 +34,7 @@ class QueryControllerTest {
     @Autowired MockMvc mvc;
     @Autowired JdbcTemplate jdbc;
     @Autowired ReleaseStore releases;
+    @Autowired QueryService service;
     @MockitoBean EngineClient runtime;
     @MockitoBean PlatformAuthenticationService authentication;
     private final ObjectMapper mapper =
@@ -43,6 +44,11 @@ class QueryControllerTest {
     private UUID runId;
     private UUID queryJobId;
     private static final String TOKEN = "dbt-query-token";
+    private static final String RUNTIME_QUEUED = "QUEUED";
+    private static final String PLATFORM_PENDING = "PENDING";
+    private static final String REVENUE = "revenue";
+    private static final String QUERY_STATUS_SQL =
+            "select status from semantic_query where query_id=?";
 
     @BeforeEach
     void setup() {
@@ -72,6 +78,30 @@ class QueryControllerTest {
     @AfterEach
     void cleanup() {
         jdbc.update("delete from semantic_project where project_id=?", projectId);
+    }
+
+    // 外部任务排队时仍使用平台 PENDING 状态，避免违反真实 PostgreSQL 的状态约束。
+    @Test
+    void queuedRuntimeQueryRemainsPending() {
+        var submission =
+                service.submit(
+                        projectId,
+                        releaseId,
+                        QueryDtos.QueryMode.QUERY,
+                        new QueryDtos.TypedQuery(
+                                releaseId,
+                                java.util.List.of(REVENUE),
+                                java.util.List.of(),
+                                java.util.List.of(),
+                                10));
+        when(runtime.getQuery(queryJobId))
+                .thenReturn(new QuerySnapshot(queryJobId, RUNTIME_QUEUED, null, null, null));
+
+        var status = service.get(projectId, submission.queryId());
+
+        assertThat(status.status()).isEqualTo(PLATFORM_PENDING);
+        assertThat(jdbc.queryForObject(QUERY_STATUS_SQL, String.class, submission.queryId()))
+                .isEqualTo(PLATFORM_PENDING);
     }
 
     @Test
