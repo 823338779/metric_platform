@@ -20,6 +20,93 @@ beforeAll(() => {
 });
 afterEach(cleanup);
 
+function BackToPreviousFilter() {
+  const navigate = useNavigate();
+  return <button onClick={() => navigate(-1)}>返回筛选</button>;
+}
+
+it('reloads the first page when browser history changes a filter after loading more', async () => {
+  const client = {
+    getDbtCatalog: vi
+      .fn()
+      .mockImplementation(
+        (_: string, __: string, ___: string, page: number, ____: number, kind?: string) =>
+          Promise.resolve({
+            releaseId: 'A',
+            page,
+            size: 20,
+            total: 21,
+            resources: Array.from({ length: page === 0 ? 20 : 1 }, (_, index) => ({
+              resourceId: `${kind ?? 'all'}-${page * 20 + index}`,
+              kind: 'METRIC',
+              name: `${kind ?? 'all'}-${page * 20 + index}`,
+              queryable: false,
+            })),
+          }),
+      ),
+  };
+  render(
+    <MemoryRouter initialEntries={['/dbt/projects/demo/catalog?releaseId=A']}>
+      <BackToPreviousFilter />
+      <Routes>
+        <Route
+          path="/dbt/projects/:projectId/catalog"
+          element={<DbtCatalogPage api={client as never} />}
+        />
+      </Routes>
+    </MemoryRouter>,
+  );
+  await screen.findByText('all-0');
+  fireEvent.click(screen.getByRole('tab', { name: '指标' }));
+  await screen.findByText('METRIC-0');
+  fireEvent.click(screen.getByRole('button', { name: '加载更多资源' }));
+  await screen.findByText('METRIC-20');
+  fireEvent.click(screen.getByRole('button', { name: '返回筛选' }));
+  expect(await screen.findByText('all-0')).toBeTruthy();
+  expect(screen.queryByText('METRIC-0')).toBeNull();
+  expect(client.getDbtCatalog).toHaveBeenLastCalledWith('demo', 'A', '', 0, 20, undefined);
+});
+
+it('collapses resource folders and locates a deep-linked resource inside the tree', async () => {
+  const client = {
+    getDbtCatalog: vi.fn().mockResolvedValue({
+      releaseId: 'A',
+      page: 0,
+      size: 20,
+      total: 1,
+      resources: [
+        {
+          resourceId: 'metric.shop.units_sold',
+          kind: 'METRIC',
+          name: 'units_sold',
+          sourcePath: 'models/metrics.yml',
+          queryable: true,
+        },
+      ],
+    }),
+  };
+  render(
+    <MemoryRouter
+      initialEntries={['/dbt/projects/demo/catalog?releaseId=A&resourceId=metric.shop.units_sold']}
+    >
+      <Routes>
+        <Route
+          path="/dbt/projects/:projectId/catalog"
+          element={<DbtCatalogPage api={client as never} />}
+        />
+      </Routes>
+    </MemoryRouter>,
+  );
+  await screen.findByText('units_sold');
+  fireEvent.click(screen.getByRole('button', { name: '全部折叠' }));
+  expect(screen.queryByText('units_sold')).toBeNull();
+  fireEvent.click(screen.getByRole('button', { name: '定位当前资源' }));
+  expect(await screen.findByText('units_sold')).toBeTruthy();
+  expect(screen.getByRole('treeitem', { name: /units_sold/ }).getAttribute('aria-selected')).toBe(
+    'true',
+  );
+});
+
 function SwitchRelease() {
   const navigate = useNavigate();
   return (

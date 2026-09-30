@@ -1,11 +1,14 @@
 package com.metricplatform.catalog.api;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.metricplatform.catalog.CatalogReadRepository;
 import com.metricplatform.catalog.CatalogRepository;
 import com.metricplatform.catalog.PresentationService;
-import com.metricplatform.catalog.ResourcePresenter;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
+import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 /** Git 托管目录只提供已发布版本的读取。 */
@@ -25,6 +28,7 @@ public class CatalogController {
             SOURCE = "/resources/{resourceId}/source";
     private final CatalogReadRepository catalog;
     private final PresentationService presentations;
+    private static final ObjectMapper PRESENTATION_MAPPER = new ObjectMapper();
 
     @GetMapping(CATALOG)
     public CatalogReadRepository.CatalogPage catalog(
@@ -55,11 +59,17 @@ public class CatalogController {
     }
 
     @GetMapping(PRESENTATION)
-    public ResourcePresenter.ResourcePresentation presentation(
+    public ResponseEntity<String> presentation(
             @PathVariable String projectId,
             @PathVariable String resourceId,
-            @RequestParam UUID releaseId) {
-        return presentations.present(projectId, releaseId, resourceId);
+            @RequestParam UUID releaseId)
+            throws JsonProcessingException {
+        // 产物使用 Jackson 2 JsonNode，须由同代序列化器写出，避免被 Jackson 3 当作 Bean 展开。
+        return ResponseEntity.ok()
+                .contentType(MediaType.APPLICATION_JSON)
+                .body(
+                        PRESENTATION_MAPPER.writeValueAsString(
+                                presentations.present(projectId, releaseId, resourceId)));
     }
 
     @GetMapping(SOURCE)

@@ -1,10 +1,13 @@
-import { Alert, Card, Input, Space, Table, Tabs, Tag, Typography } from 'antd';
-import { useEffect, useState } from 'react';
+import { Alert, Button, Card, Input, Space, Tabs, Typography } from 'antd';
+import { ApartmentOutlined, BranchesOutlined, FolderOpenOutlined } from '@ant-design/icons';
+import { useEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
 import { Link, useParams, useSearchParams } from 'react-router-dom';
 import { ApiProblem } from '../../api/httpClient';
 import { metricPlatformApi, type MetricPlatformApi } from '../../api/metricPlatformApi';
 import type { DbtCatalog, DbtRelease, DbtResource } from '../../api/types';
 import { DbtResourceDetail } from './DbtResourceDetail';
+import { ResourceTree } from './ResourceTree';
+import './resource-workspace.css';
 
 type CatalogApi = Pick<MetricPlatformApi, 'getDbtCatalog'> &
   Partial<
@@ -18,11 +21,22 @@ type CatalogApi = Pick<MetricPlatformApi, 'getDbtCatalog'> &
       | 'getDbtLineage'
       | 'previewDbtDataset'
       | 'getDbtQuery'
+      | 'getDbtResource'
     >
   >;
 
 const ALL = 'ALL';
 const OTHER = 'OTHER';
+const RESOURCE_PARAM = 'resourceId';
+const COPY = {
+  title: '资源目录',
+  subtitle: '浏览业务定义，追溯指标来源与数据依赖。',
+  explorer: '项目资源',
+  empty: '选择一个资源开始探索',
+  emptyHint: '展开左侧目录，查看资源的定义、血缘与源码。',
+  more: '加载更多资源',
+  noResources: '该版本没有可展示资源',
+};
 const labels: Record<string, string> = {
   METRIC: '指标',
   DIMENSION: '维度',
@@ -31,7 +45,7 @@ const labels: Record<string, string> = {
   VIEW: '视图',
 };
 
-/** 版本切换立即清空目录和选择，所有后续请求固定到本次响应的 releaseId。 */
+/** 目录按版本与筛选独立加载，URL 保存选中资源以支持历史导航和深链接。 */
 export function DbtCatalogPage({ api = metricPlatformApi }: { api?: CatalogApi }) {
   const { projectId = '' } = useParams();
   const [params, setParams] = useSearchParams();
@@ -40,11 +54,24 @@ export function DbtCatalogPage({ api = metricPlatformApi }: { api?: CatalogApi }
   const [releases, setReleases] = useState<DbtRelease[]>([]);
   const [historicalRelease, setHistoricalRelease] = useState<DbtRelease>();
   const [activeReleaseId, setActiveReleaseId] = useState<string | null>();
-  const [selected, setSelected] = useState('');
+  const selected = params.get(RESOURCE_PARAM) ?? '';
+  const setSelected = (id: string) =>
+    setParams((current) => {
+      const next = new URLSearchParams(current);
+      if (id) next.set(RESOURCE_PARAM, id);
+      else next.delete(RESOURCE_PARAM);
+      return next;
+    });
+  const [located, setLocated] = useState<DbtResource>();
   const [search, setSearch] = useState('');
   const kind = params.get('kind') ?? undefined;
   const [page, setPage] = useState(0);
+  const [loadAttempt, setLoadAttempt] = useState(0);
+  const catalogScope = useRef('');
+  const [treeWidth, setTreeWidth] = useState(292);
+  const splitter = useRef<{ x: number; width: number } | undefined>(undefined);
   const [error, setError] = useState('');
+  const [loading, setLoading] = useState(false);
   const historical = activeReleaseId != null && requestedRelease !== activeReleaseId;
   useEffect(() => {
     if (!api.listDbtProjects) {
@@ -86,8 +113,20 @@ export function DbtCatalogPage({ api = metricPlatformApi }: { api?: CatalogApi }
   }, [api, historical, projectId, requestedRelease]);
   useEffect(() => {
     let active = true;
-    setCatalog(undefined);
-    setSelected('');
+    // 浏览器历史也能改变筛选；新范围必须从第一页读取，不能合并旧范围的资源。
+    const scope = JSON.stringify([projectId, requestedRelease, kind, search]);
+    if (catalogScope.current !== scope) {
+      catalogScope.current = scope;
+      setCatalog(undefined);
+      if (page !== 0) {
+        setPage(0);
+        setLoading(false);
+        return () => {
+          active = false;
+        };
+      }
+    }
+    if (page === 0) setCatalog(undefined);
     setError('');
     if (!requestedRelease) {
       setError('缺少发布版本 releaseId');
@@ -100,6 +139,7 @@ export function DbtCatalogPage({ api = metricPlatformApi }: { api?: CatalogApi }
         active = false;
       };
     // 常见类型在服务端分页；其他资源遍历当前版本后筛选，避免漏掉后续页。
+    setLoading(true);
     const loadCatalog = async () => {
       if (kind !== OTHER)
         return api.getDbtCatalog(projectId, requestedRelease, search, page, 20, kind);
@@ -120,7 +160,21 @@ export function DbtCatalogPage({ api = metricPlatformApi }: { api?: CatalogApi }
     };
     void loadCatalog()
       .then((value) => {
-        if (active && value.releaseId === requestedRelease) setCatalog(value);
+        if (active && value.releaseId === requestedRelease)
+          setCatalog((previous) => ({
+            ...value,
+            resources:
+              page > 0 && previous?.releaseId === value.releaseId
+                ? [
+                    ...new Map(
+                      [...previous.resources, ...value.resources].map((resource) => [
+                        resource.resourceId,
+                        resource,
+                      ]),
+                    ).values(),
+                  ]
+                : value.resources,
+          }));
         else if (active) setError('目录版本与请求不一致');
       })
       .catch((cause: unknown) => {
@@ -130,11 +184,24 @@ export function DbtCatalogPage({ api = metricPlatformApi }: { api?: CatalogApi }
               ? '该发布版本仅保留发布记录'
               : '目录读取失败',
           );
+      })
+      .finally(() => {
+        if (active) setLoading(false);
       });
     return () => {
       active = false;
     };
-  }, [api, projectId, requestedRelease, search, page, kind, activeReleaseId, historical]);
+  }, [
+    api,
+    projectId,
+    requestedRelease,
+    search,
+    page,
+    kind,
+    activeReleaseId,
+    historical,
+    loadAttempt,
+  ]);
   useEffect(() => {
     if (!api.listDbtReleases) return;
     let active = true;
@@ -150,8 +217,33 @@ export function DbtCatalogPage({ api = metricPlatformApi }: { api?: CatalogApi }
       active = false;
     };
   }, [api, projectId]);
+  useEffect(() => {
+    setLocated(undefined);
+    if (
+      !selected ||
+      !catalog ||
+      catalog.resources.some((resource) => resource.resourceId === selected) ||
+      !api.getDbtResource
+    )
+      return;
+    let active = true;
+    void api
+      .getDbtResource(projectId, selected, requestedRelease)
+      .then((resource) => {
+        if (active && resource.resourceId === selected) setLocated(resource);
+      })
+      .catch(() => {
+        if (active) setError('资源定位失败，请重试');
+      });
+    return () => {
+      active = false;
+    };
+  }, [api, catalog, projectId, requestedRelease, selected]);
   const release = historicalRelease ?? releases.find((item) => item.releaseId === requestedRelease);
-  const resources = catalog?.resources ?? [];
+  const resources = useMemo(
+    () => (catalog ? (located ? [...catalog.resources, located] : catalog.resources) : []),
+    [catalog, located],
+  );
   const detailReady =
     api.getDbtPresentation &&
     api.getDbtSource &&
@@ -181,109 +273,156 @@ export function DbtCatalogPage({ api = metricPlatformApi }: { api?: CatalogApi }
       </Space>
     );
   return (
-    <Space direction="vertical" style={{ width: '100%' }}>
+    <div className="catalog-page">
       {error && <Alert type="error" title={error} />}
-      <Card
-        title="资源目录"
-        extra={
-          <Typography.Text>
-            releaseId：{catalog?.releaseId ?? requestedRelease ?? '读取中'}
+      <header className="catalog-heading">
+        <div>
+          <span className="catalog-eyebrow">{projectId}</span>
+          <h2>{COPY.title}</h2>
+          <p>{COPY.subtitle}</p>
+        </div>
+        <div className="catalog-version">
+          <BranchesOutlined />
+          <Typography.Text copyable>
+            releaseId：{catalog?.releaseId ?? requestedRelease}
           </Typography.Text>
-        }
-      >
-        {release && (
-          <Space direction="vertical" style={{ marginBottom: 16 }}>
-            <Typography.Text>发布提交：{release.targetCommitSha}</Typography.Text>
-            <Typography.Text>构建来源：{release.buildSourceSha}</Typography.Text>
-            <Typography.Text>发布时间：{release.publishedAt ?? '尚未发布'}</Typography.Text>
-          </Space>
-        )}
-        <Space wrap style={{ marginBottom: 16 }}>
-          <Input.Search
-            placeholder="搜索资源"
-            onSearch={(value) => {
-              setPage(0);
-              setSearch(value);
-            }}
-          />
-        </Space>
-        <Tabs
-          aria-label="资源栏目"
-          activeKey={kind ?? ALL}
-          onChange={(value) => {
-            setPage(0);
-            setSelected('');
-            setParams((current) => {
-              const next = new URLSearchParams(current);
-              if (value === ALL) next.delete('kind');
-              else next.set('kind', value);
-              return next;
-            });
-          }}
-          items={[
-            { key: ALL, label: '全部资源' },
-            ...Object.entries(labels).map(([key, label]) => ({ key, label })),
-            { key: OTHER, label: '其他资源' },
-          ]}
-        />
-        <Typography.Paragraph type="secondary">
-          {kind === 'METRIC'
-            ? '从指标进入探索数据，选择维度与日期范围，即时查看图表。'
-            : '按栏目浏览当前版本的资源，点击名称查看定义、来源与血缘。'}
-        </Typography.Paragraph>
-        <Table
-          rowKey="resourceId"
-          dataSource={resources}
-          pagination={{
-            current: page + 1,
-            pageSize: 20,
-            total: catalog?.total ?? 0,
-            onChange: (next) => setPage(next - 1),
-          }}
-          columns={[
-            {
-              title: '名称',
-              dataIndex: 'name',
-              render: (name: string, row: DbtResource) => (
-                <a onClick={() => setSelected(row.resourceId)}>{name}</a>
-              ),
-            },
-            {
-              title: '类型',
-              dataIndex: 'kind',
-              render: (value: string) => <Tag>{labels[value] ?? value}</Tag>,
-            },
-            { title: '说明', dataIndex: 'description', ellipsis: true },
-            { title: '定义来源', dataIndex: 'sourcePath' },
-            {
-              title: '查询',
-              render: (_: unknown, row: DbtResource) =>
-                row.queryable && row.kind === 'METRIC' && catalog ? (
-                  <Link
-                    to={`/dbt/projects/${encodeURIComponent(projectId)}/query?releaseId=${catalog.releaseId}&metric=${encodeURIComponent(row.name)}`}
-                  >
-                    探索数据
-                  </Link>
-                ) : row.kind === 'METRIC' ? (
-                  <Typography.Text type="secondary">当前版本不可查询</Typography.Text>
-                ) : null,
-            },
-          ]}
-        />
-        {catalog?.total === 0 && (
-          <Typography.Text type="secondary">该版本没有可展示资源</Typography.Text>
-        )}
-      </Card>
-      {selected && catalog && detailReady && (
-        <DbtResourceDetail
-          key={`${catalog.releaseId}:${selected}`}
-          projectId={projectId}
-          releaseId={catalog.releaseId}
-          resourceId={selected}
-          onSelect={setSelected}
-          api={api as MetricPlatformApi}
-        />
+        </div>
+      </header>
+      {release && (
+        <details className="resource-native">
+          <summary>发布版本信息</summary>
+          <div className="catalog-explorer-header">
+            <Typography.Paragraph>发布提交：{release.targetCommitSha}</Typography.Paragraph>
+            <Typography.Paragraph>构建来源：{release.buildSourceSha}</Typography.Paragraph>
+            <Typography.Paragraph>
+              发布时间：{release.publishedAt ?? '尚未发布'}
+            </Typography.Paragraph>
+          </div>
+        </details>
       )}
-    </Space>
+      <div
+        className="catalog-workspace"
+        style={{ '--explorer-width': `${treeWidth}px` } as CSSProperties}
+      >
+        <aside className="catalog-explorer">
+          <div className="catalog-explorer-header">
+            <div className="catalog-explorer-title">
+              <span>
+                <FolderOpenOutlined /> {COPY.explorer}
+              </span>
+              <span className="resource-muted">{catalog?.total ?? 0}</span>
+            </div>
+            <Input.Search
+              placeholder="搜索资源"
+              allowClear
+              onSearch={(value) => {
+                setPage(0);
+                setSearch(value);
+                setSelected('');
+              }}
+            />
+            <Tabs
+              aria-label="资源栏目"
+              activeKey={kind ?? ALL}
+              onChange={(value) => {
+                setPage(0);
+                setParams((current) => {
+                  const next = new URLSearchParams(current);
+                  next.delete(RESOURCE_PARAM);
+                  if (value === ALL) next.delete('kind');
+                  else next.set('kind', value);
+                  return next;
+                });
+              }}
+              items={[
+                { key: ALL, label: '全部资源' },
+                ...Object.entries(labels).map(([key, label]) => ({ key, label })),
+                { key: OTHER, label: '其他资源' },
+              ]}
+            />
+          </div>
+          <ResourceTree
+            resources={resources}
+            selected={selected}
+            onSelect={setSelected}
+            projectId={projectId}
+            releaseId={requestedRelease}
+          />
+          <div className="catalog-explorer-footer">
+            <span>
+              已加载 {catalog?.resources.length ?? 0} / {catalog?.total ?? 0} 项
+            </span>
+            {catalog && catalog.resources.length < catalog.total && (
+              <Button
+                loading={loading}
+                onClick={() => {
+                  setPage(catalog.page + 1);
+                  setLoadAttempt((value) => value + 1);
+                }}
+              >
+                {COPY.more}
+              </Button>
+            )}
+            {catalog?.total === 0 && (
+              <Typography.Text type="secondary">{COPY.noResources}</Typography.Text>
+            )}
+          </div>
+        </aside>
+        <div
+          className="catalog-splitter"
+          role="separator"
+          aria-label="调整资源树宽度"
+          aria-orientation="vertical"
+          aria-valuemin={220}
+          aria-valuemax={480}
+          aria-valuenow={treeWidth}
+          tabIndex={0}
+          onPointerDown={(event) => {
+            splitter.current = { x: event.clientX, width: treeWidth };
+            event.currentTarget.setPointerCapture(event.pointerId);
+          }}
+          onPointerMove={(event) => {
+            if (splitter.current)
+              setTreeWidth(
+                Math.max(
+                  220,
+                  Math.min(480, splitter.current.width + event.clientX - splitter.current.x),
+                ),
+              );
+          }}
+          onPointerUp={() => {
+            splitter.current = undefined;
+          }}
+          onPointerCancel={() => {
+            splitter.current = undefined;
+          }}
+          onKeyDown={(event) => {
+            if (event.key === 'ArrowLeft' || event.key === 'ArrowRight') {
+              event.preventDefault();
+              setTreeWidth((width) =>
+                Math.max(220, Math.min(480, width + (event.key === 'ArrowRight' ? 16 : -16))),
+              );
+            }
+          }}
+        />
+        {selected && catalog && detailReady ? (
+          <DbtResourceDetail
+            key={`${catalog.releaseId}:${selected}`}
+            projectId={projectId}
+            releaseId={catalog.releaseId}
+            resourceId={selected}
+            onSelect={setSelected}
+            api={api as MetricPlatformApi}
+          />
+        ) : (
+          <div className="resource-empty">
+            <ApartmentOutlined />
+            <h3>{COPY.empty}</h3>
+            <p>{COPY.emptyHint}</p>
+            {loading && <Typography.Text type="secondary">读取中…</Typography.Text>}
+          </div>
+        )}
+      </div>
+    </div>
   );
 }

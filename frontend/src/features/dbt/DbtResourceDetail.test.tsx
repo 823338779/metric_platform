@@ -29,6 +29,7 @@ const presentation = (kind: string) => ({
 });
 const api = (kind: string) => ({
   getDbtPresentation: vi.fn().mockResolvedValue(presentation(kind)),
+  getDbtResource: vi.fn(),
   getDbtLineage: vi
     .fn()
     .mockResolvedValue({ releaseId: 'release-1', resourceId: 'r', dependencies: [] }),
@@ -40,6 +41,107 @@ const api = (kind: string) => ({
   }),
   previewDbtDataset: vi.fn(),
   getDbtQuery: vi.fn(),
+});
+
+it('recovers a broken presentation from the same release without rendering serializer flags', async () => {
+  const client = api('DIMENSION');
+  const brokenNode = {
+    nodeType: 'STRING',
+    valueNode: true,
+    containerNode: false,
+    missingNode: false,
+    textual: true,
+    bigDecimal: false,
+  };
+  client.getDbtPresentation.mockResolvedValue({
+    ...presentation('DIMENSION'),
+    sections: [{ title: '维度', fields: { type: brokenNode, description: brokenNode } }],
+    nativeDetails: brokenNode,
+  } as never);
+  client.getDbtResource.mockResolvedValue({
+    resourceId: 'r',
+    kind: 'DIMENSION',
+    definitionJson: '{"type":"categorical","description":"商品品牌"}',
+  });
+  render(
+    <DbtResourceDetail
+      projectId="demo"
+      releaseId="release-1"
+      resourceId="r"
+      onSelect={vi.fn()}
+      api={client as never}
+    />,
+  );
+  expect(await screen.findByText('categorical')).toBeTruthy();
+  expect(screen.getByText('商品品牌')).toBeTruthy();
+  expect(screen.queryByText('bigDecimal')).toBeNull();
+  expect(client.getDbtResource).toHaveBeenCalledWith('demo', 'r', 'release-1');
+});
+
+it('does not request a fallback for a valid presentation', async () => {
+  const client = api('DIMENSION');
+  render(
+    <DbtResourceDetail
+      projectId="demo"
+      releaseId="release-1"
+      resourceId="r"
+      onSelect={vi.fn()}
+      api={client as never}
+    />,
+  );
+  await screen.findByText('业务口径');
+  expect(client.getDbtResource).not.toHaveBeenCalled();
+});
+
+it('shows a dimension data type separately from its semantic category', async () => {
+  const client = api('DIMENSION');
+  client.getDbtPresentation.mockResolvedValue({
+    ...presentation('DIMENSION'),
+    nativeDetails: { data_type: 'varchar(64)' },
+    sections: [{ title: '维度', fields: { type: 'categorical' } }],
+  } as never);
+  render(
+    <DbtResourceDetail
+      projectId="demo"
+      releaseId="release-1"
+      resourceId="r"
+      onSelect={vi.fn()}
+      api={client as never}
+    />,
+  );
+  expect(await screen.findByText('VARCHAR(64)')).toBeTruthy();
+  expect(screen.getByText('维度类型')).toBeTruthy();
+  expect(screen.getByText('categorical')).toBeTruthy();
+  expect(screen.getByRole('region', { name: '数据类型' })).toBeTruthy();
+});
+
+it('shows a recoverable error instead of internal flags when the original definition is unavailable', async () => {
+  const client = api('DIMENSION');
+  const brokenNode = {
+    nodeType: 'STRING',
+    valueNode: true,
+    containerNode: false,
+    missingNode: false,
+    textual: true,
+    bigDecimal: false,
+  };
+  client.getDbtPresentation.mockResolvedValue({
+    ...presentation('DIMENSION'),
+    nativeDetails: brokenNode,
+  } as never);
+  client.getDbtResource.mockRejectedValue(new Error('offline'));
+  render(
+    <DbtResourceDetail
+      projectId="demo"
+      releaseId="release-1"
+      resourceId="r"
+      onSelect={vi.fn()}
+      api={client as never}
+    />,
+  );
+  expect(await screen.findByText('资源详情读取失败')).toBeTruthy();
+  expect(screen.queryByText('bigDecimal')).toBeNull();
+  expect(screen.getByRole('button', { name: /重\s*试/ })).toBeTruthy();
 });
 
 it.each(['METRIC', 'DIMENSION', 'SEMANTIC_MODEL', 'TABLE', 'VIEW'])(
@@ -79,6 +181,26 @@ it('shows YAML as inert text from the same release', async () => {
   expect(client.getDbtSource).toHaveBeenCalledWith('demo', 'r', 'release-1');
 });
 
+it('shows source location and reports lineage errors instead of claiming there are no dependencies', async () => {
+  const client = api('METRIC');
+  client.getDbtLineage.mockRejectedValue(new Error('offline'));
+  render(
+    <DbtResourceDetail
+      projectId="demo"
+      releaseId="release-1"
+      resourceId="r"
+      onSelect={vi.fn()}
+      api={client as never}
+    />,
+  );
+  await screen.findByText('METRIC title');
+  fireEvent.click(screen.getByRole('tab', { name: '血缘' }));
+  expect(await screen.findByText('血缘读取失败，请重试')).toBeTruthy();
+  expect(screen.queryByText('暂无血缘关系')).toBeNull();
+  fireEvent.click(screen.getByRole('tab', { name: 'YAML 源码' }));
+  expect(await screen.findByText('models/metrics.yml')).toBeTruthy();
+});
+
 it('hides preview for a non-queryable relation', async () => {
   const client = api('TABLE');
   client.getDbtPresentation.mockResolvedValue({ ...presentation('TABLE'), queryable: false });
@@ -93,6 +215,32 @@ it('hides preview for a non-queryable relation', async () => {
   );
   await screen.findByText('TABLE title');
   expect(screen.queryByRole('button', { name: '预览数据' })).toBeNull();
+});
+
+it('locates the metric definition instead of a same-name measure earlier in the YAML', async () => {
+  const client = api('METRIC');
+  client.getDbtPresentation.mockResolvedValue({ ...presentation('METRIC'), title: 'units_sold' });
+  client.getDbtSource.mockResolvedValue({
+    releaseId: 'release-1',
+    buildSourceSha: 'sha',
+    sourcePath: 'models/metrics.yml',
+    content:
+      'semantic_models:\n  - name: orders\n    measures:\n      - name: units_sold\nmetrics:\n  - name: units_sold\n    type: simple',
+  });
+  const { container } = render(
+    <DbtResourceDetail
+      projectId="demo"
+      releaseId="release-1"
+      resourceId="metric.units_sold"
+      onSelect={vi.fn()}
+      api={client as never}
+    />,
+  );
+  await screen.findByText('units_sold');
+  fireEvent.click(screen.getByRole('tab', { name: 'YAML 源码' }));
+  await screen.findByText('models/metrics.yml');
+  const lines = Array.from(container.querySelectorAll('.source-code li'));
+  expect(lines.findIndex((line) => line.classList.contains('source-definition'))).toBe(5);
 });
 
 it('reports a later preview poll failure and stops after leaving detail', async () => {
