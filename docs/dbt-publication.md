@@ -2,13 +2,15 @@
 
 ## 发布含义
 
-平台只消费固定配置仓库 `main` 的最新提交。电商 dbt 项目受支持输入发生变化时，平台以该提交 SHA 请求外部服务在固定的 StarRocks `dbt_ecom` schema 中使用本 run 专属表前缀全量构建并运行完整测试。服务报告 READY，且摘要、配置、工具链、物理 relation 和查询能力验证通过后，平台在 PostgreSQL 事务中导入只读目录并切换 `activeReleaseId`。Git push、构建成功与发布成功是三个不同状态；失败保持旧版可查询。
+平台只消费固定配置仓库 `main` 的最新提交。提交 SHA 变化时，平台以该 SHA 请求外部服务在固定的 StarRocks `dbt_ecom` schema 中使用本 run 专属表前缀全量构建并运行完整测试。服务报告 READY，且摘要、配置、工具链、物理 relation 和查询能力验证通过后，平台在 PostgreSQL 事务中导入只读目录并切换 `activeReleaseId`。Git push、构建成功与发布成功是三个不同状态；失败保持旧版可查询。
 
-项目输入目录外的 README 改动只记录 `observedSha`，不发起新构建。若 README 提交发生在构建过程中，最新提交可以复用同一物理 run，但发布记录同时保留目标提交 SHA 与实际构建来源 SHA。若 main 的 dbt 输入再次变化，旧候选过时，新提交重新全量构建。
+只有 SHA、输入摘要、配置版本和工具链版本均未变化时，重复刷新才跳过创建新构建。只要 SHA 变化，即使仅修改 README 或提交的 dbt 输入摘要相同，也创建独立候选、幂等键和运行任务，重新全量构建并发布，不复用旧 run。新候选的目标 SHA 与实际构建来源 SHA 一致；旧的在途候选标记为过时。相同 SHA 的在途任务继续推进，失败任务不会因重复刷新自动重试；新的 SHA 不受上一次成功或失败状态影响。
 
 ## 开关和固定绑定
 
-默认 `metric-platform.git-sync.enabled=false`，即不访问 Git。启用发布必须同时配置运行服务，并先完成下述真实库验收。示意配置：
+空定义是有效的清空发布：manifest 中模型、source、语义模型和指标均明确为空，且原生目录与构建结果均为空时，运行服务跳过无指标可执行的查询探针，并报告查询能力和代表性查询结果为 false。仍须校验产物格式、版本、摘要、配置和目标 SHA；缺失或损坏的产物不能视为空发布。平台将活动版本切换为空目录，后台清理旧版本构建的物理表和视图，保留发布元数据与原始数据表。在途查询结束前延后清理，清理失败会重试。清理调度不依赖自动 Git 同步开关，默认每分钟执行一次。
+
+默认 `metric-platform.git-sync.enabled=false`，不执行启动自动扫描，也不开放 Webhook；页面手动刷新不受此开关限制。手动发布仍须配置固定仓库、项目绑定和 `dbt-runtime.enabled=true`，但不要求 Webhook 密钥。已受理的构建继续由后台推进，不会因为关闭自动同步而中断。启用发布前应完成下述真实库验收。示意配置：
 
 ```yaml
 metric-platform:
@@ -31,7 +33,7 @@ metric-platform:
     timeout: PT30S
 ```
 
-平台只支持 dbt 项目发布。`remote`、profile、schema、运行服务地址及密钥只由部署配置决定，不接受 Git 内容、Webhook 或公开 API 覆盖。运行服务项目绑定的 `schemaName` 必须同为 `dbt_ecom`。`config-version` 在 profile、schema、环境变量或工具链等构建输入改变时必须变更，促使重新构建。`POST /internal/git-sync/events` 仅唤醒刷新；启动扫描和周期轮询负责补偿丢失通知。
+平台只支持 dbt 项目发布。`remote`、profile、schema、运行服务地址及密钥只由部署配置决定，不接受 Git 内容、Webhook 或公开 API 覆盖。运行服务项目绑定的 `schemaName` 必须同为 `dbt_ecom`。`config-version` 在 profile、schema、环境变量或工具链等构建输入改变时必须变更，促使重新构建。`POST /api/v1/semantic-projects:refresh` 接收已登录用户的手动刷新请求；开启自动同步后，`POST /internal/git-sync/events` 也可发送刷新信号。信号在下一轮后台调度中处理；202 只表示已受理，不能当作发布成功。
 
 ## 服务接口与运营
 

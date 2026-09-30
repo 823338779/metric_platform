@@ -66,11 +66,15 @@ class PersistenceTest {
     }
 
     @Test
-    void readmeOnlyCommitUpdatesObservationWithoutNewRelease() {
+    void readmeOnlyCommitStartsIndependentBuildAndSameShaIsIdempotent() {
         var first = releases.observe(projectId, revision('a', '1'), "config-1");
         var second = releases.observe(projectId, revision('b', '1'), "config-1");
         assertThat(first.kind()).isEqualTo(ReleaseStore.ObservationKind.START);
-        assertThat(second.kind()).isEqualTo(ReleaseStore.ObservationKind.REUSE);
+        assertThat(second.kind()).isEqualTo(ReleaseStore.ObservationKind.START);
+        assertThat(releases.work(second.releaseId()).idempotencyKey())
+                .isNotEqualTo(releases.work(first.releaseId()).idempotencyKey());
+        assertThat(releases.work(second.releaseId()).buildSourceSha()).isEqualTo("b".repeat(40));
+        assertThat(releases.work(second.releaseId()).runId()).isNull();
         assertThat(second.releaseId()).isNotEqualTo(first.releaseId());
         assertThat(releases.observe(projectId, revision('b', '1'), "config-1").releaseId())
                 .isEqualTo(second.releaseId());
@@ -89,17 +93,19 @@ class PersistenceTest {
     }
 
     @Test
-    void deterministicFailureDoesNotRetrySameDigest() {
+    void failedShaIsNotRetriedButNewShaWithSameDigestStartsBuild() {
         var first = releases.observe(projectId, revision('a', '1'), "config-1");
         releases.markFailed(first.releaseId(), "INVALID_DEFINITION");
+        assertThat(releases.observe(projectId, revision('a', '1'), "config-1").kind())
+                .isEqualTo(ReleaseStore.ObservationKind.SKIPPED);
         var next = releases.observe(projectId, revision('b', '1'), "config-1");
-        assertThat(next.kind()).isEqualTo(ReleaseStore.ObservationKind.SKIPPED);
+        assertThat(next.kind()).isEqualTo(ReleaseStore.ObservationKind.START);
         assertThat(
                         jdbc.queryForObject(
                                 "select count(*) from semantic_release where project_id=?",
                                 Integer.class,
                                 projectId))
-                .isEqualTo(1);
+                .isEqualTo(2);
         assertThat(releases.observe(projectId, revision('c', '2'), "config-1").kind())
                 .isEqualTo(ReleaseStore.ObservationKind.START);
     }

@@ -55,14 +55,59 @@ class PublicationServiceTest {
     }
 
     @Test
-    void readmeOnlyTargetUsesOriginalBuildSha() {
+    void emptyReleaseReplacesActiveCatalogAndAllowsOldPhysicalRunCleanup() {
+        var first = revision('a', '1');
+        UUID oldId = releases.observe(projectId, first, CONFIG).releaseId();
+        ready(oldId);
+        var oldRun = run('a', '1', "release_a");
+        assertThat(publication.promote(oldId, first, oldRun, catalog())).isTrue();
+        var emptyHead = revision('b', '2');
+        UUID emptyId = releases.observe(projectId, emptyHead, CONFIG).releaseId();
+        ready(emptyId);
+        var base = run('b', '2', "release_empty");
+        var emptyRun =
+                new RunSnapshot(
+                        base.runId(),
+                        base.state(),
+                        base.commitSha(),
+                        base.projectDigest(),
+                        base.profileBindingId(),
+                        base.configVersion(),
+                        base.toolchainVersion(),
+                        base.schemaName(),
+                        base.manifestDigest(),
+                        base.semanticManifestDigest(),
+                        base.runResultsDigest(),
+                        true,
+                        false,
+                        false,
+                        true);
+
+        assertThat(
+                        publication.promote(
+                                emptyId,
+                                emptyHead,
+                                emptyRun,
+                                new CatalogSnapshot(List.of(), List.of())))
+                .isTrue();
+        assertThat(releases.active(projectId)).isEqualTo(emptyId);
+        assertThat(catalogStore.resources(emptyId)).isEmpty();
+        assertThat(catalogStore.resources(oldId)).hasSize(1);
+        assertThat(cleanupStore.claim(projectId, oldRun.runId())).isTrue();
+        assertThat(cleanupStore.claim(projectId, emptyRun.runId())).isFalse();
+    }
+
+    @Autowired com.metricplatform.persistence.store.CleanupStore cleanupStore;
+
+    @Test
+    void readmeOnlyTargetRequiresBuildAtTargetSha() {
         var source = revision('a', '1');
         UUID oldId = releases.observe(projectId, source, CONFIG).releaseId();
         var target = revision('b', '1');
         UUID releaseId = releases.observe(projectId, target, CONFIG).releaseId();
         ready(releaseId);
 
-        assertThat(publication.promote(releaseId, target, run('a', '1', "release_a"), catalog()))
+        assertThat(publication.promote(releaseId, target, run('b', '1', "release_b"), catalog()))
                 .isTrue();
         assertThat(releases.active(projectId)).isEqualTo(releaseId);
         assertThat(
@@ -70,7 +115,7 @@ class PublicationServiceTest {
                                 "select build_source_sha from semantic_release where release_id=?",
                                 String.class,
                                 releaseId))
-                .isEqualTo(source.sha());
+                .isEqualTo(target.sha());
         assertThat(
                         jdbc.queryForObject(
                                 "select state from semantic_release where release_id=?",

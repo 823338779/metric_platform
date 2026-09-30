@@ -9,9 +9,15 @@ paths:
     post:
       summary: 手动请求同步固定配置仓库的 main 分支
       description: >-
-        需要登录。请求不接受仓库或分支参数。刷新信号在下一轮 Git 同步调度中处理，
+        需要登录，不依赖 git-sync.enabled 自动同步开关，也不要求 Webhook 密钥。
+        必须配置固定 Git 仓库与项目绑定并启用 dbt 运行服务。请求不接受仓库或分支参数。
+        刷新信号在下一轮 Git 同步调度中处理，
         默认间隔为 30 秒；重复信号合并。202 仅表示已受理，不表示构建或发布完成。
         构建和校验成功后才切换当前发布版本，失败保留旧版。
+        远端 main 的 SHA 变化时必须创建独立任务重新全量构建，包括仅修改 README 的提交；
+        SHA 与构建配置均未变化时可跳过重复构建，不跨 SHA 复用旧任务。
+        完整校验的空定义可发布为空目录；旧版本的构建表在无在途查询后由后台清理，
+        清理不依赖自动 Git 同步开关。保留发布历史，不删除原始数据表。
       responses:
         '202':
           description: 刷新请求已受理
@@ -24,7 +30,7 @@ paths:
                   accepted: { type: boolean, const: true, description: 刷新信号已加入后台调度 }
         '401': { $ref: '#/components/responses/Problem' }
         '503':
-          description: Git 同步未开启
+          description: 固定 Git 仓库、项目绑定或 dbt 运行服务尚未配置
           content:
             application/problem+json: { schema: { $ref: '#/components/schemas/Problem' } }
   /internal/git-sync/events:

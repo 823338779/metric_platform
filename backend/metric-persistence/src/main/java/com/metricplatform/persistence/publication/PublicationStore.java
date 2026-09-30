@@ -80,10 +80,13 @@ public class PublicationStore implements PublicationGateway {
                 project.getActiveReleaseId() == null
                         ? null
                         : releases.getById(project.getActiveReleaseId()).getSchemaName();
-        if (!validRun(run, release, project, activeSchema, expectedSchemaName)
+        // 空目录必须由运行服务明确报告无查询能力，仍保留 SHA、产物与隔离校验。
+        boolean emptyCatalog = catalog != null
+                && catalog.resources() != null && catalog.resources().isEmpty()
+                && catalog.dependencies() != null && catalog.dependencies().isEmpty();
+        if (!validRun(run, release, project, activeSchema, expectedSchemaName, emptyCatalog)
                 || catalog == null
                 || catalog.resources() == null
-                || catalog.resources().isEmpty()
                 || catalog.dependencies() == null) {
             mark(releaseId, FAILED, INVALID_RUN);
             return false;
@@ -201,7 +204,8 @@ public class PublicationStore implements PublicationGateway {
             SemanticReleaseEntity release,
             SemanticProjectEntity project,
             String activeSchema,
-            String expectedSchemaName) {
+            String expectedSchemaName,
+            boolean emptyCatalog) {
         return run != null
                 && run.runId() != null
                 && READY.equals(run.state())
@@ -223,8 +227,8 @@ public class PublicationStore implements PublicationGateway {
                 && run.semanticManifestDigest() != null
                 && run.runResultsDigest() != null
                 && Boolean.TRUE.equals(run.allTestsPassed())
-                && Boolean.TRUE.equals(run.representativeQueryPassed())
-                && Boolean.TRUE.equals(run.queryCapability())
+                && Boolean.valueOf(!emptyCatalog).equals(run.representativeQueryPassed())
+                && Boolean.valueOf(!emptyCatalog).equals(run.queryCapability())
                 && Boolean.TRUE.equals(run.relationsVerified());
     }
 

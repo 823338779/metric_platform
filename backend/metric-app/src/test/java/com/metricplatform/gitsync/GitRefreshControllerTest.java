@@ -58,11 +58,11 @@ class GitRefreshControllerTest {
     }
 
     @Test
-    void disabledSynchronizationDoesNotAcceptRefresh() throws Exception {
+    void disabledAutomaticSynchronizationStillAcceptsManualRefresh() throws Exception {
         properties.setEnabled(false);
         mvc.perform(post(PATH).header(AUTHORIZATION, BEARER + TOKEN))
-                .andExpect(status().isServiceUnavailable())
-                .andExpect(jsonPath("$.detail").value("Git 同步未开启，无法手动刷新"));
-        verifyNoInteractions(trigger);
+                .andExpect(status().isAccepted())
+                .andExpect(jsonPath("$.accepted").value(true));
+        verify(trigger).requestRefresh();
     }
 }

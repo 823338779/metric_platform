@@ -28,10 +28,31 @@ management:
         enabled: true
 metric-platform:
   git-sync:
+    # 仅关闭启动自动扫描和 Webhook，页面按钮仍可手动触发。
     enabled: false
-    poll-interval: PT30S
+    # 固定仓库与项目绑定，须与 dbt 运行服务的绑定保持一致。
+    repository-id: metrics_store
+    # 与 metrics_store 的 origin 一致，只读取 Git 服务端 main 的已提交内容。
+    remote: http://127.0.0.1:3000/agent-admin/metrics.git
+    executable: git
+    cache-directory: ${METRIC_GIT_CACHE_DIRECTORY:E:/IdeaProjects/agent-root/tmp/metric-debug/git-cache}
+    project-id: ecommerce_metrics
+    project-subdir: .
+    profile-binding-id: starrocks
+    # 与当前已发布版本使用的运行配置及工具链标识一致。
+    # 空发布校验规则升级，使此前同 SHA 的失败候选可在下次手动刷新时重新构建。
+    config-version: local-debug-v2
+    toolchain-version: dbt-core 1.12.5 / metricflow 0.213.0
+    # 手动刷新信号及在途构建状态的检查间隔、Git 命令超时。
+    poll-interval: PT5S
     git-timeout: PT30S
-    cache-directory: .git-sync-cache
+    # 手动模式不需要密钥；仅启用 Webhook 时从环境注入。
+    webhook-secret: ${METRIC_GIT_WEBHOOK_SECRET:}
+  dbt-runtime:
+    # 构建和查询执行服务；开启客户端本身不会提交构建任务。
+    enabled: true
+    base-uri: ${METRIC_DBT_RUNTIME_URL:http://127.0.0.1:8000}
+    timeout: PT30S
   identity-auth:
     enabled: true
     token-ttl: PT10H

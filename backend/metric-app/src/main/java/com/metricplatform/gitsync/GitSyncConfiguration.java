@@ -12,16 +12,13 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.scheduling.annotation.EnableScheduling;
 
-/** 开关关闭时不访问 Git；启用前验证不可由模型选择的固定绑定。 */
+/** 手动发布按固定绑定装配，自动同步开关只控制启动扫描与 Webhook。 */
 @Configuration
 @EnableScheduling
 @EnableConfigurationProperties(GitSyncProperties.class)
 public class GitSyncConfiguration {
     @Bean
-    @ConditionalOnProperty(
-            prefix = "metric-platform.git-sync",
-            name = "enabled",
-            havingValue = "true")
+    @ConditionalOnProperty(prefix = "metric-platform.git-sync", name = "remote")
     ProjectSourceReader projectSourceReader(GitSyncProperties properties) {
         return new DbtProjectReader(
                 properties.getExecutable(), properties.getRemote(),
@@ -30,9 +27,7 @@ public class GitSyncConfiguration {
 
     @Bean
     @ConditionalOnProperty(
-            prefix = "metric-platform.git-sync",
-            name = "enabled",
-            havingValue = "true")
+            name = {"metric-platform.git-sync.remote", "metric-platform.dbt-runtime.enabled"})
     ReleaseCoordinator releaseCoordinator(
             GitSyncProperties p,
             ProjectSourceReader reader,
@@ -51,8 +46,8 @@ public class GitSyncConfiguration {
                 || p.getConfigVersion().isBlank()
                 || p.getToolchainVersion() == null
                 || p.getToolchainVersion().isBlank()
-                || p.getWebhookSecret() == null
-                || p.getWebhookSecret().length() < 16
+                || (p.isEnabled()
+                        && (p.getWebhookSecret() == null || p.getWebhookSecret().length() < 16))
                 || p.getPollInterval() == null
                 || p.getPollInterval().toMillis() < 1000)
             throw new IllegalStateException("项目 Git 同步配置不完整或轮询间隔过短");

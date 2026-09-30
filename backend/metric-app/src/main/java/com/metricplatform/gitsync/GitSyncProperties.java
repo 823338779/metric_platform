@@ -11,6 +11,7 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
 @Setter
 @ConfigurationProperties("metric-platform.git-sync")
 public class GitSyncProperties {
+    /** 控制启动自动扫描与 Webhook；关闭时仍允许已登录用户手动刷新。 */
     private boolean enabled;
 
     /** 仓库的稳定标识，作为幂等检查点与对象归属作用域。 */

@@ -65,6 +65,26 @@ class ReleaseCleanupServiceTest {
     }
 
     @Test
+    void scheduledCleanupRunsWithAutomaticGitSyncDisabled() {
+        UUID oldRun = UUID.randomUUID();
+        UUID old = release('a', '1', oldRun, "PUBLISHED");
+        UUID active = release('b', '2', UUID.randomUUID(), "PUBLISHED");
+        jdbc.update(
+                "update semantic_project set active_release_id=? where project_id=?",
+                active,
+                projectId);
+        var manual = new com.metricplatform.gitsync.GitSyncProperties();
+        manual.setEnabled(false);
+        manual.setProjectId(projectId);
+        new ReleaseCleanupService(cleanupStore, runtime, manual).scheduledCleanup();
+        assertThat(cleanupState(old)).isEqualTo("CLEANED");
+        assertThat(cleanupState(active)).isEqualTo("PENDING");
+        verify(runtime).cleanup(oldRun);
+    }
+
+    @Autowired com.metricplatform.persistence.store.CleanupStore cleanupStore;
+
+    @Test
     void protectsActiveAndInFlightQueriesWhileCleaningOlderRun() {
         UUID oldRun = UUID.randomUUID(),
                 previousRun = UUID.randomUUID(),

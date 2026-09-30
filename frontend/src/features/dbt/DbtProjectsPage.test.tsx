@@ -6,7 +6,7 @@ import { DbtProjectsPage } from './DbtProjectsPage';
 
 const REFRESH = '手动刷新';
 const ACCEPTED = '刷新请求已受理，等待后台同步和发布；当前版本仍可使用。';
-const DISABLED = 'Git 同步未开启，无法手动刷新';
+const DISABLED = '手动刷新不可用，请配置 Git 仓库、项目绑定并启用 dbt 运行服务';
 
 beforeAll(() => {
   const getComputedStyle = window.getComputedStyle;
@@ -50,7 +50,7 @@ it('submits refresh even without projects and prevents duplicate clicks while pe
   await waitFor(() => expect(button.hasAttribute('disabled')).toBe(false));
 });
 
-it('shows disabled synchronization without claiming refresh was accepted', async () => {
+it('shows missing configuration without claiming refresh was accepted', async () => {
   const api = {
     listDbtProjects: vi.fn().mockResolvedValue([]),
     refreshDbtProjects: vi

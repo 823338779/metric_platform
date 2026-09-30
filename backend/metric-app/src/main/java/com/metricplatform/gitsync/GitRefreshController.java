@@ -16,20 +16,18 @@ public class GitRefreshController {
     private static final String PATH = "/api/v1/semantic-projects:refresh";
     private static final String ACCEPTED = "accepted";
 
-    /** 当前部署的 Git 同步开关。 */
-    private final GitSyncProperties properties;
-
-    /** 同步关闭时协调器不存在，仍保留接口以返回明确的不可用原因。 */
+    /** 固定绑定及运行服务配置就绪时提供协调器，与自动同步开关无关。 */
     private final ObjectProvider<GitRefreshTrigger> triggers;
 
     @PostMapping(PATH)
     public ResponseEntity<?> refresh() {
         var trigger = triggers.getIfAvailable();
-        if (!properties.isEnabled() || trigger == null) {
+        if (trigger == null) {
             return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE)
                     .body(
                             ProblemDetail.forStatusAndDetail(
-                                    HttpStatus.SERVICE_UNAVAILABLE, "Git 同步未开启，无法手动刷新"));
+                                    HttpStatus.SERVICE_UNAVAILABLE,
+                                    "手动刷新不可用，请配置 Git 仓库、项目绑定并启用 dbt 运行服务"));
         }
         // 只入队刷新信号，继续由单线程协调器执行 Git 读取和发布校验。
         trigger.requestRefresh();

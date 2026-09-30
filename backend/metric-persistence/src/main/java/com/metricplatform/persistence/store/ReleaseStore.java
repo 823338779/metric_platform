@@ -77,16 +77,14 @@ public class ReleaseStore implements ReleaseRepository {
                         && Objects.equals(latest.getConfigVersion(), configVersion)
                         && Objects.equals(
                                 latest.getExpectedToolchainVersion(), expectedToolchainVersion);
-        if (sameInput
-                && (Objects.equals(latest.getTargetCommitSha(), revision.sha())
-                        || List.of(FAILED, PUBLISHED, SUPERSEDED).contains(latest.getState()))) {
+        // 只有同一 SHA 且构建配置未变化时跳过；新提交不能按输入摘要复用旧构建。
+        if (sameInput && Objects.equals(latest.getTargetCommitSha(), revision.sha())) {
             observeProject(project, revision, configVersion, SKIPPED);
             return new ObservationResult(
                     ObservationKind.SKIPPED, latest.getReleaseId(), latest.getRuntimeRunId());
         }
 
-        // 相同输入的新 SHA 复用仍在构建的 run，新候选仍有自己的目标 SHA 与序号。
-        boolean reuse = sameInput;
+        // 新候选使用独立的幂等键和构建任务，旧的在途候选标记为过时。
         if (latest != null)
             releases.update(
                     new LambdaUpdateWrapper<SemanticReleaseEntity>()
@@ -107,22 +105,17 @@ public class ReleaseStore implements ReleaseRepository {
         candidate.setReleaseSequence(sequence);
         candidate.setExpectedActiveReleaseId(project.getActiveReleaseId());
         candidate.setTargetCommitSha(revision.sha());
-        candidate.setBuildSourceSha(reuse ? latest.getBuildSourceSha() : revision.sha());
+        candidate.setBuildSourceSha(revision.sha());
         candidate.setProjectDigest(revision.projectDigest());
         candidate.setConfigVersion(configVersion);
         candidate.setExpectedToolchainVersion(expectedToolchainVersion);
-        candidate.setIdempotencyKey(reuse ? latest.getIdempotencyKey() : UUID.randomUUID());
-        candidate.setSubmissionAttempted(
-                reuse && Boolean.TRUE.equals(latest.getSubmissionAttempted()));
-        candidate.setRuntimeRunId(reuse ? latest.getRuntimeRunId() : null);
+        candidate.setIdempotencyKey(UUID.randomUUID());
+        candidate.setSubmissionAttempted(false);
         candidate.setState(PREPARING);
         releases.save(candidate);
         project.setPublicationSequence(sequence);
         observeProject(project, revision, configVersion, CANDIDATE);
-        return new ObservationResult(
-                reuse ? ObservationKind.REUSE : ObservationKind.START,
-                releaseId,
-                candidate.getRuntimeRunId());
+        return new ObservationResult(ObservationKind.START, releaseId, null);
     }
 
     private void observeProject(

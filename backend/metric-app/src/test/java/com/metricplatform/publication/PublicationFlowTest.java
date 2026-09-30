@@ -177,8 +177,14 @@ class PublicationFlowTest {
         git(remote, "add", ".");
         git(remote, "commit", "-m", "readme");
         coordinator.refresh();
-        assertThat(releases.active(projectId)).isEqualTo(second);
-        assertThat(runs).hasSize(2);
+        UUID readmeRelease = releases.active(projectId);
+        assertThat(readmeRelease).isNotEqualTo(second);
+        assertThat(runs).hasSize(3);
+        assertThat(releases.work(readmeRelease).buildSourceSha())
+                .isEqualTo(reader.readRevision(PROJECT).sha());
+        coordinator.refresh();
+        assertThat(releases.active(projectId)).isEqualTo(readmeRelease);
+        assertThat(runs).hasSize(3);
 
         Files.writeString(
                 remote.resolve(MODEL),
@@ -186,10 +192,10 @@ class PublicationFlowTest {
         git(remote, "commit", "-am", "third");
         coordinator.refresh();
         UUID third = releases.active(projectId);
-        assertThat(third).isNotEqualTo(second);
-        assertThat(runs).hasSize(3);
+        assertThat(third).isNotEqualTo(readmeRelease);
+        assertThat(runs).hasSize(4);
         assertThat(queries.get(projectId, pinned).releaseId()).isEqualTo(first);
-        assertThat(cleanup.cleanupEligible(projectId)).isEqualTo(2);
+        assertThat(cleanup.cleanupEligible(projectId)).isEqualTo(3);
         assertThat(catalog.release(projectId, first).cleanupState()).isEqualTo("CLEANED");
         assertThat(catalog.release(projectId, second).cleanupState()).isEqualTo("CLEANED");
     }

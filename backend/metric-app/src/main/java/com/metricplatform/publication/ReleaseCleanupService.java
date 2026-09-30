@@ -24,8 +24,8 @@ public class ReleaseCleanupService {
 
     @Scheduled(fixedDelayString = "${metric-platform.dbt-cleanup.poll-ms:60000}")
     public void scheduledCleanup() {
-        if (properties.isEnabled() && properties.getProjectId() != null)
-            cleanupEligible(properties.getProjectId());
+        // 物理版本回收与自动 Git 观测无关，手动发布后也必须继续清理旧构建。
+        if (properties.getProjectId() != null) cleanupEligible(properties.getProjectId());
     }
 
     public int cleanupEligible(String projectId) {

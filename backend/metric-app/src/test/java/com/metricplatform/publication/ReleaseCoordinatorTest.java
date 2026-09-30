@@ -64,11 +64,14 @@ class ReleaseCoordinatorTest {
     }
 
     @Test
-    void readmeOnlyCommitReusesBuildingRunAndPublishesLatestSha() {
+    void readmeOnlyCommitBuildsNewRunAndPublishesLatestSha() {
         var coordinator = coordinator();
         coordinator.refresh();
         head.set(revision('b', '1'));
-        runState.set("READY");
+        UUID secondRun = UUID.randomUUID();
+        when(runtime.submitRun(any())).thenReturn(new RunReceipt(secondRun));
+        when(runtime.getRun(secondRun)).thenReturn(snapshot(secondRun, "READY", 'b', '1'));
+        when(runtime.getCatalog(secondRun)).thenReturn(catalog());
         coordinator.refresh();
 
         UUID activeId = releases.active(projectId);
@@ -84,7 +87,8 @@ class ReleaseCoordinatorTest {
                                 "select build_source_sha from semantic_release where release_id=?",
                                 String.class,
                                 activeId))
-                .isEqualTo("a".repeat(40));
+                .isEqualTo("b".repeat(40));
+        assertThat(releases.work(activeId).runId()).isEqualTo(secondRun);
         assertThat(
                         jdbc.queryForObject(
                                 "select count(*) from semantic_release where project_id=?",
@@ -141,11 +145,15 @@ class ReleaseCoordinatorTest {
     }
 
     @Test
-    void deterministicFailureAndReadmeChangeDoNotSubmitAgain() {
+    void readmeChangeAfterFailureSubmitsNewRun() {
         var coordinator = coordinator();
         when(runtime.getRun(runId)).thenReturn(snapshot(runId, "FAILED", 'a', '1'));
         coordinator.refresh();
         head.set(revision('b', '1'));
+        UUID secondRun = UUID.randomUUID();
+        when(runtime.submitRun(any())).thenReturn(new RunReceipt(secondRun));
+        when(runtime.getRun(secondRun)).thenReturn(snapshot(secondRun, "READY", 'b', '1'));
+        when(runtime.getCatalog(secondRun)).thenReturn(catalog());
         coordinator.refresh();
 
         assertThat(
@@ -153,8 +161,9 @@ class ReleaseCoordinatorTest {
                                 "select count(*) from semantic_release where project_id=?",
                                 Integer.class,
                                 projectId))
-                .isEqualTo(1);
-        verify(runtime, times(1)).submitRun(any());
+                .isEqualTo(2);
+        verify(runtime, times(2)).submitRun(any());
+        assertThat(releases.work(releases.active(projectId)).runId()).isEqualTo(secondRun);
     }
 
     @Test

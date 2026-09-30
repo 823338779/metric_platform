@@ -17,7 +17,10 @@ public final class ReleaseCoordinator implements GitRefreshTrigger {
     private static final String THREAD_NAME = "metric-release";
     private final ReleaseWorkflow workflow;
     private final GitSyncProperties properties;
-    private final AtomicBoolean refreshRequested = new AtomicBoolean(true);
+
+    /** 自动模式启动时扫描；手动模式仅消费用户发出的刷新信号。 */
+    private final AtomicBoolean refreshRequested;
+
     private final ScheduledExecutorService executor =
             Executors.newSingleThreadScheduledExecutor(
                     task -> {
@@ -33,6 +36,7 @@ public final class ReleaseCoordinator implements GitRefreshTrigger {
             EngineClient runtime,
             GitSyncProperties properties) {
         this.properties = properties;
+        this.refreshRequested = new AtomicBoolean(properties.isEnabled());
         this.workflow =
                 new ReleaseWorkflow(
                         reader,
