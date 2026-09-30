@@ -22,7 +22,6 @@ public interface EngineClient {
 
     QuerySnapshot getQueryByKey(UUID idempotencyKey);
 
-    void cleanup(UUID runId);
 
     final class ServiceFailure extends RuntimeException {
         private final boolean transientFailure;

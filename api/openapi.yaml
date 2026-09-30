@@ -16,8 +16,8 @@ paths:
         构建和校验成功后才切换当前发布版本，失败保留旧版。
         远端 main 的 SHA 变化时必须创建独立任务重新全量构建，包括仅修改 README 的提交；
         SHA 与构建配置均未变化时可跳过重复构建，不跨 SHA 复用旧任务。
-        完整校验的空定义可发布为空目录；旧版本的构建表在无在途查询后由后台清理，
-        清理不依赖自动 Git 同步开关。保留发布历史，不删除原始数据表。
+        完整校验的空定义可发布为空目录；构建交给 dbt，平台不执行物理表清理。
+        删除定义或发布空目录不会自动删除旧构建表，发布历史和原始数据表保留。
       responses:
         '202':
           description: 刷新请求已受理
@@ -411,6 +411,7 @@ components:
         observedSha: { type: [string, 'null'] }
         activeReleaseId: { anyOf: [{ $ref: '#/components/schemas/Uuid' }, { type: 'null' }] }
         lastObservationStatus: { type: [string, 'null'] }
+        lastObservedAt: { type: [string, 'null'], format: date-time, description: 最近一次完成远端观测的时间，用于区别新刷新结果与历史状态 }
     DbtReleaseSummary:
       type: object
       required: [releaseId, projectId, targetCommitSha, buildSourceSha, projectDigest, state, cleanupState, createdAt]

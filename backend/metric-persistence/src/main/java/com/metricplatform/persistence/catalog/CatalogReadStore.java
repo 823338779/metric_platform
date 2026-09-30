@@ -46,7 +46,8 @@ public class CatalogReadStore implements CatalogReadRepository {
                                         row.getProjectId(),
                                         row.getObservedSha(),
                                         row.getActiveReleaseId(),
-                                        row.getLastObservationStatus()))
+                                        row.getLastObservationStatus(),
+                                        row.getLastObservedAt()))
                 .toList();
     }
 

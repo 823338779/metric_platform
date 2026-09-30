@@ -8,7 +8,7 @@
 
 ## 开关和固定绑定
 
-空定义是有效的清空发布：manifest 中模型、source、语义模型和指标均明确为空，且原生目录与构建结果均为空时，运行服务跳过无指标可执行的查询探针，并报告查询能力和代表性查询结果为 false。仍须校验产物格式、版本、摘要、配置和目标 SHA；缺失或损坏的产物不能视为空发布。平台将活动版本切换为空目录，后台清理旧版本构建的物理表和视图，保留发布元数据与原始数据表。在途查询结束前延后清理，清理失败会重试。清理调度不依赖自动 Git 同步开关，默认每分钟执行一次。
+空定义是有效的清空发布：manifest 中模型、source、语义模型和指标均明确为空，且原生目录与构建结果均为空时，运行服务跳过无指标可执行的查询探针，并报告查询能力和代表性查询结果为 false。仍须校验产物格式、版本、摘要、配置和目标 SHA；缺失或损坏的产物不能视为空发布。平台将活动版本切换为空目录，旧物理表、视图与发布历史保留。构建交给 dbt 执行；删除定义不等于删除旧物理表。平台不包含自动清理调度、删表调用或相关开关。
 
 默认 `metric-platform.git-sync.enabled=false`，不执行启动自动扫描，也不开放 Webhook；页面手动刷新不受此开关限制。手动发布仍须配置固定仓库、项目绑定和 `dbt-runtime.enabled=true`，但不要求 Webhook 密钥。已受理的构建继续由后台推进，不会因为关闭自动同步而中断。启用发布前应完成下述真实库验收。示意配置：
 
@@ -37,10 +37,10 @@ metric-platform:
 
 ## 服务接口与运营
 
-外部服务需实现 `POST/GET /v1/project-runs`、按幂等键查询、`GET /v1/project-runs/{runId}/catalog`、`POST/GET /v1/query-jobs`、按幂等键查询，以及 `POST /v1/project-runs/{runId}:cleanup`。READY 必须附带固定 SHA、输入摘要、profile 和配置版本、工具链版本、目标 schema、三个产物摘要、完整测试结果、代表性查询结果、查询能力及物理 relation 验证。平台不直接执行 dbt 命令或 StarRocks DDL。固定 schema 模式拒绝 dbt 模型与项目级运行钩子；自定义宏和 materialization 仍属于受控 Git `main` 的可信代码。
-清理接口必须对相同 `runId` 幂等：平台可能在服务清理成功、写回 `CLEANED` 前重启并再次调用。新格式只删除 `dbt_ecom` 中本 run 的 `rv_<runId>_` 表与视图；旧格式仍删除对应的 `run_...` schema，绝不删除 `ecommerce_raw`。
+外部服务需实现 `POST/GET /v1/project-runs`、按幂等键查询、`GET /v1/project-runs/{runId}/catalog`、`POST/GET /v1/query-jobs`、按幂等键查询。READY 必须附带固定 SHA、输入摘要、profile 和配置版本、工具链版本、目标 schema、三个产物摘要、完整测试结果、代表性查询结果、查询能力及物理 relation 验证。平台不直接执行 dbt 命令或 StarRocks DDL。固定 schema 模式拒绝 dbt 模型与项目级运行钩子；自定义宏和 materialization 仍属于受控 Git `main` 的可信代码。
+指标平台不调用运行服务的物理清理接口；需要删除具体旧表时，由运维显式使用 dbt 工具处理。
 
-发布历史和错误码通过 `/api/v1/semantic-projects/{projectId}/releases` 查看；目录与查询须携带 `releaseId`。查询提交返回 202 和 `queryId`，GET 任务状态返回固定版本与类型化结果。非活动历史版本的目录或新查询返回 410，已受理查询仍可完成。清理由后台按物理 `runId` 组执行，活动版本及在途查询会阻止回收；失败可重试，发布元数据保留。
+发布历史和错误码通过 `/api/v1/semantic-projects/{projectId}/releases` 查看；目录与查询须携带 `releaseId`。查询提交返回 202 和 `queryId`，GET 任务状态返回固定版本与类型化结果。非活动历史版本的目录或新查询返回 410，已受理查询仍可完成。历史构建产物保留。历史记录中的 cleanupState 仅保留兼容性和已有清理结果，不表示有清理任务排队。
 
 ## 启用前验收门槛
 

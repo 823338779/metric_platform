@@ -81,9 +81,12 @@ public class PublicationStore implements PublicationGateway {
                         ? null
                         : releases.getById(project.getActiveReleaseId()).getSchemaName();
         // 空目录必须由运行服务明确报告无查询能力，仍保留 SHA、产物与隔离校验。
-        boolean emptyCatalog = catalog != null
-                && catalog.resources() != null && catalog.resources().isEmpty()
-                && catalog.dependencies() != null && catalog.dependencies().isEmpty();
+        boolean emptyCatalog =
+                catalog != null
+                        && catalog.resources() != null
+                        && catalog.resources().isEmpty()
+                        && catalog.dependencies() != null
+                        && catalog.dependencies().isEmpty();
         if (!validRun(run, release, project, activeSchema, expectedSchemaName, emptyCatalog)
                 || catalog == null
                 || catalog.resources() == null

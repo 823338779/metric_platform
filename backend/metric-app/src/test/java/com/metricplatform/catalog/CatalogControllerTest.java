@@ -74,6 +74,15 @@ class CatalogControllerTest {
     }
 
     @Test
+    void projectStatusIncludesObservationTimeForRefreshTracking() throws Exception {
+        mvc.perform(get("/api/v1/semantic-projects").header("Authorization", "Bearer " + TOKEN))
+                .andExpect(status().isOk())
+                .andExpect(
+                        jsonPath("$[?(@.projectId == '" + projectId + "')].lastObservedAt")
+                                .isNotEmpty());
+    }
+
+    @Test
     void requiresBearerAndListsOnlyPublishedCatalog() throws Exception {
         mvc.perform(get("/api/v1/semantic-projects/{projectId}/catalog", projectId))
                 .andExpect(status().isUnauthorized());

@@ -3,7 +3,6 @@ package com.metricplatform.persistence.service;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.metricplatform.persistence.entity.SemanticReleaseEntity;
 import com.metricplatform.persistence.mapper.SemanticReleaseMapper;
-import java.util.List;
 import java.util.UUID;
 import org.springframework.stereotype.Service;
 
@@ -15,7 +14,4 @@ public class SemanticReleaseService
         return baseMapper.lockRelease(releaseId);
     }
 
-    public List<SemanticReleaseEntity> lockGroup(String projectId, UUID runId) {
-        return baseMapper.lockGroup(projectId, runId);
-    }
 }

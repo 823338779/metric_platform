@@ -38,7 +38,6 @@ class PublicationFlowTest {
     @Autowired CatalogReadRepository catalog;
     @Autowired QueryService queries;
     @Autowired QueryRepository queryReferences;
-    @Autowired ReleaseCleanupService cleanup;
     @Autowired JdbcTemplate jdbc;
     @MockitoBean EngineClient runtime;
     private String projectId;
@@ -195,9 +194,9 @@ class PublicationFlowTest {
         assertThat(third).isNotEqualTo(readmeRelease);
         assertThat(runs).hasSize(4);
         assertThat(queries.get(projectId, pinned).releaseId()).isEqualTo(first);
-        assertThat(cleanup.cleanupEligible(projectId)).isEqualTo(3);
-        assertThat(catalog.release(projectId, first).cleanupState()).isEqualTo("CLEANED");
-        assertThat(catalog.release(projectId, second).cleanupState()).isEqualTo("CLEANED");
+        // 发布新版本不会删除旧版本的构建产物和历史记录。
+        assertThat(catalog.release(projectId, first).cleanupState()).isEqualTo("PENDING");
+        assertThat(catalog.release(projectId, second).cleanupState()).isEqualTo("PENDING");
     }
 
     private void git(Path cwd, String... args) throws Exception {

@@ -98,6 +98,27 @@ class HttpDbtRuntimeClientTest {
     }
 
     @Test
+    void acceptsReadyEmptyRunWithExplicitlyFalseQueryProof() {
+        server.createContext(
+                "/v1/project-runs/" + RUN_ID,
+                exchange ->
+                        respond(
+                                exchange,
+                                200,
+                                """
+                        {"runId":"%s","state":"READY","commitSha":"%s","projectDigest":"%s",
+                        "profileBindingId":"profile","configVersion":"config-1","toolchainVersion":"dbt/mf",
+                        "schemaName":"run_empty","manifestDigest":"manifest","semanticManifestDigest":"semantic",
+                        "runResultsDigest":"results","allTestsPassed":true,"relationsVerified":true,
+                        "representativeQueryPassed":false,"queryCapability":false}
+                        """
+                                        .formatted(RUN_ID, "a".repeat(40), "1".repeat(64))));
+        var client = new HttpDbtRuntimeClient(baseUri, Duration.ofSeconds(2));
+        assertThat(client.getRun(RUN_ID).queryCapability()).isFalse();
+        assertThat(client.getRun(RUN_ID).representativeQueryPassed()).isFalse();
+    }
+
+    @Test
     void rejectsReadyWithoutQueryableStarRocksCapability() {
         server.createContext(
                 "/v1/project-runs/" + RUN_ID,
@@ -121,7 +142,7 @@ class HttpDbtRuntimeClientTest {
     }
 
     @Test
-    void getsCatalogAndUsesPinnedRunForQueryAndCleanup() {
+    void getsCatalogAndUsesPinnedRunForQuery() {
         UUID queryId = UUID.fromString("d1a00000-0000-0000-0000-000000000003");
         server.createContext(
                 "/v1/project-runs/" + RUN_ID + "/catalog",
@@ -130,8 +151,6 @@ class HttpDbtRuntimeClientTest {
                                 exchange,
                                 200,
                                 "{\"resources\":[],\"dependencies\":[],\"artifactSchemas\":{\"manifest\":\"https://schemas.getdbt.com/dbt/manifest/v12.json\",\"semanticManifest\":\"dbt-metricflow/0.15.0\",\"catalog\":\"https://schemas.getdbt.com/dbt/catalog/v1.json\"}}"));
-        server.createContext(
-                "/v1/project-runs/" + RUN_ID + ":cleanup", exchange -> respond(exchange, 204, ""));
         server.createContext(
                 "/v1/query-jobs",
                 exchange -> {
@@ -166,7 +185,6 @@ class HttpDbtRuntimeClientTest {
                 .isEqualTo(queryId);
         assertThat(requestBody.get()).contains(RUN_ID.toString()).doesNotContain("select ");
         assertThat(client.getQueryByKey(KEY).queryId()).isEqualTo(queryId);
-        client.cleanup(RUN_ID);
     }
 
     @Test

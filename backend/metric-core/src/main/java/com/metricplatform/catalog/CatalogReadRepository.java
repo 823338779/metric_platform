@@ -10,7 +10,9 @@ public interface CatalogReadRepository {
             String projectId,
             String observedSha,
             UUID activeReleaseId,
-            String lastObservationStatus) {}
+            String lastObservationStatus,
+            /** 最近一次完成远端观测的时间，用于区别新刷新结果与历史状态。 */
+            OffsetDateTime lastObservedAt) {}
 
     record ReleaseSummary(
             UUID releaseId,

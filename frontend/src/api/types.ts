@@ -12,6 +12,8 @@ export type DbtProject = {
   observedSha: string | null;
   activeReleaseId: UUID | null;
   lastObservationStatus: string | null;
+  /** 最近完成的远端观测时间；用于确认后台已处理新的刷新信号。 */
+  lastObservedAt?: string | null;
 };
 export type DbtRelease = {
   releaseId: UUID;

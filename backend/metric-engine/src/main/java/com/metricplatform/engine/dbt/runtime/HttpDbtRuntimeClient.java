@@ -31,7 +31,6 @@ public final class HttpDbtRuntimeClient implements EngineClient {
             QUERIES = "/v1/query-jobs",
             BY_KEY = "/by-key/",
             CATALOG = "/catalog",
-            CLEANUP = ":cleanup",
             JSON_CONTENT_TYPE = "application/json",
             CONTENT_TYPE = "Content-Type",
             GET = "GET",
@@ -125,11 +124,6 @@ public final class HttpDbtRuntimeClient implements EngineClient {
         return call(GET, QUERIES + BY_KEY + idempotencyKey, null, QuerySnapshot.class);
     }
 
-    @Override
-    public void cleanup(UUID runId) {
-        call(POST, RUNS + "/" + runId + CLEANUP, null, Void.class);
-    }
-
     private RunSnapshot validateRun(RunSnapshot run) {
         if (run == null || run.runId() == null || run.state() == null)
             throw new ServiceFailure(false, 200);
@@ -144,8 +138,10 @@ public final class HttpDbtRuntimeClient implements EngineClient {
                         || run.semanticManifestDigest() == null
                         || run.runResultsDigest() == null
                         || !Boolean.TRUE.equals(run.allTestsPassed())
-                        || !Boolean.TRUE.equals(run.representativeQueryPassed())
-                        || !Boolean.TRUE.equals(run.queryCapability())
+                        // 空发布显式返回两个 false；是否确为空目录由发布事务进一步校验。
+                        || run.representativeQueryPassed() == null
+                        || run.queryCapability() == null
+                        || !run.representativeQueryPassed().equals(run.queryCapability())
                         || !Boolean.TRUE.equals(run.relationsVerified())))
             throw new ServiceFailure(false, 200);
         return run;

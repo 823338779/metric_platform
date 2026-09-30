@@ -25,6 +25,7 @@ beforeAll(() => {
 
 it('shows observed and published project state separately', async () => {
   const api = {
+    listDbtReleases: vi.fn().mockResolvedValue([]),
     listDbtProjects: vi.fn().mockResolvedValue([
       {
         projectId: 'demo',

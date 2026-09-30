@@ -55,7 +55,7 @@ class PublicationServiceTest {
     }
 
     @Test
-    void emptyReleaseReplacesActiveCatalogAndAllowsOldPhysicalRunCleanup() {
+    void emptyReleaseReplacesActiveCatalogAndRetainsOldRelease() {
         var first = revision('a', '1');
         UUID oldId = releases.observe(projectId, first, CONFIG).releaseId();
         ready(oldId);
@@ -93,11 +93,7 @@ class PublicationServiceTest {
         assertThat(releases.active(projectId)).isEqualTo(emptyId);
         assertThat(catalogStore.resources(emptyId)).isEmpty();
         assertThat(catalogStore.resources(oldId)).hasSize(1);
-        assertThat(cleanupStore.claim(projectId, oldRun.runId())).isTrue();
-        assertThat(cleanupStore.claim(projectId, emptyRun.runId())).isFalse();
     }
-
-    @Autowired com.metricplatform.persistence.store.CleanupStore cleanupStore;
 
     @Test
     void readmeOnlyTargetRequiresBuildAtTargetSha() {
