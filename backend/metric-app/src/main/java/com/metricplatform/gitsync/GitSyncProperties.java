@@ -39,7 +39,7 @@ public class GitSyncProperties {
     /** 必须匹配 READY 产物的固定计算引擎工具链版本。 */
     private String toolchainVersion;
 
-    /** 仅通过环境或密钥配置注入；不记录、不对外返回。 */
+    /** 由服务配置文件提供的 Webhook 签名密钥；不记录、不对外返回。 */
     private String webhookSecret;
 
     private Duration pollInterval = Duration.ofSeconds(30);

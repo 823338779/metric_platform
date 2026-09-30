@@ -10,26 +10,27 @@
 
 空定义是有效的清空发布：manifest 中模型、source、语义模型和指标均明确为空，且原生目录与构建结果均为空时，运行服务跳过无指标可执行的查询探针，并报告查询能力和代表性查询结果为 false。仍须校验产物格式、版本、摘要、配置和目标 SHA；缺失或损坏的产物不能视为空发布。平台将活动版本切换为空目录，旧物理表、视图与发布历史保留。构建交给 dbt 执行；删除定义不等于删除旧物理表。平台不包含自动清理调度、删表调用或相关开关。
 
-默认 `metric-platform.git-sync.enabled=false`，不执行启动自动扫描，也不开放 Webhook；页面手动刷新不受此开关限制。手动发布仍须配置固定仓库、项目绑定和 `dbt-runtime.enabled=true`，但不要求 Webhook 密钥。已受理的构建继续由后台推进，不会因为关闭自动同步而中断。启用发布前应完成下述真实库验收。示意配置：
+默认 `metric-platform.git-sync.enabled=false`，不执行启动自动扫描，也不开放 Webhook；页面手动刷新不受此开关限制。手动发布仍须配置固定仓库、项目绑定和 `dbt-runtime.enabled=true`，但不要求 Webhook 密钥。已受理的构建继续由后台推进，不会因为关闭自动同步而中断。启用发布前应完成下述真实库验收。配置直接写入 `backend/metric-app/src/main/resources/application.yml`；以下是待替换为实际绑定的示意值：
 
 ```yaml
 metric-platform:
   git-sync:
     enabled: false
     repository-id: metrics
-    remote: ${METRIC_GIT_REMOTE}
-    cache-directory: ${METRIC_GIT_CACHE_DIRECTORY}
+    remote: http://127.0.0.1:3000/agent-admin/metrics.git
+    cache-directory: E:/IdeaProjects/agent-root/tmp/metric-debug/git-cache
     project-id: sales
     project-subdir: project
-    profile-binding-id: ${METRIC_DBT_PROFILE_BINDING_ID}
+    profile-binding-id: starrocks
     schema-name: dbt_ecom
-    config-version: ${METRIC_DBT_CONFIG_VERSION}
-    toolchain-version: ${METRIC_DBT_TOOLCHAIN_VERSION}
-    webhook-secret: ${METRIC_GIT_WEBHOOK_SECRET}
+    config-version: local-debug-v5
+    toolchain-version: dbt-core 1.12.5 / metricflow 0.213.0
+    # 手动模式为空；启用 Webhook 时直接填写签名密钥。
+    webhook-secret: ""
     poll-interval: PT30S
   dbt-runtime:
     enabled: false
-    base-uri: ${METRIC_DBT_RUNTIME_URL}
+    base-uri: http://127.0.0.1:8000
     timeout: PT30S
 ```
 

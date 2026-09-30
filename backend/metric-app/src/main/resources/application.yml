@@ -1,22 +1,30 @@
+# 指标平台启动配置：服务参数直接在本文件维护，IDEA 与命令行启动均自动加载。
 spring:
+  # Spring 应用标识，用于日志与监控中的服务识别。
   application:
     name: metric-platform
+  # 平台自身的 PostgreSQL 存储连接及账号，不是 dbt 的目标数据仓库。
   datasource:
     url: jdbc:postgresql://localhost:5432/metric_platform
     username: data_agent
     password: data_agent_local_dev
+  # 启动时执行平台数据库的版本化结构迁移。
   flyway:
     enabled: true
   data:
+    # 认证令牌等平台缓存使用的 Redis 连接及账号。
     redis:
       host: localhost
       port: 6379
       username: default
       password: redis_local_dev
+# 持久化类型处理器的扫描包。
 mybatis-plus:
   type-handlers-package: com.metricplatform.persistence
+# HTTP 服务监听端口。
 server:
   port: 8090
+# Actuator 暴露端点及存活、就绪探针。
 management:
   endpoints:
     web:
@@ -35,7 +43,8 @@ metric-platform:
     # 与 metrics_store 的 origin 一致，只读取 Git 服务端 main 的已提交内容。
     remote: http://127.0.0.1:3000/agent-admin/metrics.git
     executable: git
-    cache-directory: ${METRIC_GIT_CACHE_DIRECTORY:E:/IdeaProjects/agent-root/tmp/metric-debug/git-cache}
+    # 服务维护的 Git 缓存目录，启动工作目录变化不影响该绝对路径。
+    cache-directory: E:/IdeaProjects/agent-root/tmp/metric-debug/git-cache
     project-id: ecommerce_metrics
     project-subdir: .
     profile-binding-id: starrocks
@@ -48,14 +57,15 @@ metric-platform:
     # 手动刷新信号及在途构建状态的检查间隔、Git 命令超时。
     poll-interval: PT5S
     git-timeout: PT30S
-    # 手动模式不需要密钥；仅启用 Webhook 时从环境注入。
-    webhook-secret: ${METRIC_GIT_WEBHOOK_SECRET:}
+    # Webhook 签名密钥直接在此填写；当前手动模式保留为空。
+    webhook-secret: ""
   dbt-runtime:
     # 构建和查询执行服务；开启客户端本身不会提交构建任务。
     enabled: true
-    base-uri: ${METRIC_DBT_RUNTIME_URL:http://127.0.0.1:8000}
+    base-uri: http://127.0.0.1:8000
     timeout: PT30S
   identity-auth:
+    # 认证开关、令牌有效期、登录锁定阈值、锁定时长和请求频率限制。
     enabled: true
     token-ttl: PT10H
     lock-threshold: 5
@@ -63,6 +73,7 @@ metric-platform:
     rate-limit: 10
     rate-window: PT1M
     bootstrap:
+      # 首次启动的管理员初始化开关及账号信息。
       enabled: true
       username: admin
       display-name: Platform Administrator

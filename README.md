@@ -31,6 +31,10 @@ Java 包统一以 `com.metricplatform` 为根，按平台职责组织：
 
 需要 JDK 21、Node.js、npm、PostgreSQL 和 Redis。位于 Agent 工作区时，从工作区根目录启动共享基础设施：
 
+后端服务配置统一维护在 `backend/metric-app/src/main/resources/application.yml`，Spring Boot 在 IDEA、Maven 和可执行 JAR 启动时自动加载。数据库连接与密码、Redis 连接与密码、HTTP 端口、Git 固定绑定与缓存目录、Webhook 密钥、dbt 运行服务地址以及认证和初始管理员参数均直接写在该文件中，无需在 IDEA 启动配置中重复填写。当前数据库为 `metric_platform`、端口为 `8090`、dbt 运行服务地址为 `http://127.0.0.1:8000`；Git 缓存使用当前工作区的绝对路径，移动工作区时需修改该配置。Webhook 密钥在手动模式下为空，启用 Webhook 时直接填写 `metric-platform.git-sync.webhook-secret`。
+
+`application-swarm.yml` 保留 Swarm profile 专用的优雅停机配置。Spring Boot 的标准环境变量和命令行覆盖规则仍然生效；日常配置修改以服务配置文件为准。
+
 ```powershell
 docker compose -f .\infra\compose\compose.yml up -d
 ```
@@ -42,18 +46,15 @@ mvn -f .\metric-platform\pom.xml install -DskipTests
 mvn -f .\metric-platform\backend\metric-app\pom.xml spring-boot:run
 ```
 
-独立运行时使用仓库内的 PostgreSQL 服务，并配置对应连接：
+独立运行时使用仓库内的 PostgreSQL 服务，先将 `application.yml` 的 `spring.datasource.url` 改为 `jdbc:postgresql://localhost:5433/metric_platform`，并将 `username`、`password` 均改为 `metric_platform`；Redis 连接也直接修改该文件的 `spring.data.redis` 配置，然后启动：
 
 ```powershell
 docker compose up -d postgres
-$env:SPRING_DATASOURCE_URL = 'jdbc:postgresql://localhost:5433/metric_platform'
-$env:SPRING_DATASOURCE_USERNAME = 'metric_platform'
-$env:SPRING_DATASOURCE_PASSWORD = 'metric_platform'
 mvn install -DskipTests
 mvn -f .\backend\metric-app\pom.xml spring-boot:run
 ```
 
-Redis 通过标准 `SPRING_DATA_REDIS_*` 属性配置。前端从 `frontend/` 运行：
+前端从 `frontend/` 运行：
 
 ```powershell
 npm ci
