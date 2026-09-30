@@ -42,7 +42,7 @@ public class PlatformSecurityConfig {
                                         .permitAll()
                                         .requestMatchers(HttpMethod.GET, "/api/v1/auth/me")
                                         .authenticated()
-                                        .requestMatchers("/api/v1/**")
+                                        .requestMatchers("/api/v1/**", "/api/v2/**")
                                         .authenticated()
                                         .anyRequest()
                                         .permitAll())

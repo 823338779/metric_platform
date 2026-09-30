@@ -23,6 +23,8 @@ import org.springframework.web.server.ResponseStatusException;
 
 /** 先持久固定 release 引用，再向运行服务提交类型化任务。 */
 @Service
+@org.springframework.boot.autoconfigure.condition.ConditionalOnExpression(
+        "'${metric.publication.mode:legacy}' == 'legacy'")
 @ConditionalOnProperty(
         prefix = "metric-platform.dbt-runtime",
         name = "enabled",

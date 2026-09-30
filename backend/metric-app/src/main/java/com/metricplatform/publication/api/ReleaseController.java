@@ -8,6 +8,10 @@ import org.springframework.web.bind.annotation.*;
 
 /** 查看 Git 观测和候选状态，发布历史保留已清理版本的无凭据元数据。 */
 @RestController
+@org.springframework.boot.autoconfigure.condition.ConditionalOnProperty(
+        name = "metric.publication.mode",
+        havingValue = "legacy",
+        matchIfMissing = true)
 @RequiredArgsConstructor
 @RequestMapping(ReleaseController.ROOT)
 public class ReleaseController {

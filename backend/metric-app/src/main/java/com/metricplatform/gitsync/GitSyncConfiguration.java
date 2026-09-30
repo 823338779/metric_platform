@@ -6,6 +6,7 @@ import com.metricplatform.publication.ProjectSourceReader;
 import com.metricplatform.publication.PublicationGateway;
 import com.metricplatform.publication.ReleaseCoordinator;
 import com.metricplatform.publication.ReleaseRepository;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnExpression;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
@@ -26,6 +27,7 @@ public class GitSyncConfiguration {
     }
 
     @Bean
+    @ConditionalOnExpression("'${metric.publication.mode:legacy}' == 'legacy'")
     @ConditionalOnProperty(
             name = {"metric-platform.git-sync.remote", "metric-platform.dbt-runtime.enabled"})
     ReleaseCoordinator releaseCoordinator(

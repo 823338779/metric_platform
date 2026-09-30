@@ -11,6 +11,7 @@ import java.util.HexFormat;
 import javax.crypto.Mac;
 import javax.crypto.spec.SecretKeySpec;
 import lombok.RequiredArgsConstructor;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnExpression;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.http.*;
 import org.springframework.web.bind.annotation.*;
@@ -18,6 +19,7 @@ import org.springframework.web.server.ResponseStatusException;
 
 /** 仅接收经过共享密钥签名的唤醒通知；真实提交、路径和远端始终由固定配置读取。 */
 @RestController
+@ConditionalOnExpression("'${metric.publication.mode:legacy}' == 'legacy'")
 @RequiredArgsConstructor
 @ConditionalOnProperty(prefix = "metric-platform.git-sync", name = "enabled", havingValue = "true")
 public class GitWebhookController {

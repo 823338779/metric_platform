@@ -14,6 +14,8 @@ import org.springframework.web.bind.annotation.*;
 
 /** 语义查询只接受固定发布版本和类型化参数；不提供任意 SQL 入口。 */
 @RestController
+@org.springframework.boot.autoconfigure.condition.ConditionalOnExpression(
+        "'${metric.publication.mode:legacy}' == 'legacy'")
 @ConditionalOnProperty(
         prefix = "metric-platform.dbt-runtime",
         name = "enabled",

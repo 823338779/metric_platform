@@ -82,6 +82,32 @@ npm run test:e2e
 
 真实 PostgreSQL 浏览器验收需先启动 PostgreSQL profile 的 dbt 运行服务和已启用 Git 发布的平台，等待 fixture 项目出现 `PUBLISHED` 版本。随后在 `frontend/` 设置 `DBT_POSTGRES_E2E=1`、`DBT_POSTGRES_E2E_USER`、`DBT_POSTGRES_E2E_PASSWORD`，可选设置 `DBT_POSTGRES_E2E_PROJECT`，运行 `npm run test:e2e -- dbt-postgres-integration.spec.ts`。该测试通过页面登录，使用真实 API 验证发布目录、YAML 源码、月粒度指标查询与维度值；未设置开关时跳过真实集成场景。
 
+## dbt-service 代理模式迁移
+
+新模式由 dbt-service 统一持有发布指针、类型化目录和查询身份。平台只认证、代理 HTTP 和展示，读取 `/api/v2/semantic-projects`；刷新页面只重新读取发布结果。目录不经过平台业务导入，也不写入指标、维度或数据集镜像表。发布成功后上游不可用仍可能导致页面读取失败，此时返回明确错误，不伪造空目录或把发布改成失败。
+
+迁移开关为后端 `metric.publication.mode=service-proxy`，前端构建参数 `VITE_PUBLICATION_MODE=service-proxy`。默认 `legacy` 仅保留迁移前行为。两个开关在同一部署窗口切换；代理模式停用平台发布协调器及本地查询受理/轮询，旧 refresh/webhook 发布入口返回 409 `publication_managed_by_service`。不得同时运行新旧发布者。
+
+部署顺序：
+
+1. 暂停旧平台 Git 发布写入，等待在途发布结束；保留数据库与已应用 Flyway，不删除旧表。
+2. 只读导出旧 release→run、query→runtimeQueryId 的对应关系，核对项目归属。通过 dbt-service 管理命令执行身份映射 dry-run。
+3. 只有同一 run 已具备服务发布证明时才导入旧身份。无法验证的旧 run 应保留历史，先由服务完成一次新发布，不把旧 ID 指向新内容。
+4. 核对服务活动版本、目录、选项与查询，再同步切换后端和前端开关，禁用旧发布配置。
+5. 验证新版目录、旧版新请求 410、已受理查询读取以及断网恢复。应用回退不得重启旧发布者来覆盖服务指针。
+
+代理模式下 v1 目录和新查询也转接服务；平台仅对固定展示字段做旧响应形状适配，原生名称到查询资源身份的转换由服务执行。旧发布元数据作为只读历史补充，迁移前查询按原 runtimeQueryId 读取原结果，不重新提交或补写平台任务。新页面显示服务生成的 `attributes`，`nativeDetails` 仅用于追溯。
+
+类型化快照、接口字段和错误行为见 [OpenAPI](api/openapi.yaml) 与 [发布设计](docs/superpowers/specs/2026-09-30-artifact-driven-platform-catalog-design.md)。后端仍独立构建；服务发布不等待平台在线或回调确认。
+
+代理页面浏览器验收使用独立配置启动 `service-proxy` 前端，避免改变迁移前页面的既有验收：
+
+```powershell
+npm run test:e2e -- --config playwright.publication.config.ts
+```
+
+此命令在 `frontend/` 执行，验证真实浏览器与 HTTP 协议桩；真实 dbt/MetricFlow 与 PostgreSQL 流程在 dbt-service 仓库单独验证。
+
 ## 发布与契约
 
 Git 订阅默认关闭，部署参数、发布语义和真实 StarRocks 验收门槛见 [dbt 发布运行说明](docs/dbt-publication.md)。旧版 Flyway 迁移文件保留以支持从空库初始化；旧管理 API 不再暴露，旧目录表由 `V14` 清理。公开接口以 [OpenAPI 契约](api/openapi.yaml) 为准。

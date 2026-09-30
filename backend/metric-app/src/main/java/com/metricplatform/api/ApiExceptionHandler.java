@@ -1,5 +1,6 @@
 package com.metricplatform.api;
 
+import com.metricplatform.catalog.PublishedCatalogGateway;
 import com.metricplatform.engine.EngineClient;
 import com.metricplatform.identity.auth.LoginRateLimitException;
 import com.metricplatform.query.ReleaseGoneException;
@@ -16,6 +17,17 @@ import org.springframework.web.method.annotation.MethodArgumentTypeMismatchExcep
 @RestControllerAdvice
 public class ApiExceptionHandler {
     private static final String DBT_QUERY_REJECTED = "DBT_QUERY_REJECTED";
+
+    @ExceptionHandler(PublishedCatalogGateway.Failure.class)
+    ResponseEntity<ProblemDetail> publishedCatalogFailure(PublishedCatalogGateway.Failure failure) {
+        ProblemDetail body =
+                ProblemDetail.forStatusAndDetail(
+                        HttpStatusCode.valueOf(failure.status()), "已发布目录或查询暂不可用");
+        body.setProperty("code", failure.code());
+        return ResponseEntity.status(failure.status())
+                .contentType(MediaType.APPLICATION_PROBLEM_JSON)
+                .body(body);
+    }
 
     @ExceptionHandler(ReleaseGoneException.class)
     ResponseEntity<ProblemDetail> releaseGone(ReleaseGoneException exception) {

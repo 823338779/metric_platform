@@ -3,6 +3,7 @@ package com.metricplatform.gitsync;
 import java.util.Map;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.ObjectProvider;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ProblemDetail;
 import org.springframework.http.ResponseEntity;
@@ -11,6 +12,10 @@ import org.springframework.web.bind.annotation.RestController;
 
 /** 已登录用户可请求同步固定远端，无需持有 Webhook 密钥。 */
 @RestController
+@ConditionalOnProperty(
+        name = "metric.publication.mode",
+        havingValue = "legacy",
+        matchIfMissing = true)
 @RequiredArgsConstructor
 public class GitRefreshController {
     private static final String PATH = "/api/v1/semantic-projects:refresh";

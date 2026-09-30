@@ -1,14 +1,15 @@
 openapi: 3.1.0
 info:
   title: Metric Platform API
-  version: v1
-  description: 平台控制 dbt 项目的版本发布，只开放活动发布的目录和新查询；历史发布仅保留元数据，代理已受理任务的固定版本结果。
+  version: v2
+  description: dbt-service 统一发布并持有活动指针；平台认证后代理读取类型化目录与查询结果。v1 在 service-proxy 模式下使用服务兼容映射，legacy 仅用于迁移前运行。
 security: [{ bearerAuth: [] }]
 paths:
   /api/v1/semantic-projects:refresh:
     post:
-      summary: 手动请求同步固定配置仓库的 main 分支
+      summary: 迁移前手动请求同步固定配置仓库的 main 分支
       description: >-
+        以下行为只适用于 legacy 模式。service-proxy 模式固定返回 409 publication_managed_by_service，页面刷新只读取服务发布结果。
         需要登录，不依赖 git-sync.enabled 自动同步开关，也不要求 Webhook 密钥。
         必须配置固定 Git 仓库与项目绑定并启用 dbt 运行服务。请求不接受仓库或分支参数。
         刷新信号在下一轮 Git 同步调度中处理，
@@ -29,6 +30,7 @@ paths:
                 properties:
                   accepted: { type: boolean, const: true, description: 刷新信号已加入后台调度 }
         '401': { $ref: '#/components/responses/Problem' }
+        '409': { $ref: '#/components/responses/Problem' }
         '503':
           description: 固定 Git 仓库、项目绑定或 dbt 运行服务尚未配置
           content:
@@ -290,6 +292,516 @@ paths:
           content:
             application/json: { schema: { $ref: '#/components/schemas/IdentitySummary' } }
         '401': { $ref: '#/components/responses/Problem' }
+  /api/v2/semantic-projects:
+    get:
+      summary: 列出服务项目
+      operationId: projects_v2_projects_get
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/V2PublishedProject'
+        '401':
+          $ref: '#/components/responses/Problem'
+        '404':
+          $ref: '#/components/responses/Problem'
+        '409':
+          $ref: '#/components/responses/Problem'
+        '410':
+          $ref: '#/components/responses/Problem'
+        '422':
+          $ref: '#/components/responses/Problem'
+        '502':
+          $ref: '#/components/responses/Problem'
+        '503':
+          $ref: '#/components/responses/Problem'
+      description: 仅 service-proxy 模式启用。平台不导入资源、不发布版本；历史版本目录和新查询返回 410，已受理查询继续固定原版本。
+  /api/v2/semantic-projects/{projectId}/publication:
+    get:
+      summary: 读取服务活动发布指针
+      operationId: publication_v2_projects__project_id__publication_get
+      parameters:
+      - name: projectId
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Project Id
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/V2PublishedProject'
+        '422':
+          $ref: '#/components/responses/Problem'
+        '401':
+          $ref: '#/components/responses/Problem'
+        '404':
+          $ref: '#/components/responses/Problem'
+        '409':
+          $ref: '#/components/responses/Problem'
+        '410':
+          $ref: '#/components/responses/Problem'
+        '502':
+          $ref: '#/components/responses/Problem'
+        '503':
+          $ref: '#/components/responses/Problem'
+      description: 仅 service-proxy 模式启用。平台不导入资源、不发布版本；历史版本目录和新查询返回 410，已受理查询继续固定原版本。
+  /api/v2/semantic-projects/{projectId}/releases:
+    get:
+      summary: 查看服务发布历史
+      operationId: releases_v2_projects__project_id__releases_get
+      parameters:
+      - name: projectId
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Project Id
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/V2PublicationDescriptor'
+        '422':
+          $ref: '#/components/responses/Problem'
+        '401':
+          $ref: '#/components/responses/Problem'
+        '404':
+          $ref: '#/components/responses/Problem'
+        '409':
+          $ref: '#/components/responses/Problem'
+        '410':
+          $ref: '#/components/responses/Problem'
+        '502':
+          $ref: '#/components/responses/Problem'
+        '503':
+          $ref: '#/components/responses/Problem'
+      description: 仅 service-proxy 模式启用。平台不导入资源、不发布版本；历史版本目录和新查询返回 410，已受理查询继续固定原版本。
+  /api/v2/semantic-projects/{projectId}/releases/{releaseId}:
+    get:
+      summary: 查看发布记录
+      operationId: release_v2_projects__project_id__releases__release_id__get
+      parameters:
+      - name: projectId
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Project Id
+      - name: releaseId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+          title: Release Id
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/V2PublicationDescriptor'
+        '422':
+          $ref: '#/components/responses/Problem'
+        '401':
+          $ref: '#/components/responses/Problem'
+        '404':
+          $ref: '#/components/responses/Problem'
+        '409':
+          $ref: '#/components/responses/Problem'
+        '410':
+          $ref: '#/components/responses/Problem'
+        '502':
+          $ref: '#/components/responses/Problem'
+        '503':
+          $ref: '#/components/responses/Problem'
+      description: 仅 service-proxy 模式启用。平台不导入资源、不发布版本；历史版本目录和新查询返回 410，已受理查询继续固定原版本。
+  /api/v2/semantic-projects/{projectId}/releases/{releaseId}/catalog:
+    get:
+      summary: 读取固定发布版本的目录
+      operationId: catalog_v2_projects__project_id__releases__release_id__catalog_get
+      parameters:
+      - name: projectId
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Project Id
+      - name: releaseId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+          title: Release Id
+      - name: q
+        in: query
+        required: false
+        schema:
+          type: string
+          default: ''
+          title: Q
+      - name: kind
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - $ref: '#/components/schemas/V2ResourceKind'
+          - type: 'null'
+          title: Kind
+      - name: page
+        in: query
+        required: false
+        schema:
+          type: integer
+          minimum: 1
+          default: 1
+          title: Page
+      - name: size
+        in: query
+        required: false
+        schema:
+          type: integer
+          maximum: 200
+          minimum: 1
+          default: 50
+          title: Size
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/V2PublishedPage'
+        '422':
+          $ref: '#/components/responses/Problem'
+        '401':
+          $ref: '#/components/responses/Problem'
+        '404':
+          $ref: '#/components/responses/Problem'
+        '409':
+          $ref: '#/components/responses/Problem'
+        '410':
+          $ref: '#/components/responses/Problem'
+        '502':
+          $ref: '#/components/responses/Problem'
+        '503':
+          $ref: '#/components/responses/Problem'
+      description: 仅 service-proxy 模式启用。平台不导入资源、不发布版本；历史版本目录和新查询返回 410，已受理查询继续固定原版本。
+  /api/v2/semantic-projects/{projectId}/releases/{releaseId}/resources/{resourceId}:
+    get:
+      summary: 读取类型化资源
+      operationId: resource_v2_projects__project_id__releases__release_id__resources__resource_id__get
+      parameters:
+      - name: projectId
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Project Id
+      - name: releaseId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+          title: Release Id
+      - name: resourceId
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Resource Id
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/V2ResourceResponse'
+        '422':
+          $ref: '#/components/responses/Problem'
+        '401':
+          $ref: '#/components/responses/Problem'
+        '404':
+          $ref: '#/components/responses/Problem'
+        '409':
+          $ref: '#/components/responses/Problem'
+        '410':
+          $ref: '#/components/responses/Problem'
+        '502':
+          $ref: '#/components/responses/Problem'
+        '503':
+          $ref: '#/components/responses/Problem'
+      description: 仅 service-proxy 模式启用。平台不导入资源、不发布版本；历史版本目录和新查询返回 410，已受理查询继续固定原版本。
+  /api/v2/semantic-projects/{projectId}/releases/{releaseId}/resources/{resourceId}/lineage:
+    get:
+      summary: 读取资源血缘
+      operationId: handler_v2_projects__project_id__releases__release_id__resources__resource_id__lineage_get
+      parameters:
+      - name: projectId
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Project Id
+      - name: releaseId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+          title: Release Id
+      - name: resourceId
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Resource Id
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/V2LineageResponse'
+        '422':
+          $ref: '#/components/responses/Problem'
+        '401':
+          $ref: '#/components/responses/Problem'
+        '404':
+          $ref: '#/components/responses/Problem'
+        '409':
+          $ref: '#/components/responses/Problem'
+        '410':
+          $ref: '#/components/responses/Problem'
+        '502':
+          $ref: '#/components/responses/Problem'
+        '503':
+          $ref: '#/components/responses/Problem'
+      description: 仅 service-proxy 模式启用。平台不导入资源、不发布版本；历史版本目录和新查询返回 410，已受理查询继续固定原版本。
+  /api/v2/semantic-projects/{projectId}/releases/{releaseId}/resources/{resourceId}/source:
+    get:
+      summary: 读取发布时源码
+      operationId: handler_v2_projects__project_id__releases__release_id__resources__resource_id__source_get
+      parameters:
+      - name: projectId
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Project Id
+      - name: releaseId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+          title: Release Id
+      - name: resourceId
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Resource Id
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/V2SourceResponse'
+        '422':
+          $ref: '#/components/responses/Problem'
+        '401':
+          $ref: '#/components/responses/Problem'
+        '404':
+          $ref: '#/components/responses/Problem'
+        '409':
+          $ref: '#/components/responses/Problem'
+        '410':
+          $ref: '#/components/responses/Problem'
+        '502':
+          $ref: '#/components/responses/Problem'
+        '503':
+          $ref: '#/components/responses/Problem'
+      description: 仅 service-proxy 模式启用。平台不导入资源、不发布版本；历史版本目录和新查询返回 410，已受理查询继续固定原版本。
+  /api/v2/semantic-projects/{projectId}/releases/{releaseId}/resources/{resourceId}/native-details:
+    get:
+      summary: 读取原生产物追溯
+      operationId: handler_v2_projects__project_id__releases__release_id__resources__resource_id__native_details_get
+      parameters:
+      - name: projectId
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Project Id
+      - name: releaseId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+          title: Release Id
+      - name: resourceId
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Resource Id
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/V2NativeDetailsResponse'
+        '422':
+          $ref: '#/components/responses/Problem'
+        '401':
+          $ref: '#/components/responses/Problem'
+        '404':
+          $ref: '#/components/responses/Problem'
+        '409':
+          $ref: '#/components/responses/Problem'
+        '410':
+          $ref: '#/components/responses/Problem'
+        '502':
+          $ref: '#/components/responses/Problem'
+        '503':
+          $ref: '#/components/responses/Problem'
+      description: 仅 service-proxy 模式启用。平台不导入资源、不发布版本；历史版本目录和新查询返回 410，已受理查询继续固定原版本。
+  /api/v2/semantic-projects/{projectId}/query-options:
+    post:
+      summary: 获取固定版本可组合选项
+      operationId: options_v2_projects__project_id__query_options_post
+      parameters:
+      - name: projectId
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Project Id
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/V2QueryOptionsRequest'
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/V2QueryOptionsResponse'
+        '422':
+          $ref: '#/components/responses/Problem'
+        '401':
+          $ref: '#/components/responses/Problem'
+        '404':
+          $ref: '#/components/responses/Problem'
+        '409':
+          $ref: '#/components/responses/Problem'
+        '410':
+          $ref: '#/components/responses/Problem'
+        '502':
+          $ref: '#/components/responses/Problem'
+        '503':
+          $ref: '#/components/responses/Problem'
+      description: 仅 service-proxy 模式启用。平台不导入资源、不发布版本；历史版本目录和新查询返回 410，已受理查询继续固定原版本。
+  /api/v2/semantic-projects/{projectId}/queries:
+    post:
+      summary: 按资源身份受理查询
+      operationId: submit_v2_projects__project_id__queries_post
+      parameters:
+      - name: projectId
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Project Id
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/V2PublishedQueryRequest'
+      responses:
+        '202':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/V2QueryReceipt'
+        '422':
+          $ref: '#/components/responses/Problem'
+        '401':
+          $ref: '#/components/responses/Problem'
+        '404':
+          $ref: '#/components/responses/Problem'
+        '409':
+          $ref: '#/components/responses/Problem'
+        '410':
+          $ref: '#/components/responses/Problem'
+        '502':
+          $ref: '#/components/responses/Problem'
+        '503':
+          $ref: '#/components/responses/Problem'
+      description: 仅 service-proxy 模式启用。平台不导入资源、不发布版本；历史版本目录和新查询返回 410，已受理查询继续固定原版本。
+  /api/v2/semantic-projects/{projectId}/queries/{queryId}:
+    get:
+      summary: 读取已受理查询结果
+      operationId: query_v2_projects__project_id__queries__query_id__get
+      parameters:
+      - name: projectId
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Project Id
+      - name: queryId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+          title: Query Id
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/V2QueryResult'
+        '422':
+          $ref: '#/components/responses/Problem'
+        '401':
+          $ref: '#/components/responses/Problem'
+        '404':
+          $ref: '#/components/responses/Problem'
+        '409':
+          $ref: '#/components/responses/Problem'
+        '410':
+          $ref: '#/components/responses/Problem'
+        '502':
+          $ref: '#/components/responses/Problem'
+        '503':
+          $ref: '#/components/responses/Problem'
+      description: 仅 service-proxy 模式启用。平台不导入资源、不发布版本；历史版本目录和新查询返回 410，已受理查询继续固定原版本。
 components:
   securitySchemes:
     bearerAuth: { type: http, scheme: bearer }
@@ -508,3 +1020,892 @@ components:
             detail: { type: string },
           },
       }
+
+    V2HTTPValidationError:
+      properties:
+        detail:
+          items:
+            $ref: '#/components/schemas/V2ValidationError'
+          type: array
+          title: Detail
+      type: object
+      title: HTTPValidationError
+    V2PublishedQueryRequest:
+      properties:
+        releaseId:
+          type: string
+          format: uuid
+          title: Releaseid
+        idempotencyKey:
+          type: string
+          maxLength: 256
+          minLength: 1
+          title: Idempotencykey
+        mode:
+          $ref: '#/components/schemas/V2QueryMode'
+        metricResourceIds:
+          items:
+            type: string
+          type: array
+          title: Metricresourceids
+        groupBy:
+          items:
+            $ref: '#/components/schemas/V2SelectedDimension'
+          type: array
+          title: Groupby
+        filters:
+          items:
+            $ref: '#/components/schemas/V2SelectedFilter'
+          type: array
+          title: Filters
+        startTime:
+          anyOf:
+          - type: string
+            format: date-time
+          - type: 'null'
+          title: Starttime
+        endTime:
+          anyOf:
+          - type: string
+            format: date-time
+          - type: 'null'
+          title: Endtime
+        orderBy:
+          items:
+            $ref: '#/components/schemas/V2SelectedOrder'
+          type: array
+          title: Orderby
+        limit:
+          type: integer
+          maximum: 10000.0
+          minimum: 1.0
+          title: Limit
+          default: 1000
+        datasetResourceId:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Datasetresourceid
+        dimensionOptionId:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Dimensionoptionid
+      additionalProperties: false
+      type: object
+      required:
+      - releaseId
+      - idempotencyKey
+      - mode
+      title: PublishedQueryRequest
+    V2QueryMode:
+      type: string
+      enum:
+      - QUERY
+      - EXPLAIN
+      - PREVIEW
+      - DIMENSION_VALUES
+      title: QueryMode
+      description: MetricFlow 平台查询模式。
+    V2QueryOptionsRequest:
+      properties:
+        releaseId:
+          type: string
+          format: uuid
+          title: Releaseid
+        metricResourceIds:
+          items:
+            type: string
+          type: array
+          minItems: 1
+          title: Metricresourceids
+      additionalProperties: false
+      type: object
+      required:
+      - releaseId
+      - metricResourceIds
+      title: QueryOptionsRequest
+    V2ResourceKind:
+      type: string
+      enum:
+      - METRIC
+      - DIMENSION
+      - SEMANTIC_MODEL
+      - TABLE
+      - VIEW
+      title: ResourceKind
+    V2SelectedDimension:
+      properties:
+        optionId:
+          type: string
+          title: Optionid
+        grain:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Grain
+      additionalProperties: false
+      type: object
+      required:
+      - optionId
+      title: SelectedDimension
+    V2SelectedFilter:
+      properties:
+        optionId:
+          type: string
+          title: Optionid
+        operator:
+          type: string
+          title: Operator
+        value:
+          title: Value
+      additionalProperties: false
+      type: object
+      required:
+      - optionId
+      - operator
+      - value
+      title: SelectedFilter
+    V2SelectedOrder:
+      properties:
+        fieldId:
+          type: string
+          title: Fieldid
+        direction:
+          type: string
+          enum:
+          - ASC
+          - DESC
+          title: Direction
+      additionalProperties: false
+      type: object
+      required:
+      - fieldId
+      - direction
+      title: SelectedOrder
+    V2ValidationError:
+      properties:
+        loc:
+          items:
+            anyOf:
+            - type: string
+            - type: integer
+          type: array
+          title: Location
+        msg:
+          type: string
+          title: Message
+        type:
+          type: string
+          title: Error Type
+        input:
+          title: Input
+        ctx:
+          type: object
+          title: Context
+      type: object
+      required:
+      - loc
+      - msg
+      - type
+      title: ValidationError
+    V2BindingMode:
+      enum:
+      - BUILT
+      - REUSED
+      - EXTERNAL
+      title: BindingMode
+      type: string
+    V2CatalogRelation:
+      additionalProperties: false
+      properties:
+        upstreamResourceId:
+          title: Upstreamresourceid
+          type: string
+        downstreamResourceId:
+          title: Downstreamresourceid
+          type: string
+        kind:
+          title: Kind
+          type: string
+      required:
+      - upstreamResourceId
+      - downstreamResourceId
+      - kind
+      title: CatalogRelation
+      type: object
+    V2DatasetAttributes:
+      additionalProperties: false
+      properties:
+        modelResourceId:
+          title: Modelresourceid
+          type: string
+        dimensionIds:
+          items:
+            type: string
+          title: Dimensionids
+          type: array
+        entities:
+          items:
+            additionalProperties: true
+            type: object
+          title: Entities
+          type: array
+        measures:
+          items:
+            additionalProperties: true
+            type: object
+          title: Measures
+          type: array
+        defaultTimeDimension:
+          anyOf:
+          - type: string
+          - type: 'null'
+          default: null
+          title: Defaulttimedimension
+      required:
+      - modelResourceId
+      - dimensionIds
+      - entities
+      - measures
+      title: DatasetAttributes
+      type: object
+    V2DatasetResource:
+      additionalProperties: false
+      properties:
+        resourceId:
+          title: Resourceid
+          type: string
+        nativeId:
+          title: Nativeid
+          type: string
+        name:
+          title: Name
+          type: string
+        displayName:
+          title: Displayname
+          type: string
+        description:
+          anyOf:
+          - type: string
+          - type: 'null'
+          default: null
+          title: Description
+        sourcePath:
+          anyOf:
+          - type: string
+          - type: 'null'
+          default: null
+          title: Sourcepath
+        capabilities:
+          items:
+            type: string
+          title: Capabilities
+          type: array
+        nativeDetails:
+          additionalProperties: true
+          title: Nativedetails
+          type: object
+        kind:
+          const: SEMANTIC_MODEL
+          default: SEMANTIC_MODEL
+          title: Kind
+          type: string
+        attributes:
+          $ref: '#/components/schemas/V2DatasetAttributes'
+      required:
+      - resourceId
+      - nativeId
+      - name
+      - displayName
+      - capabilities
+      - nativeDetails
+      - attributes
+      title: DatasetResource
+      type: object
+    V2DimensionAttributes:
+      additionalProperties: false
+      properties:
+        datasetId:
+          title: Datasetid
+          type: string
+        dimensionType:
+          title: Dimensiontype
+          type: string
+        expression:
+          anyOf:
+          - type: string
+          - type: 'null'
+          default: null
+          title: Expression
+        timeGranularity:
+          anyOf:
+          - type: string
+          - type: 'null'
+          default: null
+          title: Timegranularity
+      required:
+      - datasetId
+      - dimensionType
+      title: DimensionAttributes
+      type: object
+    V2DimensionResource:
+      additionalProperties: false
+      properties:
+        resourceId:
+          title: Resourceid
+          type: string
+        nativeId:
+          title: Nativeid
+          type: string
+        name:
+          title: Name
+          type: string
+        displayName:
+          title: Displayname
+          type: string
+        description:
+          anyOf:
+          - type: string
+          - type: 'null'
+          default: null
+          title: Description
+        sourcePath:
+          anyOf:
+          - type: string
+          - type: 'null'
+          default: null
+          title: Sourcepath
+        capabilities:
+          items:
+            type: string
+          title: Capabilities
+          type: array
+        nativeDetails:
+          additionalProperties: true
+          title: Nativedetails
+          type: object
+        kind:
+          const: DIMENSION
+          default: DIMENSION
+          title: Kind
+          type: string
+        attributes:
+          $ref: '#/components/schemas/V2DimensionAttributes'
+      required:
+      - resourceId
+      - nativeId
+      - name
+      - displayName
+      - capabilities
+      - nativeDetails
+      - attributes
+      title: DimensionResource
+      type: object
+    V2MetricAttributes:
+      additionalProperties: false
+      properties:
+        metricType:
+          title: Metrictype
+          type: string
+        definitionSummary:
+          title: Definitionsummary
+          type: string
+        inputMetricIds:
+          items:
+            type: string
+          title: Inputmetricids
+          type: array
+        datasetIds:
+          items:
+            type: string
+          title: Datasetids
+          type: array
+        filters:
+          anyOf:
+          - additionalProperties: true
+            type: object
+          - type: 'null'
+          default: null
+          title: Filters
+        timeConfig:
+          additionalProperties: true
+          title: Timeconfig
+          type: object
+      required:
+      - metricType
+      - definitionSummary
+      - inputMetricIds
+      - datasetIds
+      - timeConfig
+      title: MetricAttributes
+      type: object
+    V2MetricResource:
+      additionalProperties: false
+      properties:
+        resourceId:
+          title: Resourceid
+          type: string
+        nativeId:
+          title: Nativeid
+          type: string
+        name:
+          title: Name
+          type: string
+        displayName:
+          title: Displayname
+          type: string
+        description:
+          anyOf:
+          - type: string
+          - type: 'null'
+          default: null
+          title: Description
+        sourcePath:
+          anyOf:
+          - type: string
+          - type: 'null'
+          default: null
+          title: Sourcepath
+        capabilities:
+          items:
+            type: string
+          title: Capabilities
+          type: array
+        nativeDetails:
+          additionalProperties: true
+          title: Nativedetails
+          type: object
+        kind:
+          const: METRIC
+          default: METRIC
+          title: Kind
+          type: string
+        attributes:
+          $ref: '#/components/schemas/V2MetricAttributes'
+      required:
+      - resourceId
+      - nativeId
+      - name
+      - displayName
+      - capabilities
+      - nativeDetails
+      - attributes
+      title: MetricResource
+      type: object
+    V2PhysicalAttributes:
+      additionalProperties: false
+      properties:
+        origin:
+          $ref: '#/components/schemas/V2BindingMode'
+        relation:
+          $ref: '#/components/schemas/V2RelationName'
+        columns:
+          additionalProperties:
+            additionalProperties: true
+            type: object
+          title: Columns
+          type: object
+      required:
+      - origin
+      - relation
+      - columns
+      title: PhysicalAttributes
+      type: object
+    V2PhysicalResource:
+      additionalProperties: false
+      properties:
+        resourceId:
+          title: Resourceid
+          type: string
+        nativeId:
+          title: Nativeid
+          type: string
+        name:
+          title: Name
+          type: string
+        displayName:
+          title: Displayname
+          type: string
+        description:
+          anyOf:
+          - type: string
+          - type: 'null'
+          default: null
+          title: Description
+        sourcePath:
+          anyOf:
+          - type: string
+          - type: 'null'
+          default: null
+          title: Sourcepath
+        capabilities:
+          items:
+            type: string
+          title: Capabilities
+          type: array
+        nativeDetails:
+          additionalProperties: true
+          title: Nativedetails
+          type: object
+        kind:
+          enum:
+          - TABLE
+          - VIEW
+          title: Kind
+          type: string
+        attributes:
+          $ref: '#/components/schemas/V2PhysicalAttributes'
+      required:
+      - resourceId
+      - nativeId
+      - name
+      - displayName
+      - capabilities
+      - nativeDetails
+      - kind
+      - attributes
+      title: PhysicalResource
+      type: object
+    V2RelationBinding:
+      additionalProperties: false
+      properties:
+        nativeId:
+          title: Nativeid
+          type: string
+        relation:
+          $ref: '#/components/schemas/V2RelationName'
+        creatorRunId:
+          anyOf:
+          - format: uuid
+            type: string
+          - type: 'null'
+          title: Creatorrunid
+        mode:
+          $ref: '#/components/schemas/V2BindingMode'
+        definitionDigest:
+          pattern: ^[a-f0-9]{64}$
+          title: Definitiondigest
+          type: string
+        verifiedAt:
+          format: date-time
+          title: Verifiedat
+          type: string
+      required:
+      - nativeId
+      - relation
+      - creatorRunId
+      - mode
+      - definitionDigest
+      - verifiedAt
+      title: RelationBinding
+      type: object
+    V2RelationName:
+      additionalProperties: false
+      properties:
+        database:
+          anyOf:
+          - type: string
+          - type: 'null'
+          default: null
+          title: Database
+        schema:
+          minLength: 1
+          title: Schema
+          type: string
+        identifier:
+          minLength: 1
+          title: Identifier
+          type: string
+      required:
+      - schema
+      - identifier
+      title: RelationName
+      type: object
+    V2PublishedCatalog:
+      additionalProperties: false
+      properties:
+        schemaVersion:
+          const: 1
+          default: 1
+          title: Schemaversion
+          type: integer
+        projectId:
+          title: Projectid
+          type: string
+        releaseId:
+          format: uuid
+          title: Releaseid
+          type: string
+        resources:
+          items:
+            discriminator:
+              mapping:
+                DIMENSION: '#/components/schemas/V2DimensionResource'
+                METRIC: '#/components/schemas/V2MetricResource'
+                SEMANTIC_MODEL: '#/components/schemas/V2DatasetResource'
+                TABLE: '#/components/schemas/V2PhysicalResource'
+                VIEW: '#/components/schemas/V2PhysicalResource'
+              propertyName: kind
+            oneOf:
+            - $ref: '#/components/schemas/V2MetricResource'
+            - $ref: '#/components/schemas/V2DimensionResource'
+            - $ref: '#/components/schemas/V2DatasetResource'
+            - $ref: '#/components/schemas/V2PhysicalResource'
+          title: Resources
+          type: array
+        relations:
+          items:
+            $ref: '#/components/schemas/V2CatalogRelation'
+          title: Relations
+          type: array
+        relationBindings:
+          items:
+            $ref: '#/components/schemas/V2RelationBinding'
+          title: Relationbindings
+          type: array
+      required:
+      - projectId
+      - releaseId
+      - resources
+      - relations
+      - relationBindings
+      title: PublishedCatalog
+      type: object
+    V2PublicationDescriptor:
+      type: object
+      required:
+      - projectId
+      - releaseId
+      - runId
+      - artifactSetId
+      - publicationSequence
+      - state
+      - buildMode
+      - catalogSchemaVersion
+      properties:
+        projectId:
+          type: string
+        releaseId:
+          type: string
+        runId:
+          type:
+          - string
+          - 'null'
+        artifactSetId:
+          type:
+          - string
+          - 'null'
+        sourceSha:
+          type: string
+        catalogDigest:
+          type:
+          - string
+          - 'null'
+        state:
+          type: string
+        buildMode:
+          type:
+          - string
+          - 'null'
+        publicationSequence:
+          type: integer
+        catalogSchemaVersion:
+          type: integer
+          const: 1
+        publishedAt:
+          type:
+          - string
+          - 'null'
+          format: date-time
+        errorCode:
+          type:
+          - string
+          - 'null'
+        createdAt:
+          type: string
+          format: date-time
+    V2PublishedProject:
+      type: object
+      required:
+      - projectId
+      - activePublication
+      properties:
+        projectId:
+          type: string
+        activePublication:
+          anyOf:
+          - $ref: '#/components/schemas/V2PublicationDescriptor'
+          - type: 'null'
+    V2PublishedPage:
+      type: object
+      required:
+      - releaseId
+      - page
+      - size
+      - total
+      - resources
+      properties:
+        releaseId:
+          type: string
+          format: uuid
+        page:
+          type: integer
+          minimum: 1
+        size:
+          type: integer
+          minimum: 1
+          maximum: 200
+        total:
+          type: integer
+        resources:
+          items: &id004
+            discriminator:
+              mapping:
+                DIMENSION: '#/components/schemas/V2DimensionResource'
+                METRIC: '#/components/schemas/V2MetricResource'
+                SEMANTIC_MODEL: '#/components/schemas/V2DatasetResource'
+                TABLE: '#/components/schemas/V2PhysicalResource'
+                VIEW: '#/components/schemas/V2PhysicalResource'
+              propertyName: kind
+            oneOf:
+            - $ref: '#/components/schemas/V2MetricResource'
+            - $ref: '#/components/schemas/V2DimensionResource'
+            - $ref: '#/components/schemas/V2DatasetResource'
+            - $ref: '#/components/schemas/V2PhysicalResource'
+          title: Resources
+          type: array
+    V2QueryOptionsResponse:
+      type: object
+      required:
+      - releaseId
+      - metricResourceIds
+      - options
+      properties:
+        releaseId: &id003
+          type: string
+          format: uuid
+        metricResourceIds: &id002
+          type: array
+          items: &id001
+            type: string
+        options:
+          type: array
+          items:
+            type: object
+            required:
+            - optionId
+            - resourceId
+            - displayName
+            - granularities
+            - operators
+            properties:
+              optionId: *id001
+              resourceId:
+                type:
+                - string
+                - 'null'
+              displayName: *id001
+              granularities: *id002
+              operators: *id002
+    V2QueryReceipt:
+      type: object
+      required:
+      - queryId
+      - projectId
+      - releaseId
+      - state
+      properties:
+        queryId: *id003
+        projectId: *id001
+        releaseId: *id003
+        state:
+          type: string
+          const: QUEUED
+    V2QueryResult:
+      type: object
+      required:
+      - queryId
+      - projectId
+      - releaseId
+      - state
+      properties:
+        queryId: *id003
+        projectId: *id001
+        releaseId: *id003
+        state: *id001
+        mode:
+          $ref: '#/components/schemas/V2QueryMode'
+        targetCommitSha: *id001
+        errorCode:
+          type:
+          - string
+          - 'null'
+        sql:
+          type:
+          - string
+          - 'null'
+        truncated:
+          type: boolean
+        durationMs:
+          type: integer
+        columns:
+          type: array
+          items:
+            type: object
+            required:
+            - name
+            - type
+            properties:
+              name: *id001
+              type: *id001
+        rows:
+          type: array
+          items:
+            type: array
+            items: {}
+    V2SourceResponse:
+      type: object
+      required:
+      - releaseId
+      - resourceId
+      - path
+      - content
+      properties:
+        releaseId: *id003
+        resourceId: *id001
+        path: *id001
+        content: *id001
+    V2NativeDetailsResponse:
+      type: object
+      required:
+      - releaseId
+      - resourceId
+      - nativeDetails
+      properties:
+        releaseId: *id003
+        resourceId: *id001
+        nativeDetails:
+          type: object
+          additionalProperties: true
+    V2LineageResponse:
+      type: object
+      required:
+      - releaseId
+      - resourceId
+      - dependencies
+      properties:
+        releaseId: *id003
+        resourceId: *id001
+        dependencies:
+          type: array
+          items:
+            $ref: '#/components/schemas/V2CatalogRelation'
+    V2ResourceResponse:
+      allOf:
+      - *id004
+      - type: object
+        required:
+        - releaseId
+        properties:
+          releaseId: *id003

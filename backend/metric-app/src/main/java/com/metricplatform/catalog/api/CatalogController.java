@@ -10,6 +10,10 @@ import org.springframework.web.bind.annotation.*;
 
 /** Git 托管目录只提供已发布版本的读取。 */
 @RestController
+@org.springframework.boot.autoconfigure.condition.ConditionalOnProperty(
+        name = "metric.publication.mode",
+        havingValue = "legacy",
+        matchIfMissing = true)
 @RequiredArgsConstructor
 @RequestMapping(CatalogController.ROOT)
 public class CatalogController {
