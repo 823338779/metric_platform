@@ -52,7 +52,7 @@ metric-platform:
     schema-name: dbt_ecom
     # 与当前已发布版本使用的运行配置及工具链标识一致。
     # 固定物理库配置变更后，同一 SHA 也需在下次手动刷新时重新构建。
-    config-version: local-debug-v5
+    config-version: local-debug-v8
     toolchain-version: dbt-core 1.12.5 / metricflow 0.213.0
     # 手动刷新信号及在途构建状态的检查间隔、Git 命令超时。
     poll-interval: PT5S
