@@ -1,25 +1,30 @@
 import {
-  ApartmentOutlined,
-  FolderOpenOutlined,
   AppstoreOutlined,
   BarChartOutlined,
-  UserOutlined,
+  FolderOpenOutlined,
+  LogoutOutlined,
 } from '@ant-design/icons';
-import { Button, Layout, Menu, Space, Typography } from 'antd';
-import { Outlet, useLocation, useNavigate, useParams, useSearchParams } from 'react-router-dom';
+import { Button, Tooltip } from 'antd';
+import {
+  Link,
+  Outlet,
+  useLocation,
+  useNavigate,
+  useParams,
+  useSearchParams,
+} from 'react-router-dom';
 import { clearAuthSession, getAuthSession } from '../api/auth';
 
 const PROJECTS = '/dbt/projects';
 const LOGIN = '/login?reason=required';
 const COPY = {
   brand: 'Metric Platform',
-  subtitle: '语义指标平台',
-  workspace: '工作空间',
   projects: '语义项目',
-  catalog: '目录',
-  query: '探索',
+  catalog: '资源管理',
+  query: '分析探索',
   logout: '登出',
-  versioned: '定义 · 血缘 · 探索',
+  version: '固定版本',
+  account: '当前账号',
 };
 
 export function PlatformLayout() {
@@ -28,70 +33,85 @@ export function PlatformLayout() {
   const { projectId } = useParams();
   const [params] = useSearchParams();
   const releaseId = params.get('releaseId');
-  const projectPath = projectId ? `${PROJECTS}/${encodeURIComponent(projectId)}` : '';
-  const catalogPath = `${projectPath}/catalog?releaseId=${encodeURIComponent(releaseId ?? '')}`;
-  const queryPath = `${projectPath}/query?releaseId=${encodeURIComponent(releaseId ?? '')}`;
-  const selected = projectId ? (pathname.endsWith('/query') ? queryPath : catalogPath) : PROJECTS;
+  const queryPage = pathname.endsWith('/query');
+  const projectPath = projectId ? `${PROJECTS}/${encodeURIComponent(projectId)}` : PROJECTS;
+  // 工作区切换携带当前版本与资源上下文；不会静默切换到最新发布。
+  const catalogPath = `${projectPath}/catalog?${params}`;
+  const queryPath = `${projectPath}/query?${params}`;
   const displayName = getAuthSession()?.identity.displayName;
-  const handleLogout = () => {
-    clearAuthSession();
-    navigate(LOGIN, { replace: true });
-  };
   return (
-    <Layout className="platform-layout">
-      <Layout.Sider
-        className="platform-sidebar"
-        width={204}
-        breakpoint="lg"
-        collapsedWidth="0"
-        theme="light"
-      >
-        <div className="platform-brand">
-          <span className="platform-brand-icon">
-            <ApartmentOutlined />
-          </span>
-          <Typography.Text strong>{COPY.brand}</Typography.Text>
+    <div
+      className={`platform-layout ${projectId ? 'platform-workbench' : 'platform-projects'} ${queryPage ? 'platform-analysis' : ''}`}
+    >
+      <nav className="platform-rail" aria-label={COPY.brand}>
+        <Link className="platform-mark" to={PROJECTS} aria-label={COPY.brand}>
+          MP
+        </Link>
+        <Tooltip title={COPY.projects} placement="right">
+          <Link to={PROJECTS} className={!projectId ? 'is-active' : ''} aria-label={COPY.projects}>
+            <FolderOpenOutlined />
+          </Link>
+        </Tooltip>
+        {projectId && (
+          <>
+            <Tooltip title={COPY.catalog} placement="right">
+              <Link
+                to={catalogPath}
+                className={!queryPage ? 'is-active' : ''}
+                aria-label={COPY.catalog}
+              >
+                <AppstoreOutlined />
+              </Link>
+            </Tooltip>
+            <Tooltip title={COPY.query} placement="right">
+              <Link to={queryPath} className={queryPage ? 'is-active' : ''} aria-label={COPY.query}>
+                <BarChartOutlined />
+              </Link>
+            </Tooltip>
+          </>
+        )}
+        <div className="platform-rail-bottom">
+          <Tooltip title={displayName ?? COPY.account} placement="right">
+            <span className="platform-avatar">{displayName?.slice(0, 1).toUpperCase() ?? 'M'}</span>
+          </Tooltip>
         </div>
-        <div className="platform-nav-label">{COPY.workspace}</div>
-        <Menu
-          theme="light"
-          mode="inline"
-          selectedKeys={[selected]}
-          onClick={({ key }) => navigate(key)}
-          items={[
-            { key: PROJECTS, icon: <FolderOpenOutlined />, label: COPY.projects },
-            ...(projectId && releaseId
-              ? [
-                  { key: catalogPath, icon: <AppstoreOutlined />, label: COPY.catalog },
-                  { key: queryPath, icon: <BarChartOutlined />, label: COPY.query },
-                ]
-              : []),
-          ]}
-        />
-        <div className="platform-sidebar-footer">{COPY.versioned}</div>
-      </Layout.Sider>
-      <Layout style={{ minWidth: 0 }}>
-        <Layout.Header className="platform-header">
-          <div className="platform-header-title">
-            {COPY.subtitle}
-            {projectId && <span className="platform-project-name"> / {projectId}</span>}
+      </nav>
+      <div className="platform-main">
+        <header className="platform-header">
+          {projectId ? (
+            <nav className="workspace-tabs" aria-label="工作区">
+              <Link aria-current={!queryPage ? 'page' : undefined} to={catalogPath}>
+                {COPY.catalog}
+              </Link>
+              <Link aria-current={queryPage ? 'page' : undefined} to={queryPath}>
+                {COPY.query}
+              </Link>
+            </nav>
+          ) : (
+            <h1>{COPY.projects}</h1>
+          )}
+          <div className="platform-session">
+            {releaseId && (
+              <span className="platform-version" title={releaseId}>
+                {COPY.version} <code>{releaseId.slice(0, 8)}</code>
+              </span>
+            )}
+            <span className="platform-user">{displayName}</span>
+            <Button
+              type="text"
+              icon={<LogoutOutlined />}
+              aria-label={COPY.logout}
+              onClick={() => {
+                clearAuthSession();
+                navigate(LOGIN, { replace: true });
+              }}
+            />
           </div>
-          <Space>
-            {displayName ? (
-              <Space className="platform-user">
-                <UserOutlined />
-                <Typography.Text>{displayName}</Typography.Text>
-              </Space>
-            ) : null}
-            <Button type="text" onClick={handleLogout}>
-              {COPY.logout}
-            </Button>
-          </Space>
-        </Layout.Header>
-        <Layout.Content className="platform-content">
+        </header>
+        <main className="platform-content">
           <Outlet />
-        </Layout.Content>
-      </Layout>
-    </Layout>
+        </main>
+      </div>
+    </div>
   );
 }

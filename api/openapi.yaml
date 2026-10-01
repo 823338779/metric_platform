@@ -862,8 +862,8 @@ components:
               operator: { type: string }
               value: {}
         limit: { type: integer, minimum: 1, maximum: 10000 }
-        startTime: { type: string, format: date-time }
-        endTime: { type: string, format: date-time }
+        startTime: { type: string, format: date-time, description: 带时区的开始时刻；平台转换为 Asia/Shanghai 业务日历时间后交给引擎，并按查询时间粒度对齐。 }
+        endTime: { type: string, format: date-time, description: 带时区的结束时刻；平台转换为 Asia/Shanghai 业务日历时间后交给引擎。按天查询包含结束日期。 }
         orderBy: { type: array, items: { type: string } }
     DbtDimensionValuesRequest:
       type: object
@@ -1059,12 +1059,14 @@ components:
           type: array
           title: Filters
         startTime:
+          description: 带时区的开始时刻；平台转换为 Asia/Shanghai 业务日历时间后交给引擎，并按查询时间粒度对齐。
           anyOf:
           - type: string
             format: date-time
           - type: 'null'
           title: Starttime
         endTime:
+          description: 带时区的结束时刻；平台转换为 Asia/Shanghai 业务日历时间后交给引擎。按天查询包含结束日期。
           anyOf:
           - type: string
             format: date-time

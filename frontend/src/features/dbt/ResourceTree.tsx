@@ -20,7 +20,6 @@ const COPY = {
   explore: '探索数据',
   label: '资源树',
   other: '其他资源',
-  unknown: '未提供来源文件',
 };
 const CATEGORY_PREFIX = 'kind:';
 const FILE_PREFIX = 'file:';
@@ -33,12 +32,14 @@ export function ResourceTree({
   onSelect,
   projectId,
   releaseId,
+  queryParameter,
 }: {
   resources: DbtResource[];
   selected: string;
   onSelect: (id: string) => void;
   projectId: string;
   releaseId: string;
+  queryParameter?: 'metricResourceId';
 }) {
   const host = useRef<HTMLDivElement>(null);
   const [expanded, setExpanded] = useState<Key[]>([]);
@@ -66,10 +67,10 @@ export function ResourceTree({
         data.push(category);
         folders.push(categoryKey);
       }
-      const path = resource.sourcePath ?? COPY.unknown;
+      const path = resource.sourcePath;
       const fileKey = FILE_PREFIX + kind + path;
       let file = files.get(fileKey);
-      if (!file) {
+      if (path && !file) {
         file = {
           key: fileKey,
           title: <span title={path}>{path}</span>,
@@ -81,8 +82,8 @@ export function ResourceTree({
         category.children!.push(file);
         folders.push(fileKey);
       }
-      ancestors.set(resource.resourceId, [categoryKey, fileKey]);
-      file.children!.push({
+      ancestors.set(resource.resourceId, path ? [categoryKey, fileKey] : [categoryKey]);
+      (file ?? category).children!.push({
         key: RESOURCE_PREFIX + resource.resourceId,
         isLeaf: true,
         icon: <ApartmentOutlined />,
@@ -97,7 +98,7 @@ export function ResourceTree({
             {kind === METRIC && resource.queryable && (
               <Link
                 onClick={(event) => event.stopPropagation()}
-                to={`/dbt/projects/${encodeURIComponent(projectId)}/query?releaseId=${encodeURIComponent(releaseId)}&metric=${encodeURIComponent(resource.name)}`}
+                to={`/dbt/projects/${encodeURIComponent(projectId)}/query?${new URLSearchParams({ releaseId, [queryParameter ?? 'metric']: queryParameter ? resource.resourceId : resource.name })}`}
               >
                 {COPY.explore}
               </Link>
@@ -107,7 +108,7 @@ export function ResourceTree({
       });
     });
     return { data, folders, ancestors };
-  }, [resources, projectId, releaseId]);
+  }, [resources, projectId, releaseId, queryParameter]);
   // 新加载的目录默认展开；用户随后折叠不会被普通重渲染覆盖。
   useEffect(() => {
     const added = folders.filter((key) => !previousFolders.current.has(key));

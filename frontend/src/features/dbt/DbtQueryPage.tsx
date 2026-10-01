@@ -1,4 +1,12 @@
-import { Alert, Button, Card, Empty, Input, InputNumber, Select, Space, Typography } from 'antd';
+import { Alert, Button, Input, Typography } from 'antd';
+import { PlayCircleOutlined, CodeOutlined, FilterOutlined } from '@ant-design/icons';
+import {
+  AnalysisEmpty,
+  ChoiceChips,
+  MetricLibrary,
+  SelectedMetrics,
+  TimeRange,
+} from './AnalysisControls';
 import { useEffect, useRef, useState } from 'react';
 import { Link, useParams, useSearchParams } from 'react-router-dom';
 import { ApiProblem } from '../../api/httpClient';
@@ -11,6 +19,7 @@ import type {
 } from '../../api/types';
 import { DbtDimensionValues } from './DbtDimensionValues';
 import { DbtQueryResults } from './DbtQueryResults';
+import { businessTimeToIso } from './businessTime';
 
 type QueryApi = Pick<
   MetricPlatformApi,
@@ -227,8 +236,12 @@ export function DbtQueryPage({ api = metricPlatformApi }: { api?: QueryApi }) {
       setError('请选择可查询的指标与发布版本');
       return;
     }
-    if (startTime && endTime && new Date(startTime).getTime() > new Date(endTime).getTime()) {
+    if (startTime && endTime && businessTimeToIso(startTime) > businessTimeToIso(endTime)) {
       setError('开始时间不能晚于结束时间');
+      return;
+    }
+    if (!Number.isInteger(limit) || limit < 1 || limit > 10000) {
+      setError('返回行数应为 1 至 10000 的整数');
       return;
     }
     if (submitting) return;
@@ -256,8 +269,8 @@ export function DbtQueryPage({ api = metricPlatformApi }: { api?: QueryApi }) {
       groupBy: [...groupBy, ...(timeToken ? [timeToken] : [])],
       filters,
       limit,
-      ...(startTime ? { startTime: new Date(startTime).toISOString() } : {}),
-      ...(endTime ? { endTime: new Date(endTime).toISOString() } : {}),
+      ...(startTime ? { startTime: businessTimeToIso(startTime) } : {}),
+      ...(endTime ? { endTime: businessTimeToIso(endTime) } : {}),
       orderBy: orderBy.length ? orderBy : timeToken ? [timeToken] : [],
     };
     setSubmittedRequest(body);
@@ -299,22 +312,28 @@ export function DbtQueryPage({ api = metricPlatformApi }: { api?: QueryApi }) {
     busy;
   const filterValues =
     filterOperator === 'IN' ? filterValue.split(',').map((value) => value.trim()) : filterValue;
+  const metricChoices = availableMetrics.map((name) => ({ value: name, label: name }));
+  const changeMetrics = (value: string[]) => {
+    releaseGeneration.current++;
+    setMetrics(value);
+    setResult(undefined);
+    setQueryId('');
+    setSubmitting(false);
+    setSubmittedRequest(undefined);
+  };
   return (
-    <Space direction="vertical" style={{ width: '100%' }} size="middle">
-      <div className="exploration-heading">
+    <section className="analysis-page">
+      <header className="analysis-heading">
         <div>
           <Link
             to={`/dbt/projects/${encodeURIComponent(projectId)}/catalog?releaseId=${encodeURIComponent(releaseId)}&kind=METRIC`}
           >
-            ← 返回指标目录
+            返回指标目录
           </Link>
-          <Typography.Title level={3}>指标探索</Typography.Title>
-          <Typography.Text type="secondary">
-            选择维度与日期范围，查询所选发布版本的数据。
-          </Typography.Text>
+          <h1>分析探索</h1>
         </div>
         <Typography.Text type="secondary">releaseId：{releaseId || '未选择'}</Typography.Text>
-      </div>
+      </header>
       {activeReleaseId && releaseId && activeReleaseId !== releaseId && (
         <Alert
           type="warning"
@@ -330,204 +349,221 @@ export function DbtQueryPage({ api = metricPlatformApi }: { api?: QueryApi }) {
         />
       )}
       {error && <Alert type="error" title={error} />}
-      <div className="exploration-workspace">
-        <Card title="查询设置">
-          <div className="exploration-fields">
-            <label>
-              指标
-              <Select
-                mode="multiple"
-                aria-label="指标"
-                placeholder="选择指标"
-                value={metrics}
-                onChange={(value) => {
-                  releaseGeneration.current++;
-                  setMetrics(value);
-                  setResult(undefined);
-                  setQueryId('');
-                  setSubmitting(false);
-                  setSubmittedRequest(undefined);
-                }}
-                options={availableMetrics.map((name) => ({ value: name, label: name }))}
+      <div className="analysis-studio">
+        <MetricLibrary options={metricChoices} selected={metrics} onChange={changeMetrics} />
+        <main className="analysis-canvas">
+          <section className="analysis-builder" aria-label="查询设置">
+            <header>
+              <h2>这次想了解什么？</h2>
+              <span>按需分组，逐步缩小范围</span>
+            </header>
+            <div className="analysis-builder-row">
+              <h3>分析指标</h3>
+              <SelectedMetrics
+                options={metricChoices}
+                selected={metrics}
+                onChange={changeMetrics}
               />
-            </label>
+            </div>
             {metrics.length > 1 &&
               options &&
               !options.dimensions.length &&
               !options.timeDimensions.length && (
                 <Alert type="warning" title="所选指标没有共同维度" />
               )}
-            <label>
-              分组维度
-              <Select
-                mode="multiple"
-                aria-label="维度"
-                placeholder="不选择时显示汇总值"
-                value={groupBy}
-                onChange={setGroupBy}
-                disabled={disabled}
-                loading={loadingOptions}
+            <div className="analysis-builder-row">
+              <div>
+                <h3>分组维度</h3>
+                <small>可直接多选</small>
+              </div>
+              <ChoiceChips
+                label="维度"
                 options={dimensionOptions}
+                selected={groupBy}
+                onChange={setGroupBy}
+                disabled={!!disabled}
+                emptyText={
+                  metrics.length
+                    ? loadingOptions
+                      ? '正在读取共同维度…'
+                      : '当前指标没有可用分组，查询将显示汇总值'
+                    : '先选择指标，再选择可用维度'
+                }
               />
-            </label>
-            <Typography.Text type="secondary">
-              可多选；选项来自当前指标可用的维度。多指标查询仅展示共同维度。
-            </Typography.Text>
-            <label>
-              日期粒度
-              <Select
-                aria-label="日期粒度"
-                placeholder="不按日期分组"
-                allowClear
-                value={timeToken}
-                onChange={setTimeToken}
-                disabled={disabled}
-                options={
-                  options?.timeDimensions.map((item) => ({
+            </div>
+            {!!options?.timeDimensions.length && (
+              <div className="analysis-builder-row">
+                <h3>日期粒度</h3>
+                <ChoiceChips
+                  label="日期粒度"
+                  single
+                  options={options.timeDimensions.map((item) => ({
                     value: item.token,
                     label: timeLabels[item.granularity] ?? item.granularity,
-                  })) ?? []
-                }
-              />
-            </label>
-            <div className="exploration-dates">
-              <label>
-                开始时间
-                <Input
-                  aria-label="开始时间"
-                  type="datetime-local"
-                  value={startTime}
-                  onChange={(event) => setStartTime(event.target.value)}
+                  }))}
+                  selected={timeToken ? [timeToken] : []}
+                  onChange={(values) => setTimeToken(values[0])}
+                  disabled={!!disabled}
                 />
-              </label>
-              <label>
-                结束时间
-                <Input
-                  aria-label="结束时间"
-                  type="datetime-local"
-                  value={endTime}
-                  onChange={(event) => setEndTime(event.target.value)}
-                />
-              </label>
-            </div>
-            <label>
-              筛选维度
-              <Select
-                aria-label="筛选维度"
-                placeholder="选择需要限定取值的维度"
-                allowClear
-                value={filterField}
-                onChange={setFilterField}
-                disabled={disabled}
-                options={dimensionOptions}
-              />
-            </label>
-            <div className="exploration-filter">
-              <Select
-                aria-label="筛选操作符"
-                value={filterOperator}
-                onChange={setFilterOperator}
-                disabled={disabled}
-                options={(options?.allowedFilters ?? []).map((value) => ({ value, label: value }))}
-              />
-              <Input
-                aria-label="筛选值"
-                value={filterValue}
-                onChange={(event) => setFilterValue(event.target.value)}
-                placeholder={filterOperator === 'IN' ? '多个值用逗号分隔' : '筛选值'}
-              />
-            </div>
-            {filterField && !disabled && (
-              <DbtDimensionValues
-                key={`${releaseId}:${metrics.join(',')}:${filterField}`}
-                projectId={projectId}
-                releaseId={releaseId}
-                metrics={metrics}
-                dimension={filterField}
-                filters={
-                  filterValue
-                    ? [{ field: filterField, operator: filterOperator, value: filterValues }]
-                    : []
-                }
-                onSelect={(value) => setFilterValue(String(value))}
-                api={api}
-              />
+              </div>
             )}
-            <label>
-              排序
-              <Select
-                mode="multiple"
-                aria-label="排序"
-                placeholder="默认按时间升序"
-                value={orderBy}
-                onChange={setOrderBy}
-                disabled={disabled}
-                options={[...groupBy, ...(timeToken ? [timeToken] : []), ...metrics].flatMap(
-                  (value) => [
-                    { value, label: `${value} ↑` },
-                    { value: `-${value}`, label: `${value} ↓` },
-                  ],
-                )}
+            <div className="analysis-builder-row">
+              <h3>时间范围</h3>
+              <TimeRange
+                start={startTime}
+                end={endTime}
+                onChange={(from, to) => {
+                  setStartTime(from);
+                  setEndTime(to);
+                }}
               />
-            </label>
-            <label>
-              最多返回行数
-              <InputNumber
-                aria-label="行数"
-                min={1}
-                max={10000}
-                value={limit}
-                onChange={(value) => setLimit(value ?? 100)}
+            </div>
+            <details className="analysis-advanced">
+              <summary>
+                <FilterOutlined /> 筛选与排序
+                <span>{filterField || orderBy.length ? '已配置' : '按需添加'}</span>
+              </summary>
+              <div className="analysis-builder-row">
+                <h3>筛选维度</h3>
+                <div className="analysis-filter-controls">
+                  <ChoiceChips
+                    label="筛选维度"
+                    single
+                    options={dimensionOptions}
+                    selected={filterField ? [filterField] : []}
+                    onChange={(values) => setFilterField(values[0])}
+                    disabled={!!disabled}
+                  />
+                  {filterField && (
+                    <>
+                      <ChoiceChips
+                        label="筛选操作符"
+                        single
+                        options={(options?.allowedFilters ?? []).map((value) => ({
+                          value,
+                          label: value,
+                        }))}
+                        selected={[filterOperator]}
+                        onChange={(values) => {
+                          if (values[0]) setFilterOperator(values[0]);
+                        }}
+                        disabled={!!disabled}
+                      />
+                      <Input
+                        aria-label="筛选值"
+                        value={filterValue}
+                        onChange={(event) => setFilterValue(event.target.value)}
+                        placeholder={filterOperator === 'IN' ? '多个值用逗号分隔' : '输入筛选值'}
+                      />
+                    </>
+                  )}
+                  {filterField && !disabled && (
+                    <DbtDimensionValues
+                      key={`${releaseId}:${metrics.join(',')}:${filterField}`}
+                      projectId={projectId}
+                      releaseId={releaseId}
+                      metrics={metrics}
+                      dimension={filterField}
+                      filters={
+                        filterValue
+                          ? [{ field: filterField, operator: filterOperator, value: filterValues }]
+                          : []
+                      }
+                      onSelect={(value) => setFilterValue(String(value))}
+                      api={api}
+                    />
+                  )}
+                </div>
+              </div>
+              <div className="analysis-builder-row">
+                <h3>排序</h3>
+                <ChoiceChips
+                  label="排序"
+                  options={[...groupBy, ...(timeToken ? [timeToken] : []), ...metrics].flatMap(
+                    (value) => [
+                      { value, label: `${value} ↑` },
+                      { value: `-${value}`, label: `${value} ↓` },
+                    ],
+                  )}
+                  selected={orderBy}
+                  onChange={(values) => {
+                    const added = values.find((value) => !orderBy.includes(value));
+                    setOrderBy(
+                      added
+                        ? values.filter(
+                            (value) =>
+                              value !== (added.startsWith('-') ? added.slice(1) : `-${added}`),
+                          )
+                        : values,
+                    );
+                  }}
+                  disabled={!!disabled}
+                />
+              </div>
+            </details>
+            <footer className="analysis-runbar">
+              <label>
+                最多返回{' '}
+                <input
+                  aria-label="行数"
+                  type="number"
+                  min={1}
+                  max={10000}
+                  value={limit}
+                  onChange={(event) => setLimit(Number(event.target.value))}
+                />{' '}
+                行
+              </label>
+              <div>
+                <Button
+                  aria-label="解释查询"
+                  icon={<CodeOutlined />}
+                  disabled={!!disabled}
+                  loading={busy && explainRequested}
+                  onClick={() => void submit(true)}
+                >
+                  解释查询
+                </Button>
+                <Button
+                  type="primary"
+                  aria-label="运行查询"
+                  icon={<PlayCircleOutlined />}
+                  disabled={!!disabled}
+                  loading={busy && !explainRequested}
+                  onClick={() => void submit(false)}
+                >
+                  运行查询
+                </Button>
+              </div>
+            </footer>
+          </section>
+          <section className="analysis-result" aria-label="查询结果" ref={resultPanel}>
+            <header>
+              <h2>查询结果</h2>
+              <span>{queryId ? `queryId：${queryId}` : '等待运行'}</span>
+            </header>
+            {submittedRequest && (
+              <Typography.Paragraph type="secondary">
+                本次查询：{submittedRequest.metrics.join('、')} ·{' '}
+                {submittedRequest.groupBy?.length ? submittedRequest.groupBy.join(' / ') : '汇总值'}
+                。修改条件后点击运行查询刷新结果。
+              </Typography.Paragraph>
+            )}
+            {busy && !result && (
+              <Alert type="info" title={explainRequested ? SQL_PROGRESS : QUERY_PROGRESS} />
+            )}
+            {result ? (
+              <DbtQueryResults
+                key={result.queryId}
+                result={result}
+                metricNames={submittedRequest?.metrics}
               />
-            </label>
-            <Space>
-              <Button
-                type="primary"
-                disabled={disabled}
-                loading={busy && !explainRequested}
-                onClick={() => void submit(false)}
-              >
-                运行查询
-              </Button>
-              <Button
-                disabled={disabled}
-                loading={busy && explainRequested}
-                onClick={() => void submit(true)}
-              >
-                解释查询
-              </Button>
-            </Space>
-          </div>
-        </Card>
-        <div className="exploration-results" ref={resultPanel}>
-          {submittedRequest && (
-            <Typography.Paragraph type="secondary">
-              本次查询：{submittedRequest.metrics.join('、')} ·{' '}
-              {submittedRequest.groupBy?.length ? submittedRequest.groupBy.join(' / ') : '汇总值'}
-              。修改条件后点击运行查询刷新结果。
-            </Typography.Paragraph>
-          )}
-          {queryId && (
-            <Typography.Paragraph type="secondary">queryId：{queryId}</Typography.Paragraph>
-          )}
-          {busy && !result && (
-            <Alert type="info" title={explainRequested ? SQL_PROGRESS : QUERY_PROGRESS} />
-          )}
-          {result ? (
-            <DbtQueryResults
-              key={result.queryId}
-              result={result}
-              metricNames={submittedRequest?.metrics}
-            />
-          ) : (
-            !busy && (
-              <Card>
-                <Empty description="选择指标与分析维度，运行后在这里查看图表和数据明细" />
-              </Card>
-            )
-          )}
-        </div>
+            ) : (
+              !busy && <AnalysisEmpty />
+            )}
+          </section>
+        </main>
       </div>
-    </Space>
+    </section>
   );
 }

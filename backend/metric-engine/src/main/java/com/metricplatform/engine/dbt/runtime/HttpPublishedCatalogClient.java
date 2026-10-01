@@ -147,7 +147,8 @@ public class HttpPublishedCatalogClient implements PublishedCatalogGateway {
     }
 
     public JsonNode submitQuery(String id, JsonNode request) {
-        return PublishedProtocol.query(call(POST, project(id) + QUERIES, request, false));
+        return PublishedProtocol.query(
+                call(POST, project(id) + QUERIES, DbtQueryTimeAdapter.normalize(request), false));
     }
 
     public JsonNode query(String id, UUID queryId) {
@@ -158,7 +159,11 @@ public class HttpPublishedCatalogClient implements PublishedCatalogGateway {
     public JsonNode compatibility(String id, String operation, JsonNode request) {
         if (!Set.of("queries", "query-options").contains(operation))
             throw new IllegalArgumentException("未知兼容操作");
-        return call(POST, project(id) + "/compatibility/" + operation, request, false);
+        return call(
+                POST,
+                project(id) + "/compatibility/" + operation,
+                "queries".equals(operation) ? DbtQueryTimeAdapter.normalize(request) : request,
+                false);
     }
 
     private JsonNode call(String method, String path, JsonNode body, boolean array) {

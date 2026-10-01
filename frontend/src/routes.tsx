@@ -7,6 +7,7 @@ import { DbtQueryPage } from './features/dbt/DbtQueryPage';
 import { PlatformLayout } from './layout/PlatformLayout';
 import { PublishedProjectsPage } from './features/dbt/PublishedProjectsPage';
 import { PublishedWorkbench } from './features/dbt/PublishedWorkbench';
+import { PublishedCatalogPage } from './features/dbt/PublishedCatalogPage';
 
 // 部署窗口与后端 service-proxy 同步切换，旧入口仅供迁移前使用。
 const SERVICE_PROXY = import.meta.env.VITE_PUBLICATION_MODE === 'service-proxy';
@@ -26,7 +27,7 @@ export const router = createBrowserRouter([
           },
           {
             path: '/dbt/projects/:projectId/catalog',
-            element: SERVICE_PROXY ? <PublishedWorkbench /> : <DbtCatalogPage />,
+            element: SERVICE_PROXY ? <PublishedCatalogPage /> : <DbtCatalogPage />,
           },
           {
             path: '/dbt/projects/:projectId/query',

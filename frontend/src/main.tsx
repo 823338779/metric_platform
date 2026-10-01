@@ -3,20 +3,23 @@ import zhCN from 'antd/locale/zh_CN';
 import { createRoot } from 'react-dom/client';
 import App from './App';
 import './global.css';
+import './workbench.css';
 
 createRoot(document.getElementById('root')!).render(
   <ConfigProvider
     locale={zhCN}
     theme={{
       token: {
-        colorPrimary: '#3867d6',
+        colorPrimary: '#315bc3',
         borderRadius: 8,
-        colorText: '#25334a',
-        colorTextSecondary: '#69778b',
+        colorText: '#233247',
+        colorTextSecondary: '#5b6b82',
+        colorTextPlaceholder: '#66758b',
         colorBorderSecondary: '#e7ecf3',
-        colorBgLayout: '#f5f7fb',
+        colorBgLayout: '#f3f5f8',
         fontFamily: "Inter, 'Segoe UI', 'Microsoft YaHei', sans-serif",
         controlHeight: 34,
+        fontSize: 15,
       },
       components: {
         Menu: { itemSelectedBg: '#eaf0ff', itemSelectedColor: '#315fd3', itemBorderRadius: 6 },

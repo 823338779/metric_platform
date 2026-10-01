@@ -8,6 +8,8 @@ export type ResourceDataType = {
   label: string;
   /** 类型依据、源字段或尚不能确定结果精度的原因。 */
   description: string;
+  /** 唯一且已校验的直接来源列，用于概览导航；不是聚合后的结果类型。 */
+  source?: { resourceId: string; field: string; dataType: string };
 };
 const METRIC = 'METRIC';
 const SEMANTIC_MODEL = 'SEMANTIC_MODEL';
@@ -130,10 +132,12 @@ export async function resolveResourceDataType(
   return numeric
     ? {
         ...NUMERIC,
+        source: { resourceId: owner.resourceId, field: columnName, dataType: columnType },
         description: `输入字段 ${owner.name ?? text(ownerDefinition.name)}.${columnName}：${columnType}；聚合可能改变结果精度，以引擎返回的类型为准。`,
       }
     : {
         label: columnType,
+        source: { resourceId: owner.resourceId, field: columnName, dataType: columnType },
         description: `来自当前发布版本的源字段 ${owner.name ?? text(ownerDefinition.name)}.${columnName}。`,
       };
 }

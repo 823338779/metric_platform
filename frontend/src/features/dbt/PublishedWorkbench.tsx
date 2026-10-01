@@ -1,6 +1,18 @@
-import { Alert, Button, Card, Descriptions, Empty, Input, Space, Tag, Typography } from 'antd';
+import { Alert, Button, Empty, Input, Typography } from 'antd';
+import { PlayCircleOutlined, CodeOutlined, FilterOutlined } from '@ant-design/icons';
+import {
+  AnalysisEmpty,
+  GRAIN_LABELS,
+  ChoiceChips,
+  MetricLibrary,
+  SelectedMetrics,
+  TimeRange,
+} from './AnalysisControls';
+import { DbtQueryResults } from './DbtQueryResults';
+import { publishedResult } from './publishedResourceAdapter';
+import { businessTimeToIso } from './businessTime';
 import { useEffect, useRef, useState } from 'react';
-import { Link, useLocation, useParams, useSearchParams } from 'react-router-dom';
+import { Link, useParams, useSearchParams } from 'react-router-dom';
 import { ApiProblem } from '../../api/httpClient';
 import {
   publishedCatalogApi,
@@ -18,61 +30,26 @@ const PREVIEW = 'PREVIEW';
 const DIMENSION_VALUES = 'DIMENSION_VALUES';
 const READY = 'READY';
 const FAILED = 'FAILED';
-const LABELS: Record<string, string> = {
-  METRIC: '指标',
-  DIMENSION: '维度',
-  SEMANTIC_MODEL: '数据集（语义模型）',
-  TABLE: '表',
-  VIEW: '视图',
-};
-const FIELD_LABELS: Record<string, string> = {
-  metricType: '指标类型',
-  definitionSummary: '定义说明',
-  inputMetricIds: '输入指标',
-  datasetIds: '所属数据集',
-  filters: '定义筛选',
-  timeConfig: '时间配置',
-  datasetId: '所属数据集',
-  dimensionType: '维度类型',
-  expression: '表达式',
-  timeGranularity: '时间粒度',
-  modelResourceId: '物理模型',
-  dimensionIds: '维度',
-  entities: '实体',
-  measures: '度量',
-  defaultTimeDimension: '默认时间维度',
-  origin: '物理来源',
-  relation: '物理关系',
-  columns: '字段',
-};
 const errorText = (error: unknown) =>
   error instanceof ApiProblem && error.problem.status === 410
     ? '该版本已被替代，请刷新到最新发布版本并重新选择维度。'
     : '读取或查询失败，当前显示内容可能来自上次读取，请重试。';
-const display = (value: unknown) =>
-  value == null ? '—' : typeof value === 'object' ? JSON.stringify(value) : String(value);
-
 /** v2 页面只渲染已发布属性，选择值使用资源和选项身份。 */
 export function PublishedWorkbench({ api = publishedCatalogApi }: { api?: PublishedCatalogApi }) {
   const { projectId = EMPTY } = useParams();
-  const location = useLocation();
   const [params, setParams] = useSearchParams();
   const releaseId = params.get('releaseId') ?? EMPTY;
-  const queryPage = location.pathname.endsWith('/query');
-  const [resources, setResources] = useState<PublishedResource[]>([]);
+  const initialMetric = params.get('metricResourceId') ?? EMPTY;
+  const [submittedMode, setSubmittedMode] = useState<PublishedQuery['mode']>(QUERY);
+  const [submittedMetrics, setSubmittedMetrics] = useState<string[]>([]);
   const [metrics, setMetrics] = useState<PublishedResource[]>([]);
   const [selected, setSelected] = useState<string[]>([]);
   const [groups, setGroups] = useState<string[]>([]);
+  const [grains, setGrains] = useState<Record<string, string>>({});
   const [options, setOptions] = useState<PublishedOption[]>([]);
   const [optionsReady, setOptionsReady] = useState(false);
-  const [search, setSearch] = useState(EMPTY);
-  const [kind, setKind] = useState(EMPTY);
-  const [page, setPage] = useState(1);
-  const [total, setTotal] = useState(0);
   const [error, setError] = useState(EMPTY);
   const [loading, setLoading] = useState(false);
-  const [detail, setDetail] = useState<PublishedResource | null>(null);
-  const [trace, setTrace] = useState<unknown>(null);
   const [result, setResult] = useState<PublishedResult | null>(null);
   const [busy, setBusy] = useState(false);
   const [filterOption, setFilterOption] = useState(EMPTY);
@@ -85,7 +62,6 @@ export function PublishedWorkbench({ api = publishedCatalogApi }: { api?: Publis
   const [sortDirection, setSortDirection] = useState<'ASC' | 'DESC'>('ASC');
   const generation = useRef(0);
   const submissionGeneration = useRef(0);
-  const inspection = useRef(0);
   const [pollAttempt, setPollAttempt] = useState(0);
   const submission = useRef<{ signature: string; body: PublishedQuery } | null>(null);
   const [refresh, setRefresh] = useState(0);
@@ -94,14 +70,13 @@ export function PublishedWorkbench({ api = publishedCatalogApi }: { api?: Publis
     // 版本改变立即清除旧选择，防止新标题下暂时展示旧目录。
     submissionGeneration.current++;
     setResult(null);
-    setResources([]);
     setMetrics([]);
-    setSelected([]);
+    setSelected(initialMetric ? [initialMetric] : []);
     setOptions([]);
     setOptionsReady(false);
     setBusy(false);
     submission.current = null;
-  }, [projectId, releaseId]);
+  }, [projectId, releaseId, initialMetric]);
 
   async function latest() {
     const turn = ++generation.current;
@@ -113,7 +88,15 @@ export function PublishedWorkbench({ api = publishedCatalogApi }: { api?: Publis
         setError('该项目尚未发布');
         return;
       }
-      setParams({ releaseId: version });
+      setParams((current) => {
+        const next = new URLSearchParams(current);
+        next.set('releaseId', version);
+        if (version !== releaseId) {
+          next.delete('resourceId');
+          next.delete('metricResourceId');
+        }
+        return next;
+      });
       setRefresh((value) => value + 1);
     } catch (failure) {
       if (turn === generation.current) setError(errorText(failure));
@@ -122,8 +105,6 @@ export function PublishedWorkbench({ api = publishedCatalogApi }: { api?: Publis
 
   useEffect(() => {
     const turn = ++generation.current;
-    setDetail(null);
-    setTrace(null);
     setError(EMPTY);
     if (!releaseId) {
       void latest();
@@ -132,12 +113,7 @@ export function PublishedWorkbench({ api = publishedCatalogApi }: { api?: Publis
     setLoading(true);
     const load = async () => {
       try {
-        const catalog = await api.catalog(projectId, releaseId, search, kind, page);
-        if (turn !== generation.current) return;
-        if (catalog.releaseId !== releaseId) throw new Error('目录版本不匹配');
-        setResources(catalog.resources);
-        setTotal(catalog.total);
-        if (queryPage) {
+        {
           const all: PublishedResource[] = [];
           let number = 1;
           while (true) {
@@ -163,7 +139,7 @@ export function PublishedWorkbench({ api = publishedCatalogApi }: { api?: Publis
     return () => {
       generation.current++;
     };
-  }, [api, projectId, releaseId, search, kind, page, queryPage, refresh]);
+  }, [api, projectId, releaseId, initialMetric, refresh]);
 
   useEffect(() => {
     if (!selected.includes(sortField) && !groups.includes(sortField)) setSortField(EMPTY);
@@ -174,6 +150,7 @@ export function PublishedWorkbench({ api = publishedCatalogApi }: { api?: Publis
     setOptionsReady(false);
     setOptions([]);
     setGroups([]);
+    setGrains({});
     setFilterOption(EMPTY);
     if (!selected.length || !releaseId) return;
     api
@@ -194,7 +171,13 @@ export function PublishedWorkbench({ api = publishedCatalogApi }: { api?: Publis
   }, [api, projectId, releaseId, selected]);
 
   useEffect(() => {
-    if (!result || result.state === READY || result.state === FAILED) return;
+    if (
+      !result ||
+      result.state === READY ||
+      result.state === FAILED ||
+      result.state === 'CANCELLED'
+    )
+      return;
     let active = true;
     const timer = setTimeout(() => {
       api
@@ -221,13 +204,27 @@ export function PublishedWorkbench({ api = publishedCatalogApi }: { api?: Publis
 
   async function submit(mode: PublishedQuery['mode'], resourceId?: string) {
     const turn = submissionGeneration.current;
+    if (!Number.isInteger(limit) || limit < 1 || limit > 10000) {
+      setError('返回行数应为 1 至 10000 的整数');
+      return;
+    }
+    if (start && end && businessTimeToIso(start) > businessTimeToIso(end)) {
+      setError('开始时间不能晚于结束时间');
+      return;
+    }
     setBusy(true);
     setError(EMPTY);
     const selection = {
       releaseId,
       mode,
       metricResourceIds: mode === PREVIEW ? [] : selected,
-      groupBy: mode === PREVIEW ? [] : groups.map((optionId) => ({ optionId })),
+      groupBy:
+        mode === PREVIEW
+          ? []
+          : groups.map((optionId) => ({
+              optionId,
+              ...(grains[optionId] ? { grain: grains[optionId] } : {}),
+            })),
       limit,
       ...(mode === PREVIEW
         ? { datasetResourceId: resourceId }
@@ -245,8 +242,8 @@ export function PublishedWorkbench({ api = publishedCatalogApi }: { api?: Publis
                 ]
               : [],
             orderBy: sortField ? [{ fieldId: sortField, direction: sortDirection }] : [],
-            ...(start ? { startTime: new Date(start).toISOString() } : {}),
-            ...(end ? { endTime: new Date(end).toISOString() } : {}),
+            ...(start ? { startTime: businessTimeToIso(start) } : {}),
+            ...(end ? { endTime: businessTimeToIso(end) } : {}),
           }),
       ...(mode === DIMENSION_VALUES ? { dimensionOptionId: groups[0] } : {}),
     };
@@ -261,6 +258,12 @@ export function PublishedWorkbench({ api = publishedCatalogApi }: { api?: Publis
       if (accepted.releaseId !== releaseId) throw new Error('查询版本不匹配');
       if (turn === submissionGeneration.current) {
         setResult(accepted);
+        setSubmittedMode(mode);
+        setSubmittedMetrics(
+          metrics
+            .filter((item) => selected.includes(item.resourceId))
+            .map((item) => item.name ?? item.displayName),
+        );
         submission.current = null;
       }
     } catch (failure) {
@@ -270,164 +273,187 @@ export function PublishedWorkbench({ api = publishedCatalogApi }: { api?: Publis
     }
   }
 
-  async function inspect(
-    resource: PublishedResource,
-    view?: 'lineage' | 'source' | 'native-details',
-  ) {
-    const turn = generation.current;
-    const selection = ++inspection.current;
-    try {
-      if (view) {
-        const value = await api.detail(projectId, releaseId, resource.resourceId, view);
-        if (turn === generation.current && selection === inspection.current) setTrace(value);
-      } else {
-        const value = await api.resource(projectId, releaseId, resource.resourceId);
-        if (turn === generation.current && selection === inspection.current) {
-          setDetail(value);
-          setTrace(null);
-        }
-      }
-    } catch (failure) {
-      if (turn === generation.current) setError(errorText(failure));
-    }
-  }
-
+  const metricChoices = metrics.map((item) => ({
+    value: item.resourceId,
+    label: item.displayName || item.name,
+    description: item.description,
+  }));
+  const dimensionChoices = options.map((item) => ({
+    value: item.optionId,
+    label: item.displayName,
+  }));
+  const changeMetrics = (value: string[]) => setSelected(value);
   return (
-    <Card
-      title={`${projectId} · ${queryPage ? '指标查询' : '已发布目录'}`}
-      extra={<Button onClick={() => void latest()}>刷新已发布版本</Button>}
-    >
-      <Space orientation="vertical" style={{ width: '100%' }} size="middle">
-        <Typography.Text type="secondary">当前版本：{releaseId || '尚未发布'}</Typography.Text>
-        <Link
-          to={`/dbt/projects/${encodeURIComponent(projectId)}/${queryPage ? 'catalog' : 'query'}?releaseId=${releaseId}`}
-        >
-          {queryPage ? '查看目录' : '探索指标'}
-        </Link>
-        {error && <Alert type="error" title={error} />}
-        {queryPage ? (
-          <>
-            <label>
-              指标
-              <select
-                aria-label="指标"
-                multiple
-                value={selected}
-                onChange={(event) => {
-                  setSelected(Array.from(event.target.selectedOptions, (option) => option.value));
-                }}
-              >
-                {metrics.map((item) => (
-                  <option key={item.resourceId} value={item.resourceId}>
-                    {item.displayName}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <label>
-              分组维度
-              <select
-                aria-label="分组维度"
-                multiple
-                value={groups}
-                onChange={(event) =>
-                  setGroups(Array.from(event.target.selectedOptions, (option) => option.value))
-                }
-              >
-                {options.map((option) => (
-                  <option key={option.optionId} value={option.optionId}>
-                    {option.displayName}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <Space wrap>
-              <label>
-                排序字段
-                <select
-                  aria-label="排序字段"
-                  value={sortField}
-                  onChange={(event) => setSortField(event.target.value)}
-                >
-                  <option value="">默认顺序</option>
-                  {metrics
-                    .filter((item) => selected.includes(item.resourceId))
-                    .map((item) => (
-                      <option key={item.resourceId} value={item.resourceId}>
-                        {item.displayName}
-                      </option>
-                    ))}
-                  {options
-                    .filter((item) => groups.includes(item.optionId))
-                    .map((item) => (
-                      <option key={item.optionId} value={item.optionId}>
-                        {item.displayName}
-                      </option>
-                    ))}
-                </select>
-              </label>
-              <select
-                aria-label="排序方向"
-                value={sortDirection}
-                onChange={(event) => setSortDirection(event.target.value as 'ASC' | 'DESC')}
-              >
-                <option value="ASC">升序</option>
-                <option value="DESC">降序</option>
-              </select>
-              <label>
-                筛选维度
-                <select
-                  aria-label="筛选维度"
-                  value={filterOption}
-                  onChange={(event) => setFilterOption(event.target.value)}
-                >
-                  <option value="">不筛选</option>
-                  {options
-                    .filter((option) => option.operators.length > 0)
-                    .map((option) => (
-                      <option key={option.optionId} value={option.optionId}>
-                        {option.displayName}
-                      </option>
-                    ))}
-                </select>
-              </label>
-              <select
-                aria-label="操作符"
-                value={operator}
-                onChange={(event) => setOperator(event.target.value)}
-              >
-                {(
-                  options.find((option) => option.optionId === filterOption)?.operators ?? ['=']
-                ).map((value) => (
-                  <option key={value}>{value}</option>
-                ))}
-              </select>
-              <Input
-                aria-label="筛选值"
-                value={filterValue}
-                onChange={(event) => setFilterValue(event.target.value)}
-                placeholder="IN 的多个值用逗号分隔"
+    <section className="analysis-page">
+      <header className="analysis-heading">
+        <div>
+          <Link to={`/dbt/projects/${encodeURIComponent(projectId)}/catalog?${params}`}>
+            返回资源目录
+          </Link>
+          <h1>分析探索</h1>
+        </div>
+        <Button loading={loading} onClick={() => void latest()}>
+          刷新已发布版本
+        </Button>
+      </header>
+      {error && <Alert type="error" title={error} />}
+      <div className="analysis-studio">
+        <MetricLibrary
+          options={metricChoices}
+          selected={selected}
+          onChange={changeMetrics}
+          loading={loading}
+        />
+        <main className="analysis-canvas">
+          <section className="analysis-builder" aria-label="查询设置">
+            <header>
+              <h2>这次想了解什么？</h2>
+              <span>按需分组，逐步缩小范围</span>
+            </header>
+            <div className="analysis-builder-row">
+              <h3>分析指标</h3>
+              <SelectedMetrics
+                options={metricChoices}
+                selected={selected}
+                onChange={changeMetrics}
               />
+            </div>
+            <div className="analysis-builder-row">
+              <div>
+                <h3>分组维度</h3>
+                <small>可直接多选</small>
+              </div>
+              <ChoiceChips
+                label="分组维度"
+                options={dimensionChoices}
+                selected={groups}
+                onChange={setGroups}
+                disabled={!optionsReady}
+                emptyText={
+                  selected.length
+                    ? optionsReady
+                      ? '当前指标没有可用分组，查询将显示汇总值'
+                      : '正在读取共同维度…'
+                    : '先选择指标，再选择可用维度'
+                }
+              />
+            </div>
+            {options
+              .filter(
+                (option) => groups.includes(option.optionId) && option.granularities.length > 0,
+              )
+              .map((option) => (
+                <div className="analysis-builder-row" key={option.optionId}>
+                  <h3>{option.displayName}粒度</h3>
+                  <ChoiceChips
+                    label={`${option.displayName}时间粒度`}
+                    single
+                    options={option.granularities.map((grain) => ({
+                      value: grain,
+                      label: GRAIN_LABELS[grain] ?? grain,
+                    }))}
+                    selected={grains[option.optionId] ? [grains[option.optionId]] : []}
+                    onChange={(values) =>
+                      setGrains((current) => ({
+                        ...current,
+                        [option.optionId]: values[0] ?? EMPTY,
+                      }))
+                    }
+                  />
+                </div>
+              ))}
+            <div className="analysis-builder-row">
+              <h3>时间范围</h3>
+              <TimeRange
+                start={start}
+                end={end}
+                onChange={(from, to) => {
+                  setStart(from);
+                  setEnd(to);
+                }}
+              />
+            </div>
+            <details className="analysis-advanced">
+              <summary>
+                <FilterOutlined /> 筛选与排序
+                <span>{filterOption || sortField ? '已配置' : '按需添加'}</span>
+              </summary>
+              <div className="analysis-builder-row">
+                <h3>筛选维度</h3>
+                <div className="analysis-filter-controls">
+                  <ChoiceChips
+                    label="筛选维度"
+                    single
+                    options={options
+                      .filter((option) => option.operators.length > 0)
+                      .map((option) => ({ value: option.optionId, label: option.displayName }))}
+                    selected={filterOption ? [filterOption] : []}
+                    onChange={(values) => {
+                      setFilterOption(values[0] ?? EMPTY);
+                      setOperator(
+                        options.find((option) => option.optionId === values[0])?.operators[0] ??
+                          '=',
+                      );
+                      setFilterValue(EMPTY);
+                    }}
+                  />
+                  {filterOption && (
+                    <>
+                      <ChoiceChips
+                        label="操作符"
+                        single
+                        options={(
+                          options.find((option) => option.optionId === filterOption)?.operators ??
+                          []
+                        ).map((value) => ({ value, label: value }))}
+                        selected={[operator]}
+                        onChange={(values) => {
+                          if (values[0]) setOperator(values[0]);
+                        }}
+                      />
+                      <Input
+                        aria-label="筛选值"
+                        value={filterValue}
+                        onChange={(event) => setFilterValue(event.target.value)}
+                        placeholder={operator === 'IN' ? '多个值用逗号分隔' : '输入筛选值'}
+                      />
+                    </>
+                  )}
+                </div>
+              </div>
+              <div className="analysis-builder-row">
+                <h3>排序字段</h3>
+                <div className="analysis-filter-controls">
+                  <ChoiceChips
+                    label="排序字段"
+                    single
+                    options={[
+                      ...metricChoices.filter((item) => selected.includes(item.value)),
+                      ...dimensionChoices.filter((item) => groups.includes(item.value)),
+                    ]}
+                    selected={sortField ? [sortField] : []}
+                    onChange={(values) => setSortField(values[0] ?? EMPTY)}
+                  />
+                  {sortField && (
+                    <ChoiceChips
+                      label="排序方向"
+                      single
+                      options={[
+                        { value: 'ASC', label: '升序' },
+                        { value: 'DESC', label: '降序' },
+                      ]}
+                      selected={[sortDirection]}
+                      onChange={(values) => {
+                        if (values[0]) setSortDirection(values[0] as 'ASC' | 'DESC');
+                      }}
+                    />
+                  )}
+                </div>
+              </div>
+            </details>
+            <footer className="analysis-runbar">
               <label>
-                开始时间
-                <input
-                  aria-label="开始时间"
-                  type="datetime-local"
-                  value={start}
-                  onChange={(event) => setStart(event.target.value)}
-                />
-              </label>
-              <label>
-                结束时间
-                <input
-                  aria-label="结束时间"
-                  type="datetime-local"
-                  value={end}
-                  onChange={(event) => setEnd(event.target.value)}
-                />
-              </label>
-              <label>
-                行数
+                最多返回{' '}
                 <input
                   aria-label="行数"
                   type="number"
@@ -435,144 +461,64 @@ export function PublishedWorkbench({ api = publishedCatalogApi }: { api?: Publis
                   max={10000}
                   value={limit}
                   onChange={(event) => setLimit(Number(event.target.value))}
-                />
+                />{' '}
+                行
               </label>
-            </Space>
-            <Space>
-              <Button
-                aria-label="查询"
-                disabled={!optionsReady || busy}
-                onClick={() => void submit(QUERY)}
-              >
-                查询
-              </Button>
-              <Button disabled={!optionsReady || busy} onClick={() => void submit(EXPLAIN)}>
-                查看 SQL
-              </Button>
-              <Button
-                disabled={!optionsReady || groups.length !== 1 || busy}
-                onClick={() => void submit(DIMENSION_VALUES)}
-              >
-                维度值
-              </Button>
-            </Space>
-          </>
-        ) : (
-          <>
-            <Space>
-              <Input.Search
-                placeholder="搜索资源"
-                onSearch={(value) => {
-                  setSearch(value);
-                  setPage(1);
-                }}
-              />
-              <select
-                aria-label="资源类型"
-                value={kind}
-                onChange={(event) => {
-                  setKind(event.target.value);
-                  setPage(1);
-                }}
-              >
-                <option value="">全部资源</option>
-                {Object.entries(LABELS).map(([value, label]) => (
-                  <option key={value} value={value}>
-                    {label}
-                  </option>
-                ))}
-              </select>
-            </Space>
-            {!loading && !error && resources.length === 0 && (
-              <Empty description="此版本没有匹配的资源" />
-            )}
-            {resources.map((resource) => (
-              <Card
-                key={resource.resourceId}
-                size="small"
-                title={resource.displayName}
-                extra={<Tag>{LABELS[resource.kind]}</Tag>}
-              >
-                <p>{resource.description}</p>
-                <Space>
-                  <Button onClick={() => void inspect(resource)}>详情</Button>
-                  {resource.capabilities.includes(PREVIEW) && (
-                    <Button
-                      disabled={busy}
-                      onClick={() => void submit(PREVIEW, resource.resourceId)}
-                    >
-                      预览
-                    </Button>
-                  )}
-                </Space>
-              </Card>
-            ))}
-            <Space>
-              <Button disabled={page <= 1} onClick={() => setPage((value) => value - 1)}>
-                上一页
-              </Button>
-              <span>
-                第 {page} 页，共 {total} 项
-              </span>
-              <Button disabled={page * 50 >= total} onClick={() => setPage((value) => value + 1)}>
-                下一页
-              </Button>
-            </Space>
-          </>
-        )}
-        {detail && (
-          <Card title={detail.displayName}>
-            <Descriptions
-              column={1}
-              items={Object.entries(detail.attributes).map(([key, value]) => ({
-                key,
-                label: FIELD_LABELS[key] ?? key,
-                children: display(value),
-              }))}
-            />
-            <Space>
-              {(['lineage', 'source', 'native-details'] as const).map((view, index) => (
-                <Button key={view} onClick={() => void inspect(detail, view)}>
-                  {['资源关系', '源码', '原生详情'][index]}
+              <div>
+                <Button
+                  disabled={!optionsReady || groups.length !== 1 || busy}
+                  onClick={() => void submit(DIMENSION_VALUES)}
+                >
+                  维度值
                 </Button>
-              ))}
-            </Space>
-            {trace !== null && (
-              <pre style={{ whiteSpace: 'pre-wrap' }}>{JSON.stringify(trace, null, 2)}</pre>
+                <Button
+                  icon={<CodeOutlined />}
+                  disabled={!optionsReady || busy}
+                  onClick={() => void submit(EXPLAIN)}
+                >
+                  查看 SQL
+                </Button>
+                <Button
+                  type="primary"
+                  icon={<PlayCircleOutlined />}
+                  aria-label="查询"
+                  disabled={!optionsReady || busy}
+                  loading={busy}
+                  onClick={() => void submit(QUERY)}
+                >
+                  运行查询
+                </Button>
+              </div>
+            </footer>
+          </section>
+          <section className="analysis-result" aria-label="查询结果" aria-live="polite">
+            <header>
+              <h2>查询结果</h2>
+              <span>
+                {result ? `查询 ${result.queryId} · 版本 ${result.releaseId}` : '等待运行'}
+              </span>
+            </header>
+            {result ? (
+              <>
+                <p className="resource-muted">修改条件后，运行查询以刷新结果。</p>
+                {result.state === READY && !result.columns?.length && !result.sql ? (
+                  <Empty image={null} description="查询完成，没有返回数据列" />
+                ) : (
+                  <DbtQueryResults
+                    key={result.queryId}
+                    result={publishedResult(result, submittedMode)}
+                    metricNames={submittedMetrics}
+                  />
+                )}
+              </>
+            ) : busy ? (
+              <Alert type="info" title="查询已提交，正在读取结果…" />
+            ) : (
+              <AnalysisEmpty />
             )}
-          </Card>
-        )}
-        {result && (
-          <Card title={`查询 ${result.queryId} · 版本 ${result.releaseId}`}>
-            <p>
-              {result.state}
-              {result.errorCode && `：${result.errorCode}`}
-            </p>
-            {result.sql && <pre>{result.sql}</pre>}
-            {result.columns && (
-              <table>
-                <thead>
-                  <tr>
-                    {result.columns.map((column) => (
-                      <th key={column.name}>{column.name}</th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  {result.rows?.map((row, index) => (
-                    <tr key={index}>
-                      {row.map((cell, cellIndex) => (
-                        <td key={cellIndex}>{display(cell)}</td>
-                      ))}
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            )}
-            {result.truncated && <p>结果已截断</p>}
-          </Card>
-        )}
-      </Space>
-    </Card>
+          </section>
+        </main>
+      </div>
+    </section>
   );
 }

@@ -1,0 +1,180 @@
+{
+  "regions": [
+    {
+      "id": "rail",
+      "kind": "chrome",
+      "box": {
+        "x": 0,
+        "h": 1,
+        "y": 0,
+        "w": 0.053
+      },
+      "note": "rail semantic application interface region: 深蓝全局窄导航"
+    },
+    {
+      "id": "project",
+      "kind": "control",
+      "box": {
+        "x": 0.045572916666666664,
+        "h": 0.08984375,
+        "y": 0,
+        "w": 0.21223958333333334
+      },
+      "note": "project semantic application interface region: 项目选择"
+    },
+    {
+      "id": "search",
+      "kind": "control",
+      "box": {
+        "x": 0.045572916666666664,
+        "h": 0.060546875,
+        "y": 0.08984375,
+        "w": 0.21223958333333334
+      },
+      "note": "search semantic application interface region: 搜索与目录工具"
+    },
+    {
+      "id": "tree",
+      "kind": "control",
+      "box": {
+        "x": 0.045572916666666664,
+        "h": 0.546875,
+        "y": 0.150390625,
+        "w": 0.21223958333333334
+      },
+      "note": "tree semantic application interface region: 可折叠资源目录"
+    },
+    {
+      "id": "workspaces",
+      "kind": "chrome",
+      "box": {
+        "x": 0.2578125,
+        "h": 0.0546875,
+        "y": 0,
+        "w": 0.7421875
+      },
+      "note": "workspaces semantic application interface region: 等权资源管理与分析探索标签及固定版本"
+    },
+    {
+      "id": "editor-tab",
+      "kind": "chrome",
+      "box": {
+        "x": 0.2578125,
+        "h": 0.05078125,
+        "y": 0.0546875,
+        "w": 0.7421875
+      },
+      "note": "editor-tab semantic application interface region: 当前资源页签"
+    },
+    {
+      "id": "breadcrumb",
+      "kind": "text",
+      "box": {
+        "x": 0.2766927083333333,
+        "h": 0.03125,
+        "y": 0.1220703125,
+        "w": 0.2506510416666667
+      },
+      "note": "breadcrumb semantic application interface region: 资源位置"
+    },
+    {
+      "id": "title",
+      "kind": "text",
+      "box": {
+        "x": 0.3111979166666667,
+        "h": 0.0478515625,
+        "y": 0.171875,
+        "w": 0.17838541666666666
+      },
+      "note": "title semantic application interface region: gross_amount"
+    },
+    {
+      "id": "description",
+      "kind": "text",
+      "box": {
+        "x": 0.3118489583333333,
+        "h": 0.029296875,
+        "y": 0.2265625,
+        "w": 0.22786458333333334
+      },
+      "note": "description semantic application interface region: 所有订单明细折后总额。"
+    },
+    {
+      "id": "actions",
+      "kind": "control",
+      "box": {
+        "y": 0.1,
+        "w": 0.24,
+        "x": 0.75,
+        "h": 0.14
+      },
+      "note": "actions semantic application interface region: 开始分析与源码按钮"
+    },
+    {
+      "id": "detail-tabs",
+      "kind": "control",
+      "box": {
+        "x": 0.2766927083333333,
+        "h": 0.0478515625,
+        "y": 0.26953125,
+        "w": 0.7057291666666666
+      },
+      "note": "detail-tabs semantic application interface region: 概览血缘源码"
+    },
+    {
+      "id": "definition",
+      "kind": "control",
+      "box": {
+        "x": 0.2766927083333333,
+        "h": 0.1982421875,
+        "y": 0.3408203125,
+        "w": 0.7057291666666666
+      },
+      "note": "definition semantic application interface region: 类型与聚合定义的真实字段"
+    },
+    {
+      "id": "dependency-title",
+      "kind": "control",
+      "box": {
+        "y": 0.54,
+        "w": 0.72,
+        "x": 0.27,
+        "h": 0.075
+      },
+      "note": "dependency-title semantic application interface region: 来源与依赖及打开血缘"
+    },
+    {
+      "id": "dependency",
+      "kind": "control",
+      "box": {
+        "x": 0.318359375,
+        "h": 0.13671875,
+        "y": 0.62109375,
+        "w": 0.6223958333333334
+      },
+      "note": "dependency semantic application interface region: 运行时数据驱动的可点击依赖节点和连线"
+    },
+    {
+      "id": "source",
+      "kind": "control",
+      "box": {
+        "x": 0.2766927083333333,
+        "h": 0.0615234375,
+        "y": 0.791015625,
+        "w": 0.7057291666666666
+      },
+      "note": "source semantic application interface region: 来源字段链接"
+    },
+    {
+      "id": "native",
+      "kind": "control",
+      "box": {
+        "y": 0.88,
+        "w": 0.72,
+        "x": 0.27,
+        "h": 0.09
+      },
+      "note": "native semantic application interface region: 折叠原始属性"
+    }
+  ]
+}

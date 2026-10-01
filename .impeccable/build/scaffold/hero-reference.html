@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Scaffold reference: dual-balanced.png</title>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Alegreya+Sans+SC:wght@700&display=swap">
+  <link rel="stylesheet" href="layout.css">
+  <style>html,body{margin:0}body{background:#f7f8f8}.region{box-sizing:border-box}.region.text p{white-space:pre-wrap}</style>
+</head>
+<body>
+<!-- Reference only. Every region sits at its measured box inside a comp-aspect frame. Take the boxes (layout.css), keep your own semantic structure. -->
+<main class="comp-frame" style="max-width:1536px">
+  <div class="r-rail region chrome" data-region="rail"><!-- rail semantic application interface region: 深蓝全局窄导航 --></div>
+  <div class="r-project region control" data-region="project"><!-- project semantic application interface region: 项目选择: rebuild the control's chrome from the crop (comp-spec.mjs --crop project); its ink box, border, fill, radius, and label size are the comp's --></div>
+  <div class="r-search region control" data-region="search"><!-- search semantic application interface region: 搜索与目录工具: rebuild the control's chrome from the crop (comp-spec.mjs --crop search); its ink box, border, fill, radius, and label size are the comp's --></div>
+  <div class="r-tree region control" data-region="tree"><!-- tree semantic application interface region: 可折叠资源目录: rebuild the control's chrome from the crop (comp-spec.mjs --crop tree); its ink box, border, fill, radius, and label size are the comp's --></div>
+  <div class="r-workspaces region chrome" data-region="workspaces"><!-- workspaces semantic application interface region: 等权资源管理与分析探索标签及固定版本 --></div>
+  <div class="r-editor-tab region chrome" data-region="editor-tab"><!-- editor-tab semantic application interface region: 当前资源页签 --></div>
+  <div class="r-breadcrumb region text" data-region="breadcrumb"><!-- breadcrumb semantic application interface region: 资源位置 --><p style="line-height:1.05;margin:0">breadcrumb</p></div>
+  <div class="r-title region text" data-region="title"><!-- title semantic application interface region: gross_amount --><p style="font-size:var(--r-title-font);font-family:var(--r-title-family),sans-serif;font-weight:var(--r-title-weight);line-height:1.05;margin:0">title</p></div>
+  <div class="r-description region text" data-region="description"><!-- description semantic application interface region: 所有订单明细折后总额。 --><p style="line-height:1.05;margin:0">description</p></div>
+  <div class="r-actions region control" data-region="actions"><!-- actions semantic application interface region: 开始分析与源码按钮: rebuild the control's chrome from the crop (comp-spec.mjs --crop actions); its ink box, border, fill, radius, and label size are the comp's --></div>
+  <div class="r-detail-tabs region control" data-region="detail-tabs"><!-- detail-tabs semantic application interface region: 概览血缘源码: rebuild the control's chrome from the crop (comp-spec.mjs --crop detail-tabs); its ink box, border, fill, radius, and label size are the comp's --></div>
+  <div class="r-definition region control" data-region="definition"><!-- definition semantic application interface region: 类型与聚合定义的真实字段: rebuild the control's chrome from the crop (comp-spec.mjs --crop definition); its ink box, border, fill, radius, and label size are the comp's --></div>
+  <div class="r-dependency-title region control" data-region="dependency-title"><!-- dependency-title semantic application interface region: 来源与依赖及打开血缘: rebuild the control's chrome from the crop (comp-spec.mjs --crop dependency-title); its ink box, border, fill, radius, and label size are the comp's --></div>
+  <div class="r-dependency region control" data-region="dependency"><!-- dependency semantic application interface region: 运行时数据驱动的可点击依赖节点和连线: rebuild the control's chrome from the crop (comp-spec.mjs --crop dependency); its ink box, border, fill, radius, and label size are the comp's --></div>
+  <div class="r-source region control" data-region="source"><!-- source semantic application interface region: 来源字段链接: rebuild the control's chrome from the crop (comp-spec.mjs --crop source); its ink box, border, fill, radius, and label size are the comp's --></div>
+  <div class="r-native region control" data-region="native"><!-- native semantic application interface region: 折叠原始属性: rebuild the control's chrome from the crop (comp-spec.mjs --crop native); its ink box, border, fill, radius, and label size are the comp's --></div>
+</main>
+</body>
+</html>

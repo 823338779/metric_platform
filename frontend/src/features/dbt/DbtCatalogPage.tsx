@@ -1,7 +1,7 @@
 import { Alert, Button, Card, Input, Space, Tabs, Typography } from 'antd';
-import { ApartmentOutlined, BranchesOutlined, FolderOpenOutlined } from '@ant-design/icons';
-import { useEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
-import { Link, useParams, useSearchParams } from 'react-router-dom';
+import { ApartmentOutlined, FolderOpenOutlined, DownOutlined } from '@ant-design/icons';
+import { useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from 'react';
+import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { ApiProblem } from '../../api/httpClient';
 import { metricPlatformApi, type MetricPlatformApi } from '../../api/metricPlatformApi';
 import type { DbtCatalog, DbtRelease, DbtResource } from '../../api/types';
@@ -9,7 +9,10 @@ import { DbtResourceDetail } from './DbtResourceDetail';
 import { ResourceTree } from './ResourceTree';
 import './resource-workspace.css';
 
-type CatalogApi = Pick<MetricPlatformApi, 'getDbtCatalog'> &
+type CatalogApi = { queryParameter?: 'metricResourceId' } & Pick<
+  MetricPlatformApi,
+  'getDbtCatalog'
+> &
   Partial<
     Pick<
       MetricPlatformApi,
@@ -46,7 +49,14 @@ const labels: Record<string, string> = {
 };
 
 /** 目录按版本与筛选独立加载，URL 保存选中资源以支持历史导航和深链接。 */
-export function DbtCatalogPage({ api = metricPlatformApi }: { api?: CatalogApi }) {
+export function DbtCatalogPage({
+  api = metricPlatformApi,
+  actions,
+}: {
+  api?: CatalogApi;
+  actions?: ReactNode;
+}) {
+  const navigate = useNavigate();
   const { projectId = '' } = useParams();
   const [params, setParams] = useSearchParams();
   const requestedRelease = params.get('releaseId') ?? '';
@@ -275,36 +285,18 @@ export function DbtCatalogPage({ api = metricPlatformApi }: { api?: CatalogApi }
   return (
     <div className="catalog-page">
       {error && <Alert type="error" title={error} />}
-      <header className="catalog-heading">
-        <div>
-          <span className="catalog-eyebrow">{projectId}</span>
-          <h2>{COPY.title}</h2>
-          <p>{COPY.subtitle}</p>
-        </div>
-        <div className="catalog-version">
-          <BranchesOutlined />
-          <Typography.Text copyable>
-            releaseId：{catalog?.releaseId ?? requestedRelease}
-          </Typography.Text>
-        </div>
-      </header>
-      {release && (
-        <details className="resource-native">
-          <summary>发布版本信息</summary>
-          <div className="catalog-explorer-header">
-            <Typography.Paragraph>发布提交：{release.targetCommitSha}</Typography.Paragraph>
-            <Typography.Paragraph>构建来源：{release.buildSourceSha}</Typography.Paragraph>
-            <Typography.Paragraph>
-              发布时间：{release.publishedAt ?? '尚未发布'}
-            </Typography.Paragraph>
-          </div>
-        </details>
-      )}
       <div
         className="catalog-workspace"
         style={{ '--explorer-width': `${treeWidth}px` } as CSSProperties}
       >
         <aside className="catalog-explorer">
+          <Link className="explorer-project" to="/dbt/projects">
+            <span>
+              <small>项目</small>
+              <strong title={projectId}>{projectId}</strong>
+            </span>
+            <DownOutlined />
+          </Link>
           <div className="catalog-explorer-header">
             <div className="catalog-explorer-title">
               <span>
@@ -342,6 +334,7 @@ export function DbtCatalogPage({ api = metricPlatformApi }: { api?: CatalogApi }
             />
           </div>
           <ResourceTree
+            queryParameter={api.queryParameter}
             resources={resources}
             selected={selected}
             onSelect={setSelected}
@@ -349,6 +342,15 @@ export function DbtCatalogPage({ api = metricPlatformApi }: { api?: CatalogApi }
             releaseId={requestedRelease}
           />
           <div className="catalog-explorer-footer">
+            {actions}
+            {requestedRelease && (
+              <details className="explorer-release">
+                <summary>发布版本信息</summary>
+                <p title={requestedRelease}>releaseId：{requestedRelease}</p>
+                {release && <p>发布提交：{release.targetCommitSha}</p>}
+                {release && <p>发布时间：{release.publishedAt ?? '尚未发布'}</p>}
+              </details>
+            )}
             <span>
               已加载 {catalog?.resources.length ?? 0} / {catalog?.total ?? 0} 项
             </span>
@@ -411,7 +413,14 @@ export function DbtCatalogPage({ api = metricPlatformApi }: { api?: CatalogApi }
             projectId={projectId}
             releaseId={catalog.releaseId}
             resourceId={selected}
+            tabTitle={resources.find((resource) => resource.resourceId === selected)?.name}
             onSelect={setSelected}
+            onClose={() => setSelected('')}
+            onExplore={(name) =>
+              navigate(
+                `/dbt/projects/${encodeURIComponent(projectId)}/query?${new URLSearchParams({ releaseId: requestedRelease, [api.queryParameter ?? 'metric']: api.queryParameter ? selected : (resources.find((resource) => resource.resourceId === selected)?.name ?? name), resourceId: selected })}`,
+              )
+            }
             api={api as MetricPlatformApi}
           />
         ) : (

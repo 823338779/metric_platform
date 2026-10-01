@@ -34,8 +34,7 @@ it.each([false, true])(
         </Routes>
       </MemoryRouter>,
     );
-    await screen.findByRole('option', { name: '指标 M' });
-    fireEvent.change(screen.getByLabelText('指标'), { target: { value: 'M' } });
+    fireEvent.click(await screen.findByRole('checkbox', { name: '指标 M' }));
     await waitFor(() =>
       expect((screen.getByRole('button', { name: '查询' }) as HTMLButtonElement).disabled).toBe(
         false,
@@ -105,10 +104,12 @@ it('queries with platform identities and refreshes without requesting publicatio
       </Routes>
     </MemoryRouter>,
   );
-  await screen.findByRole('option', { name: '销售额' });
-  fireEvent.change(screen.getByLabelText('指标'), { target: { value: 'metric.p.revenue' } });
-  await within(screen.getByLabelText('分组维度')).findByRole('option', { name: '地区' });
-  fireEvent.change(screen.getByLabelText('分组维度'), { target: { value: 'opaque-region' } });
+  fireEvent.click(await screen.findByRole('checkbox', { name: '销售额' }));
+  fireEvent.click(
+    await within(screen.getByRole('group', { name: '分组维度' })).findByRole('button', {
+      name: '地区',
+    }),
+  );
   fireEvent.click(screen.getByRole('button', { name: '查询' }));
   await waitFor(() =>
     expect(api.submit).toHaveBeenCalledWith(

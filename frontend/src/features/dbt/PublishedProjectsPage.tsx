@@ -58,10 +58,14 @@ export function PublishedProjectsPage({
     };
   }, [api, refresh]);
   return (
-    <Card
-      title="语义项目 · 已发布目录"
-      extra={<Button onClick={() => setRefresh((value) => value + 1)}>刷新发布结果</Button>}
-    >
+    <section className="projects-page">
+      <header className="projects-heading">
+        <div>
+          <h2>语义项目</h2>
+          <p>查看发布状态，从同一版本开始管理资源与分析数据。</p>
+        </div>
+        <Button onClick={() => setRefresh((value) => value + 1)}>刷新发布结果</Button>
+      </header>
       <Space orientation="vertical" style={{ width: '100%' }}>
         <Typography.Text>
           展示 dbt-service 已发布的完整目录；每 5 秒重新读取发布状态。
@@ -71,11 +75,18 @@ export function PublishedProjectsPage({
         {projects.map((project) => (
           <Card key={project.projectId} title={project.projectId}>
             {project.activePublication ? (
-              <Link
-                to={`/dbt/projects/${encodeURIComponent(project.projectId)}/catalog?releaseId=${project.activePublication.releaseId}`}
-              >
-                查看当前目录
-              </Link>
+              <div className="project-entry-actions">
+                <Link
+                  to={`/dbt/projects/${encodeURIComponent(project.projectId)}/catalog?releaseId=${project.activePublication.releaseId}`}
+                >
+                  查看当前目录
+                </Link>
+                <Link
+                  to={`/dbt/projects/${encodeURIComponent(project.projectId)}/query?releaseId=${encodeURIComponent(project.activePublication.releaseId)}`}
+                >
+                  分析探索
+                </Link>
+              </div>
             ) : (
               <span>尚未发布</span>
             )}
@@ -89,6 +100,6 @@ export function PublishedProjectsPage({
           </Card>
         ))}
       </Space>
-    </Card>
+    </section>
   );
 }

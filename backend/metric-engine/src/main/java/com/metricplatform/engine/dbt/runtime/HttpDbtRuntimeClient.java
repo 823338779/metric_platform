@@ -111,7 +111,11 @@ public final class HttpDbtRuntimeClient implements EngineClient {
 
     @Override
     public QueryReceipt submitQuery(QueryJobRequest request) {
-        return call(POST, QUERIES, request, QueryReceipt.class);
+        return call(
+                POST,
+                QUERIES,
+                DbtQueryTimeAdapter.normalize(mapper.valueToTree(request)),
+                QueryReceipt.class);
     }
 
     @Override

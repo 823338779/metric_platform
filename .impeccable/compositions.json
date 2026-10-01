@@ -1,0 +1,64 @@
+{
+  "title": "双工作台 · 布局定稿",
+  "question": "双工作台方向已确定。本轮只比较内容布局，推荐 B：长字段更舒展、两类用户都易读。请选择用于实现的布局，也可以填写要组合或修改的部分。效果图是设计示意，元数据以实际接口为准。",
+  "options": [
+    {
+      "id": "dual-original",
+      "label": "A · 经典三栏",
+      "thesis": "保留原效果图的定义区与来源侧栏，信息同时可见。",
+      "viewport": "窄导航、目录树、定义区与固定来源侧栏。",
+      "risk": "较窄屏幕下，长字段路径容易拥挤；原图人员、日期为示意，实施时不采用。",
+      "comp": ".impeccable/mocks/decision/model-pick.png",
+      "palette": [
+        "#F3F5F8",
+        "#FFFFFF",
+        "#233247",
+        "#315BC3"
+      ],
+      "materials": [
+        "清晰分栏",
+        "细分隔线",
+        "IDEA 式目录树"
+      ]
+    },
+    {
+      "id": "dual-balanced",
+      "label": "B · 舒适阅读",
+      "thesis": "给予定义更完整的宽度，把来源关系放在内容下方。",
+      "viewport": "相同双工作台外框，概览采用宽内容区与横向依赖摘要。",
+      "risk": "来源信息需要向下浏览；适合两类用户共同使用。",
+      "comp": ".impeccable/mocks/dual-balanced.png",
+      "palette": [
+        "#F3F5F8",
+        "#FFFFFF",
+        "#233247",
+        "#315BC3"
+      ],
+      "materials": [
+        "清晰分栏",
+        "细分隔线",
+        "IDEA 式目录树"
+      ]
+    },
+    {
+      "id": "dual-context",
+      "label": "C · 来源常驻",
+      "thesis": "收紧定义并保留可收起的来源检查区，方便频繁追溯。",
+      "viewport": "相同双工作台外框，定义左置、来源与血缘预览右置。",
+      "risk": "追溯方便，但概览宽度仍需在窄屏时让位。",
+      "comp": ".impeccable/mocks/dual-context.png",
+      "palette": [
+        "#F3F5F8",
+        "#FFFFFF",
+        "#233247",
+        "#315BC3"
+      ],
+      "materials": [
+        "清晰分栏",
+        "细分隔线",
+        "IDEA 式目录树"
+      ]
+    }
+  ],
+  "steer": true
+}

@@ -87,8 +87,8 @@ test('uses published resource identities and keeps a replaced query readable', a
     return route.fulfill({ status: 404, json: { status: 404 } });
   });
   await page.goto('/dbt/projects/p/query?releaseId=A');
-  await page.getByLabel('指标', { exact: true }).selectOption('metric.p.revenue');
-  await page.getByLabel('分组维度', { exact: true }).selectOption('opaque-region');
+  await page.getByRole('checkbox', { name: '销售额 A' }).click();
+  await page.getByRole('group', { name: '分组维度' }).getByRole('button', { name: '地区' }).click();
   await page.getByRole('button', { name: '查询', exact: true }).click();
   await expect(page.getByRole('cell', { name: '31.00' })).toBeVisible();
   expect(submitted).toMatchObject({
@@ -99,8 +99,6 @@ test('uses published resource identities and keeps a replaced query readable', a
   });
   await page.getByRole('button', { name: '刷新已发布版本' }).click();
   await expect(page).toHaveURL(/releaseId=B/);
-  await expect(
-    page.getByLabel('指标', { exact: true }).getByRole('option', { name: '销售额 B' }),
-  ).toBeAttached();
+  await expect(page.getByRole('checkbox', { name: '销售额 B' })).toBeAttached();
   await expect(page.getByRole('button', { name: '查询', exact: true })).toBeDisabled();
 });

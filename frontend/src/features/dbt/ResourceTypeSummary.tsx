@@ -19,11 +19,13 @@ export function ResourceTypeSummary({
   lineage,
   projectId,
   api,
+  onResolve,
 }: {
   presentation: DbtResourcePresentation;
   lineage?: DbtLineage;
   projectId: string;
   api: DataTypeApi;
+  onResolve?: (value: DataType) => void;
 }) {
   const [value, setValue] = useState<DataType>();
   useEffect(() => {
@@ -31,7 +33,10 @@ export function ResourceTypeSummary({
     setValue(undefined);
     void resolveResourceDataType(presentation, lineage, projectId, api)
       .then((result) => {
-        if (active) setValue(result);
+        if (active) {
+          setValue(result);
+          onResolve?.(result);
+        }
       })
       .catch(() => {
         if (active) setValue({ label: COPY.failure, description: COPY.failureHint });
@@ -39,7 +44,7 @@ export function ResourceTypeSummary({
     return () => {
       active = false;
     };
-  }, [presentation, lineage, projectId, api]);
+  }, [presentation, lineage, projectId, api, onResolve]);
   return (
     <section className="resource-data-type" aria-label={COPY.title}>
       <span className="resource-data-type-label">{COPY.title}</span>

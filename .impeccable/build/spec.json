@@ -1,0 +1,866 @@
+{
+  "tool": "comp-spec",
+  "version": 1,
+  "createdAt": "2026-10-01T05:30:21.804Z",
+  "comp": ".impeccable/mocks/dual-balanced.png",
+  "warnings": [],
+  "uncoveredInkCells": [],
+  "compSize": {
+    "width": 1536,
+    "height": 1024
+  },
+  "aspect": 1.5,
+  "orientation": "landscape",
+  "palette": [
+    {
+      "hex": "#f7f8f8",
+      "coverage": 0.9414
+    },
+    {
+      "hex": "#283858",
+      "coverage": 0.0433
+    },
+    {
+      "hex": "#c3d0eb",
+      "coverage": 0.0071
+    },
+    {
+      "hex": "#1858d8",
+      "coverage": 0.0048
+    },
+    {
+      "hex": "#5c6c85",
+      "coverage": 0.0034
+    }
+  ],
+  "bands": [
+    {
+      "y": 0.1882,
+      "strength": 0.2272
+    },
+    {
+      "y": 0.2118,
+      "strength": 0.3844
+    },
+    {
+      "y": 0.4118,
+      "strength": 0.2303
+    },
+    {
+      "y": 0.5765,
+      "strength": 0.2317
+    }
+  ],
+  "regions": [
+    {
+      "id": "rail",
+      "kind": "chrome",
+      "note": "rail semantic application interface region: 深蓝全局窄导航",
+      "grid": null,
+      "box": {
+        "x": 0,
+        "y": 0,
+        "w": 0.053,
+        "h": 1
+      },
+      "px": {
+        "x": 0,
+        "y": 0,
+        "w": 81,
+        "h": 1024
+      },
+      "aspect": 0.0791,
+      "palette": [
+        {
+          "hex": "#283858",
+          "coverage": 0.7785
+        },
+        {
+          "hex": "#f7f7f8",
+          "coverage": 0.1658
+        },
+        {
+          "hex": "#1757da",
+          "coverage": 0.027
+        },
+        {
+          "hex": "#5a718d",
+          "coverage": 0.0148
+        },
+        {
+          "hex": "#294757",
+          "coverage": 0.0139
+        }
+      ],
+      "detail": {
+        "energy": 4.179
+      },
+      "medium": "semantic",
+      "plate": null,
+      "text": null
+    },
+    {
+      "id": "project",
+      "kind": "control",
+      "note": "project semantic application interface region: 项目选择",
+      "grid": null,
+      "box": {
+        "x": 0.0456,
+        "y": 0,
+        "w": 0.2122,
+        "h": 0.0898
+      },
+      "px": {
+        "x": 70,
+        "y": 0,
+        "w": 326,
+        "h": 92
+      },
+      "aspect": 3.5435,
+      "palette": [
+        {
+          "hex": "#f7f7f8",
+          "coverage": 0.9676
+        },
+        {
+          "hex": "#667083",
+          "coverage": 0.0113
+        },
+        {
+          "hex": "#a9b0bf",
+          "coverage": 0.0101
+        },
+        {
+          "hex": "#0b0c27",
+          "coverage": 0.0092
+        },
+        {
+          "hex": "#1d283d",
+          "coverage": 0.0018
+        }
+      ],
+      "detail": {
+        "energy": 14.2533
+      },
+      "medium": "semantic",
+      "plate": null,
+      "text": null
+    },
+    {
+      "id": "search",
+      "kind": "control",
+      "note": "search semantic application interface region: 搜索与目录工具",
+      "grid": null,
+      "box": {
+        "x": 0.0456,
+        "y": 0.0898,
+        "w": 0.2122,
+        "h": 0.0605
+      },
+      "px": {
+        "x": 70,
+        "y": 92,
+        "w": 326,
+        "h": 62
+      },
+      "aspect": 5.2581,
+      "palette": [
+        {
+          "hex": "#f5f6f7",
+          "coverage": 0.9368
+        },
+        {
+          "hex": "#7e889f",
+          "coverage": 0.0298
+        },
+        {
+          "hex": "#afb6c6",
+          "coverage": 0.0237
+        },
+        {
+          "hex": "#535f7a",
+          "coverage": 0.007
+        },
+        {
+          "hex": "#304060",
+          "coverage": 0.0026
+        }
+      ],
+      "detail": {
+        "energy": 20.3879
+      },
+      "medium": "semantic",
+      "plate": null,
+      "text": null
+    },
+    {
+      "id": "tree",
+      "kind": "control",
+      "note": "tree semantic application interface region: 可折叠资源目录",
+      "grid": null,
+      "box": {
+        "x": 0.0456,
+        "y": 0.1504,
+        "w": 0.2122,
+        "h": 0.5469
+      },
+      "px": {
+        "x": 70,
+        "y": 154,
+        "w": 326,
+        "h": 560
+      },
+      "aspect": 0.5821,
+      "palette": [
+        {
+          "hex": "#f5f7f8",
+          "coverage": 0.9684
+        },
+        {
+          "hex": "#c1c6d4",
+          "coverage": 0.0105
+        },
+        {
+          "hex": "#2b3753",
+          "coverage": 0.0086
+        },
+        {
+          "hex": "#5a667e",
+          "coverage": 0.0077
+        },
+        {
+          "hex": "#8c94a8",
+          "coverage": 0.0048
+        }
+      ],
+      "detail": {
+        "energy": 17.5589
+      },
+      "medium": "semantic",
+      "plate": null,
+      "text": null
+    },
+    {
+      "id": "workspaces",
+      "kind": "chrome",
+      "note": "workspaces semantic application interface region: 等权资源管理与分析探索标签及固定版本",
+      "grid": null,
+      "box": {
+        "x": 0.2578,
+        "y": 0,
+        "w": 0.7422,
+        "h": 0.0547
+      },
+      "px": {
+        "x": 396,
+        "y": 0,
+        "w": 1140,
+        "h": 56
+      },
+      "aspect": 20.3571,
+      "palette": [
+        {
+          "hex": "#f8f8f8",
+          "coverage": 0.9785
+        },
+        {
+          "hex": "#7f8c9f",
+          "coverage": 0.0085
+        },
+        {
+          "hex": "#bbc1cd",
+          "coverage": 0.005
+        },
+        {
+          "hex": "#0858e8",
+          "coverage": 0.0048
+        },
+        {
+          "hex": "#4b5b72",
+          "coverage": 0.0033
+        }
+      ],
+      "detail": {
+        "energy": 13.7006
+      },
+      "medium": "semantic",
+      "plate": null,
+      "text": null
+    },
+    {
+      "id": "editor-tab",
+      "kind": "chrome",
+      "note": "editor-tab semantic application interface region: 当前资源页签",
+      "grid": null,
+      "box": {
+        "x": 0.2578,
+        "y": 0.0547,
+        "w": 0.7422,
+        "h": 0.0508
+      },
+      "px": {
+        "x": 396,
+        "y": 56,
+        "w": 1140,
+        "h": 52
+      },
+      "aspect": 21.9231,
+      "palette": [
+        {
+          "hex": "#f8f8f8",
+          "coverage": 0.9978
+        },
+        {
+          "hex": "#cfcfdf",
+          "coverage": 0.0016
+        },
+        {
+          "hex": "#9898a8",
+          "coverage": 0.0006
+        }
+      ],
+      "detail": {
+        "energy": 5.8938
+      },
+      "medium": "semantic",
+      "plate": null,
+      "text": null
+    },
+    {
+      "id": "breadcrumb",
+      "kind": "text",
+      "note": "breadcrumb semantic application interface region: 资源位置",
+      "grid": null,
+      "box": {
+        "x": 0.2767,
+        "y": 0.1221,
+        "w": 0.2507,
+        "h": 0.0313
+      },
+      "px": {
+        "x": 425,
+        "y": 125,
+        "w": 385,
+        "h": 32
+      },
+      "aspect": 12.0313,
+      "palette": [
+        {
+          "hex": "#f7f7f7",
+          "coverage": 0.9003
+        },
+        {
+          "hex": "#b7bdca",
+          "coverage": 0.0342
+        },
+        {
+          "hex": "#8c95a8",
+          "coverage": 0.0256
+        },
+        {
+          "hex": "#64728d",
+          "coverage": 0.0249
+        },
+        {
+          "hex": "#363e5c",
+          "coverage": 0.015
+        }
+      ],
+      "detail": {
+        "energy": 42.6497
+      },
+      "medium": "semantic",
+      "plate": null,
+      "text": null,
+      "type": {
+        "comp": {
+          "lines": 1,
+          "glyphs": 31,
+          "capHeightPx": 12.5,
+          "inkIsDark": true,
+          "allCaps": false,
+          "advance": 0.5994,
+          "advTall": 0.1598,
+          "advX": 0.5994,
+          "gap": 0.0799,
+          "xRatio": 0.7116,
+          "stemW": 0.1627,
+          "contrast": 1.1111,
+          "serif": 0.9741,
+          "densTall": 0.7045,
+          "densX": 0.5302,
+          "weight": 0.7045
+        },
+        "widthClass": "normal",
+        "weightClass": "black"
+      }
+    },
+    {
+      "id": "title",
+      "kind": "text",
+      "note": "title semantic application interface region: gross_amount",
+      "grid": null,
+      "box": {
+        "x": 0.3112,
+        "y": 0.1719,
+        "w": 0.1784,
+        "h": 0.0479
+      },
+      "px": {
+        "x": 478,
+        "y": 176,
+        "w": 274,
+        "h": 49
+      },
+      "aspect": 5.5918,
+      "palette": [
+        {
+          "hex": "#f7f7f7",
+          "coverage": 0.8429
+        },
+        {
+          "hex": "#091333",
+          "coverage": 0.1199
+        },
+        {
+          "hex": "#3d4660",
+          "coverage": 0.013
+        },
+        {
+          "hex": "#9ea0ae",
+          "coverage": 0.0124
+        },
+        {
+          "hex": "#0e0e1e",
+          "coverage": 0.0117
+        }
+      ],
+      "detail": {
+        "energy": 53.3102
+      },
+      "medium": "semantic",
+      "plate": null,
+      "text": null,
+      "type": {
+        "comp": {
+          "lines": 1,
+          "glyphs": 11,
+          "capHeightPx": 24.2,
+          "inkIsDark": true,
+          "allCaps": false,
+          "advance": 0.7011,
+          "advTall": 0.4949,
+          "advX": 0.7114,
+          "gap": 0.1237,
+          "xRatio": 0.7951,
+          "stemW": 0.2039,
+          "contrast": 1.1801,
+          "serif": 0.9653,
+          "densTall": 0.5489,
+          "densX": 0.6078,
+          "weight": 0.5489
+        },
+        "widthClass": "normal",
+        "weightClass": "medium",
+        "chosen": {
+          "family": "Alegreya Sans SC",
+          "weight": 700,
+          "fontSizePx": 35,
+          "source": "catalog",
+          "estimatedSize": true,
+          "stamp": "3293a8353739"
+        }
+      }
+    },
+    {
+      "id": "description",
+      "kind": "text",
+      "note": "description semantic application interface region: 所有订单明细折后总额。",
+      "grid": null,
+      "box": {
+        "x": 0.3118,
+        "y": 0.2266,
+        "w": 0.2279,
+        "h": 0.0293
+      },
+      "px": {
+        "x": 479,
+        "y": 232,
+        "w": 350,
+        "h": 30
+      },
+      "aspect": 11.6667,
+      "palette": [
+        {
+          "hex": "#f8f8f8",
+          "coverage": 0.8598
+        },
+        {
+          "hex": "#c3cad5",
+          "coverage": 0.053
+        },
+        {
+          "hex": "#8d99ab",
+          "coverage": 0.0436
+        },
+        {
+          "hex": "#5c6983",
+          "coverage": 0.041
+        },
+        {
+          "hex": "#334368",
+          "coverage": 0.0026
+        }
+      ],
+      "detail": {
+        "energy": 31.648
+      },
+      "medium": "semantic",
+      "plate": null,
+      "text": null,
+      "type": {
+        "comp": {
+          "lines": 1,
+          "glyphs": 13,
+          "capHeightPx": 15.7,
+          "inkIsDark": true,
+          "allCaps": true,
+          "advance": 0.8611,
+          "advTall": 0.8611,
+          "advX": null,
+          "gap": 0.1276,
+          "xRatio": null,
+          "stemW": 0.1381,
+          "contrast": 1.0509,
+          "serif": 0.8182,
+          "densTall": 0.5636,
+          "densX": null,
+          "weight": 0.5636
+        },
+        "widthClass": "wide",
+        "weightClass": "bold"
+      }
+    },
+    {
+      "id": "actions",
+      "kind": "control",
+      "note": "actions semantic application interface region: 开始分析与源码按钮",
+      "grid": null,
+      "box": {
+        "x": 0.75,
+        "y": 0.1,
+        "w": 0.24,
+        "h": 0.14
+      },
+      "px": {
+        "x": 1152,
+        "y": 102,
+        "w": 369,
+        "h": 143
+      },
+      "aspect": 2.5804,
+      "palette": [
+        {
+          "hex": "#f7f7f7",
+          "coverage": 0.8681
+        },
+        {
+          "hex": "#1758d9",
+          "coverage": 0.1105
+        },
+        {
+          "hex": "#c4d8f6",
+          "coverage": 0.0128
+        },
+        {
+          "hex": "#acb0be",
+          "coverage": 0.005
+        },
+        {
+          "hex": "#495366",
+          "coverage": 0.0036
+        }
+      ],
+      "detail": {
+        "energy": 14.7442
+      },
+      "medium": "semantic",
+      "plate": null,
+      "text": null
+    },
+    {
+      "id": "detail-tabs",
+      "kind": "control",
+      "note": "detail-tabs semantic application interface region: 概览血缘源码",
+      "grid": null,
+      "box": {
+        "x": 0.2767,
+        "y": 0.2695,
+        "w": 0.7057,
+        "h": 0.0479
+      },
+      "px": {
+        "x": 425,
+        "y": 276,
+        "w": 1084,
+        "h": 49
+      },
+      "aspect": 22.1224,
+      "palette": [
+        {
+          "hex": "#f8f8f8",
+          "coverage": 0.9852
+        },
+        {
+          "hex": "#0c5de4",
+          "coverage": 0.0063
+        },
+        {
+          "hex": "#c2cbd2",
+          "coverage": 0.0038
+        },
+        {
+          "hex": "#97a0b0",
+          "coverage": 0.0033
+        },
+        {
+          "hex": "#6a7191",
+          "coverage": 0.0015
+        }
+      ],
+      "detail": {
+        "energy": 9.0538
+      },
+      "medium": "semantic",
+      "plate": null,
+      "text": null
+    },
+    {
+      "id": "definition",
+      "kind": "control",
+      "note": "definition semantic application interface region: 类型与聚合定义的真实字段",
+      "grid": null,
+      "box": {
+        "x": 0.2767,
+        "y": 0.3408,
+        "w": 0.7057,
+        "h": 0.1982
+      },
+      "px": {
+        "x": 425,
+        "y": 349,
+        "w": 1084,
+        "h": 203
+      },
+      "aspect": 5.3399,
+      "palette": [
+        {
+          "hex": "#f8f8f8",
+          "coverage": 0.9753
+        },
+        {
+          "hex": "#69728f",
+          "coverage": 0.0087
+        },
+        {
+          "hex": "#c8ceda",
+          "coverage": 0.0058
+        },
+        {
+          "hex": "#a6acbc",
+          "coverage": 0.0053
+        },
+        {
+          "hex": "#768696",
+          "coverage": 0.0049
+        }
+      ],
+      "detail": {
+        "energy": 11.3305
+      },
+      "medium": "semantic",
+      "plate": null,
+      "text": null
+    },
+    {
+      "id": "dependency-title",
+      "kind": "control",
+      "note": "dependency-title semantic application interface region: 来源与依赖及打开血缘",
+      "grid": null,
+      "box": {
+        "x": 0.27,
+        "y": 0.54,
+        "w": 0.72,
+        "h": 0.075
+      },
+      "px": {
+        "x": 415,
+        "y": 553,
+        "w": 1106,
+        "h": 77
+      },
+      "aspect": 14.3636,
+      "palette": [
+        {
+          "hex": "#f8f8f8",
+          "coverage": 0.9876
+        },
+        {
+          "hex": "#0a0d29",
+          "coverage": 0.007
+        },
+        {
+          "hex": "#2169e4",
+          "coverage": 0.0023
+        },
+        {
+          "hex": "#9fa3b3",
+          "coverage": 0.0022
+        },
+        {
+          "hex": "#080808",
+          "coverage": 0.0008
+        }
+      ],
+      "detail": {
+        "energy": 8.6725
+      },
+      "medium": "semantic",
+      "plate": null,
+      "text": null
+    },
+    {
+      "id": "dependency",
+      "kind": "control",
+      "note": "dependency semantic application interface region: 运行时数据驱动的可点击依赖节点和连线",
+      "grid": null,
+      "box": {
+        "x": 0.3184,
+        "y": 0.6211,
+        "w": 0.6224,
+        "h": 0.1367
+      },
+      "px": {
+        "x": 489,
+        "y": 636,
+        "w": 956,
+        "h": 140
+      },
+      "aspect": 6.8286,
+      "palette": [
+        {
+          "hex": "#f1f8f8",
+          "coverage": 0.9401
+        },
+        {
+          "hex": "#bfd5f7",
+          "coverage": 0.0426
+        },
+        {
+          "hex": "#808da2",
+          "coverage": 0.0071
+        },
+        {
+          "hex": "#0a0f2a",
+          "coverage": 0.0059
+        },
+        {
+          "hex": "#b5bccc",
+          "coverage": 0.0043
+        }
+      ],
+      "detail": {
+        "energy": 15.7425
+      },
+      "medium": "semantic",
+      "plate": null,
+      "text": null
+    },
+    {
+      "id": "source",
+      "kind": "control",
+      "note": "source semantic application interface region: 来源字段链接",
+      "grid": null,
+      "box": {
+        "x": 0.2767,
+        "y": 0.791,
+        "w": 0.7057,
+        "h": 0.0615
+      },
+      "px": {
+        "x": 425,
+        "y": 810,
+        "w": 1084,
+        "h": 63
+      },
+      "aspect": 17.2063,
+      "palette": [
+        {
+          "hex": "#f7f7f8",
+          "coverage": 0.9832
+        },
+        {
+          "hex": "#080d37",
+          "coverage": 0.0059
+        },
+        {
+          "hex": "#cbcfdd",
+          "coverage": 0.0051
+        },
+        {
+          "hex": "#1f2f52",
+          "coverage": 0.003
+        },
+        {
+          "hex": "#808d9d",
+          "coverage": 0.0028
+        }
+      ],
+      "detail": {
+        "energy": 13.721
+      },
+      "medium": "semantic",
+      "plate": null,
+      "text": null
+    },
+    {
+      "id": "native",
+      "kind": "control",
+      "note": "native semantic application interface region: 折叠原始属性",
+      "grid": null,
+      "box": {
+        "x": 0.27,
+        "y": 0.88,
+        "w": 0.72,
+        "h": 0.09
+      },
+      "px": {
+        "x": 415,
+        "y": 901,
+        "w": 1106,
+        "h": 92
+      },
+      "aspect": 12.0217,
+      "palette": [
+        {
+          "hex": "#f8f8f8",
+          "coverage": 0.9963
+        },
+        {
+          "hex": "#080c27",
+          "coverage": 0.0031
+        },
+        {
+          "hex": "#586878",
+          "coverage": 0.0006
+        }
+      ],
+      "detail": {
+        "energy": 4.7306
+      },
+      "medium": "semantic",
+      "plate": null,
+      "text": null
+    }
+  ]
+}

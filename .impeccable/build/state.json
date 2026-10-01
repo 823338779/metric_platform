@@ -1,0 +1,346 @@
+{
+  "tool": "build-phase",
+  "version": 2,
+  "startedAt": "2026-10-01T05:22:22.771Z",
+  "comp": ".impeccable/mocks/dual-balanced.png",
+  "direction": "b685865b",
+  "breakpoint": "1536x1024",
+  "artifact": null,
+  "phase": "responsive",
+  "phases": {
+    "comps": {
+      "status": "closed",
+      "openedAt": "2026-10-01T05:22:22.771Z",
+      "closedAt": "2026-10-01T05:28:43.783Z",
+      "attempts": 2,
+      "notes": [],
+      "gate": {
+        "ok": true,
+        "reasons": [],
+        "summary": "3 comps, 1 approved",
+        "approved": ".impeccable/mocks/dual-balanced.png",
+        "at": "2026-10-01T05:28:43.783Z"
+      },
+      "forced": null
+    },
+    "spec": {
+      "status": "closed",
+      "openedAt": "2026-10-01T05:28:43.795Z",
+      "closedAt": "2026-10-01T05:30:46.826Z",
+      "attempts": 3,
+      "notes": [],
+      "gate": {
+        "ok": true,
+        "reasons": [],
+        "summary": "16 regions, 0 plates, 3 text regions measured",
+        "at": "2026-10-01T05:30:46.826Z"
+      },
+      "forced": null
+    },
+    "plates": {
+      "status": "closed",
+      "openedAt": "2026-10-01T05:30:46.826Z",
+      "closedAt": "2026-10-01T05:30:46.891Z",
+      "attempts": 1,
+      "notes": [],
+      "gate": {
+        "ok": true,
+        "reasons": [],
+        "summary": "no plates owed",
+        "at": "2026-10-01T05:30:46.891Z"
+      },
+      "forced": null
+    },
+    "hero": {
+      "status": "closed",
+      "openedAt": "2026-10-01T05:30:46.891Z",
+      "closedAt": "2026-10-01T05:38:45.418Z",
+      "attempts": 4,
+      "notes": [],
+      "gate": {
+        "ok": true,
+        "reasons": [],
+        "summary": "hero 75% (drift)",
+        "score": 0.7532,
+        "verdict": "drift",
+        "report": ".impeccable/review/diff/hero/report.json",
+        "sideBySide": "E:/IdeaProjects/agent-root/metric-platform/.impeccable/review/diff/hero/side-by-side.png",
+        "worst": [
+          "title drift 55%",
+          "search drift 69%",
+          "workspaces drift 70%"
+        ],
+        "worstIds": [
+          "title",
+          "search",
+          "workspaces"
+        ],
+        "worstCrops": [
+          {
+            "id": "title",
+            "verdict": "drift",
+            "score": {
+              "overall": 0.5462,
+              "structure": 0.5629,
+              "color": 0.8354,
+              "colorIntersection": 0.7545,
+              "paletteMatch": 0.8789,
+              "detail": 0.2837,
+              "detailRaw": 0.4244,
+              "detailAdded": 0.2813,
+              "bands": 0.1333
+            },
+            "file": ".impeccable/review/diff/hero/regions/title.png"
+          },
+          {
+            "id": "search",
+            "verdict": "drift",
+            "score": {
+              "overall": 0.6892,
+              "structure": 0.7104,
+              "color": 0.9127,
+              "colorIntersection": 0.8524,
+              "paletteMatch": 0.9451,
+              "detail": 0.2502,
+              "detailRaw": 0.3596,
+              "detailAdded": 0.2188,
+              "bands": 0.4
+            },
+            "file": ".impeccable/review/diff/hero/regions/search.png"
+          },
+          {
+            "id": "workspaces",
+            "verdict": "drift",
+            "score": {
+              "overall": 0.7037,
+              "structure": 0.9706,
+              "color": 0.9588,
+              "colorIntersection": 0.9167,
+              "paletteMatch": 0.9815,
+              "detail": 0.4971,
+              "detailRaw": 0.5127,
+              "detailAdded": 0.0313,
+              "bands": 0
+            },
+            "file": ".impeccable/review/diff/hero/regions/workspaces.png"
+          }
+        ],
+        "advisories": [
+          "(advisory, above the 72% bar) region native: its ink sits in a 101x19px box in the comp and 76x13px in the build (padding, row height, or size); match the box, not only the position",
+          "(advisory, above the 72% bar; fix in the polish pass before responsive) 1 reading:",
+          "  control search: its ink is 53px tall in the build and 19px in the comp (+34px); match the height, not only the position"
+        ],
+        "regionVerdicts": {
+          "rail": "match",
+          "project": "drift",
+          "search": "drift",
+          "tree": "drift",
+          "workspaces": "drift",
+          "editor-tab": "match",
+          "breadcrumb": "drift",
+          "title": "drift",
+          "description": "match",
+          "actions": "match",
+          "detail-tabs": "match",
+          "definition": "drift",
+          "dependency-title": "match",
+          "dependency": "drift",
+          "source": "drift",
+          "native": "match"
+        },
+        "at": "2026-10-01T05:38:45.417Z"
+      },
+      "forced": null,
+      "readingsSeen": {
+        "text description: cap height 10.2px in the build, 15.7px in the comp (-35%); set font-size so the cap height renders at 15.7px": 1,
+        "text breadcrumb: the face renders 35% lighter than the comp's (ink density 0.46 vs 0.70); raise a weight step or use the ranked face": 1,
+        "control project: its ink is 78px tall in the build and 49px in the comp (+29px); match the height, not only the position": 1,
+        "control dependency: its rule sits 1px into the box in the comp and 69px in the build (+68px), so the strip is taller than the comp's; match the height, not only the position": 1,
+        "control project: its ink is 79px tall in the build and 49px in the comp (+30px); match the height, not only the position": 1,
+        "control dependency: its rule sits 1px into the box in the comp and 28px in the build (+27px), so the strip is taller than the comp's; match the height, not only the position": 1,
+        "control source: its ink is 7px tall in the build and 21px in the comp (-14px); match the height, not only the position": 1,
+        "control search: its ink is 53px tall in the build and 19px in the comp (+34px); match the height, not only the position": 1
+      },
+      "history": [
+        {
+          "at": "2026-10-01T05:35:45.809Z",
+          "score": 0.704,
+          "worstIds": [
+            "title",
+            "rail",
+            "dependency"
+          ],
+          "regionVerdicts": {
+            "rail": "contradicted",
+            "project": "missing",
+            "search": "drift",
+            "tree": "drift",
+            "workspaces": "drift",
+            "editor-tab": "match",
+            "breadcrumb": "drift",
+            "title": "contradicted",
+            "description": "drift",
+            "actions": "drift",
+            "detail-tabs": "match",
+            "definition": "drift",
+            "dependency-title": "missing",
+            "dependency": "missing",
+            "source": "missing",
+            "native": "missing"
+          },
+          "artifactHash": null
+        },
+        {
+          "at": "2026-10-01T05:36:38.570Z",
+          "score": 0.7213,
+          "worstIds": [
+            "rail",
+            "dependency",
+            "title"
+          ],
+          "regionVerdicts": {
+            "rail": "contradicted",
+            "project": "missing",
+            "search": "drift",
+            "tree": "drift",
+            "workspaces": "drift",
+            "editor-tab": "match",
+            "breadcrumb": "drift",
+            "title": "drift",
+            "description": "drift",
+            "actions": "drift",
+            "detail-tabs": "drift",
+            "definition": "drift",
+            "dependency-title": "missing",
+            "dependency": "missing",
+            "source": "missing",
+            "native": "missing"
+          },
+          "artifactHash": null
+        },
+        {
+          "at": "2026-10-01T05:38:18.692Z",
+          "score": 0.7567,
+          "worstIds": [
+            "title",
+            "actions",
+            "search"
+          ],
+          "regionVerdicts": {
+            "rail": "match",
+            "project": "drift",
+            "search": "drift",
+            "tree": "drift",
+            "workspaces": "drift",
+            "editor-tab": "match",
+            "breadcrumb": "drift",
+            "title": "drift",
+            "description": "match",
+            "actions": "drift",
+            "detail-tabs": "match",
+            "definition": "drift",
+            "dependency-title": "match",
+            "dependency": "drift",
+            "source": "drift",
+            "native": "match"
+          },
+          "artifactHash": null
+        },
+        {
+          "at": "2026-10-01T05:38:45.418Z",
+          "score": 0.7532,
+          "worstIds": [
+            "title",
+            "search",
+            "workspaces"
+          ],
+          "regionVerdicts": {
+            "rail": "match",
+            "project": "drift",
+            "search": "drift",
+            "tree": "drift",
+            "workspaces": "drift",
+            "editor-tab": "match",
+            "breadcrumb": "drift",
+            "title": "drift",
+            "description": "match",
+            "actions": "match",
+            "detail-tabs": "match",
+            "definition": "drift",
+            "dependency-title": "match",
+            "dependency": "drift",
+            "source": "drift",
+            "native": "match"
+          },
+          "artifactHash": null
+        }
+      ]
+    },
+    "sections": {
+      "status": "closed",
+      "openedAt": "2026-10-01T05:38:45.418Z",
+      "closedAt": "2026-10-01T05:43:59.506Z",
+      "attempts": 1,
+      "notes": [],
+      "gate": {
+        "ok": true,
+        "reasons": [],
+        "summary": "no mechanical gate",
+        "at": "2026-10-01T05:43:59.506Z"
+      },
+      "forced": null
+    },
+    "motion": {
+      "status": "closed",
+      "openedAt": "2026-10-01T05:43:59.506Z",
+      "closedAt": "2026-10-01T05:43:59.578Z",
+      "attempts": 1,
+      "notes": [],
+      "gate": {
+        "ok": true,
+        "reasons": [],
+        "summary": "no mechanical gate",
+        "at": "2026-10-01T05:43:59.578Z"
+      },
+      "forced": null
+    },
+    "responsive": {
+      "status": "open",
+      "openedAt": "2026-10-01T05:43:59.578Z",
+      "closedAt": null,
+      "attempts": 2,
+      "notes": [
+        {
+          "at": "2026-10-01T05:52:57.786Z",
+          "text": "独立评审 finish-review.md 判定 responsive 五项 missing 为裁剪映射误报；自动 gate 仍失败，不改 spec、不将其宣称通过。三项可用性修复后进入同一评审者 verdict pass。"
+        }
+      ],
+      "gate": {
+        "ok": false,
+        "reasons": [
+          "at desktop width, region breadcrumb is missing",
+          "at desktop width, region dependency-title is missing",
+          "at desktop width, region dependency is missing",
+          "at desktop width, region source is missing",
+          "at desktop width, region native is missing"
+        ],
+        "summary": "desktop 73% (drift)",
+        "score": 0.7284,
+        "sideBySide": "E:/IdeaProjects/agent-root/metric-platform/.impeccable/review/diff/desktop/side-by-side.png",
+        "at": "2026-10-01T05:52:17.708Z"
+      },
+      "forced": null
+    },
+    "review": {
+      "status": "pending",
+      "openedAt": null,
+      "closedAt": null,
+      "attempts": 0,
+      "notes": [],
+      "gate": null,
+      "forced": null
+    }
+  },
+  "finish": null,
+  "plates": {}
+}

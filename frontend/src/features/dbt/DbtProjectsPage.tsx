@@ -91,9 +91,12 @@ export function DbtProjectsPage({
     baseline !== null && baseline[project.projectId] === observationKey(project);
   const accepted = baseline !== null && (projects.length === 0 || projects.some(waiting));
   return (
-    <Card
-      title="语义项目 · 发布进度"
-      extra={
+    <section className="projects-page">
+      <header className="projects-heading">
+        <div>
+          <h2>语义项目</h2>
+          <p>选择项目，进入资源管理或分析探索。</p>
+        </div>
         <Button
           type="primary"
           loading={refreshing}
@@ -102,8 +105,7 @@ export function DbtProjectsPage({
         >
           {REFRESH_LABEL}
         </Button>
-      }
-    >
+      </header>
       <Space orientation="vertical" size="large" style={{ width: '100%' }}>
         <Typography.Text type="secondary">
           从远端 Git 同步定义，构建并校验后切换发布。页面每 5 秒更新；请求受理不代表发布成功。
@@ -119,11 +121,18 @@ export function DbtProjectsPage({
             title={project.projectId}
             extra={
               project.activeReleaseId ? (
-                <Link
-                  to={`/dbt/projects/${encodeURIComponent(project.projectId)}/catalog?releaseId=${project.activeReleaseId}`}
-                >
-                  查看当前目录
-                </Link>
+                <Space>
+                  <Link
+                    to={`/dbt/projects/${encodeURIComponent(project.projectId)}/catalog?releaseId=${project.activeReleaseId}`}
+                  >
+                    查看当前目录
+                  </Link>
+                  <Link
+                    to={`/dbt/projects/${encodeURIComponent(project.projectId)}/query?releaseId=${encodeURIComponent(project.activeReleaseId)}`}
+                  >
+                    分析探索
+                  </Link>
+                </Space>
               ) : (
                 <Typography.Text type="secondary">尚未发布</Typography.Text>
               )
@@ -138,6 +147,6 @@ export function DbtProjectsPage({
           </Card>
         ))}
       </Space>
-    </Card>
+    </section>
   );
 }

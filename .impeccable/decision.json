@@ -1,0 +1,218 @@
+{
+  "title": "指标平台 · 整体体验方向",
+  "question": "三种方案都保留资源树、数据类型与固定版本。请选择你希望长期使用的工作环境；效果图是设计提案，不是已上线页面。",
+  "options": [
+    {
+      "id": "assigned",
+      "label": "语义索引册",
+      "kicker": "整体方案 A",
+      "lineage": "工程数据词典与检索索引",
+      "thesis": "用清晰的目录和定义阅读区，把资源管理与分析组织成一本可操作的语义索引。",
+      "palette": [
+        "#F4F3EF",
+        "#FFFFFF",
+        "#25362D",
+        "#356C52"
+      ],
+      "materials": [
+        "细分隔线",
+        "干净的浅暖灰工作面",
+        "紧凑的字段表"
+      ],
+      "viewport": "顶部并列资源管理 / 分析探索；左侧 IDEA 式资源树，中间定义与类型，右侧轻量来源和开始分析操作。",
+      "risk": "阅读舒适、口径清楚，但重度分析时需要切入独立探索工作区。",
+      "raised": [
+        {
+          "from": "设计年鉴",
+          "raise": "所有定义、来源和版本说明共享严格的对齐与字号节奏。"
+        },
+        {
+          "from": "导览地图",
+          "raise": "两个工作区用清楚的空间分区表达，始终能判断自己在哪里。"
+        },
+        {
+          "from": "流媒体目录",
+          "raise": "键盘定位与当前资源状态明确，长名称完整可达。"
+        },
+        {
+          "from": "唱片编目",
+          "raise": "资源标识和业务名称有独立层级，核心内容只表达一次。"
+        },
+        {
+          "from": "车站状态板",
+          "raise": "加载、发布、失败与查询状态可扫读且不会打乱布局。"
+        }
+      ],
+      "comp": ".impeccable/mocks/decision/assigned.png"
+    },
+    {
+      "id": "model-pick",
+      "label": "双工作台",
+      "kicker": "IMPECCABLE’S PICK",
+      "lineage": "专业 IDE 的工作区与分析仪表",
+      "thesis": "面向高频操作，让查资源和做分析像切换两个熟悉的工具窗口。",
+      "palette": [
+        "#F3F5F8",
+        "#FFFFFF",
+        "#233247",
+        "#315BC3"
+      ],
+      "materials": [
+        "固定工具栏",
+        "清晰分栏",
+        "内联标签"
+      ],
+      "viewport": "窄全局导航 + 可折叠资源树 + 宽内容区；顶部两个等权工作区，分析入口固定在资源标题旁。",
+      "risk": "最熟悉也最接近成熟开发工具；辨识度来自交互细节而非视觉惊奇。",
+      "comp": ".impeccable/mocks/decision/model-pick.png"
+    },
+    {
+      "id": "challenger-map",
+      "label": "关系导航台",
+      "verdict": "competitive",
+      "lineage": "定向越野地图的路线与图例",
+      "thesis": "先看到资源的来龙去脉，再沿依赖关系打开定义或进入分析。",
+      "palette": [
+        "#F8FAF6",
+        "#2A3530",
+        "#6D45A5",
+        "#6B8A70"
+      ],
+      "materials": [
+        "可缩放依赖画布",
+        "类型图例",
+        "固定检查面板"
+      ],
+      "viewport": "左侧保留资源树，中央宽血缘画布，右侧选中指标的业务定义、类型和分析入口。",
+      "case": "来源追溯的清晰度更强；日常批量查字段的熟悉度弱于索引册。",
+      "risk": "图形占据首屏，需确保大规模资源和键盘操作仍然高效。",
+      "comp": ".impeccable/mocks/decision/challenger-map.png",
+      "hero": "https://impeccable.style/worlds/cards/notation-diagram-systems-orienteering-map-hero.webp",
+      "board": "https://impeccable.style/worlds/cards/notation-diagram-systems-orienteering-map.webp"
+    },
+    {
+      "id": "declined-annual",
+      "label": "设计年鉴",
+      "verdict": "declined",
+      "thesis": "工程定义作为精确排版的条目。",
+      "palette": [
+        "#F5F4F6",
+        "#16181A",
+        "#DCDDF3"
+      ],
+      "materials": [
+        "对齐信息",
+        "结构化索引"
+      ],
+      "viewport": "大幅内容版面与轻量目录",
+      "risk": "过多展示性留白会削弱日常操作。",
+      "case": "用户更熟悉工具操作，版面导向也降低资源查找效率。",
+      "kept": "采用严格对齐和统一字级。"
+    },
+    {
+      "id": "declined-garden",
+      "label": "导览地图",
+      "verdict": "declined",
+      "thesis": "以分区与路线组织资源浏览。",
+      "palette": [
+        "#F5F1E4",
+        "#8ED462",
+        "#2C2E2A"
+      ],
+      "materials": [
+        "对齐信息",
+        "结构化索引"
+      ],
+      "viewport": "按领域展开的彩色分区",
+      "risk": "不规则区域不适合密集字段和表格。",
+      "case": "园区隐喻不属于日常数据工作，复杂分区也妨碍精确查找。",
+      "kept": "采用明确工作区分界与当前位置。"
+    },
+    {
+      "id": "declined-stream",
+      "label": "目录墙",
+      "verdict": "declined",
+      "thesis": "资源按领域成为可聚焦的目录项。",
+      "palette": [
+        "#16181C",
+        "#F3F3F4",
+        "#788DA4"
+      ],
+      "materials": [
+        "对齐信息",
+        "结构化索引"
+      ],
+      "viewport": "横向资源分组与聚焦详情",
+      "risk": "横向卡片会增加扫描与键盘移动距离。",
+      "case": "封面隐喻缺少实际内容依据，字段比较也不如表格直接。",
+      "kept": "采用明确键盘焦点与当前项反馈。"
+    },
+    {
+      "id": "declined-sleeve",
+      "label": "工业编目",
+      "verdict": "declined",
+      "thesis": "让资源编号和语义内容成为统一编目。",
+      "palette": [
+        "#16181A",
+        "#F3F4F2",
+        "#749B80"
+      ],
+      "materials": [
+        "对齐信息",
+        "结构化索引"
+      ],
+      "viewport": "编号索引与单一选中内容",
+      "risk": "编码状态与深色大留白会增加理解负担。",
+      "case": "用户需要读业务名称而非解码，紧急状态也不能依赖隐喻。",
+      "kept": "名称和标识分层，消除重复表达。"
+    },
+    {
+      "id": "declined-station",
+      "label": "运行状态板",
+      "verdict": "declined",
+      "thesis": "项目和查询状态以对齐行持续展示。",
+      "palette": [
+        "#202729",
+        "#F5F5EF",
+        "#D4A345"
+      ],
+      "materials": [
+        "对齐信息",
+        "结构化索引"
+      ],
+      "viewport": "按项目和时间排序的状态表",
+      "risk": "适合运行监控，难以承载同等重要的定义阅读和分析。",
+      "case": "车站隐喻并非核心工作语言，状态优先会挤压指标理解。",
+      "kept": "保持状态更新稳定且可扫读。"
+    }
+  ],
+  "reroll": {
+    "registers": [
+      "safer",
+      "bolder"
+    ]
+  },
+  "buildPath": {
+    "value": "comp",
+    "toggle": true
+  },
+  "canon": true,
+  "canonCard": {
+    "label": "标准企业控制台",
+    "thesis": "按传统项目列表、目录与表单工作台组织，遵循常见企业后台规范。",
+    "palette": [
+      "#FFFFFF",
+      "#F5F7FA",
+      "#263449",
+      "#2863C7"
+    ],
+    "materials": [
+      "标准表格",
+      "统一表单"
+    ],
+    "viewport": "完整侧栏导航、面包屑、页标题和标准内容面板。",
+    "risk": "上手熟悉，但整体形态与常见企业后台接近。",
+    "comp": ".impeccable/mocks/decision/canon.png"
+  },
+  "steer": true
+}

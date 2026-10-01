@@ -1,5 +1,11 @@
 import { Alert, Button, Skeleton, Space, Tabs, Tag, Typography } from 'antd';
-import { ApartmentOutlined, CodeOutlined, FileTextOutlined } from '@ant-design/icons';
+import {
+  ApartmentOutlined,
+  CodeOutlined,
+  FileTextOutlined,
+  PlayCircleOutlined,
+  FunctionOutlined,
+} from '@ant-design/icons';
 import { useEffect, useState } from 'react';
 import { ApiProblem } from '../../api/httpClient';
 import { metricPlatformApi, type MetricPlatformApi } from '../../api/metricPlatformApi';
@@ -11,9 +17,11 @@ import type {
 } from '../../api/types';
 import { DbtLineageGraph } from './DbtLineageGraph';
 import { DbtQueryResults } from './DbtQueryResults';
-import { ResourceFields, RESOURCE_LABELS } from './resourceDisplay';
+import { ResourceFields, RESOURCE_LABELS, resourceName } from './resourceDisplay';
 import { ResourceSource } from './ResourceSource';
 import { ResourceTypeSummary } from './ResourceTypeSummary';
+import { LineageSummary } from './LineageSummary';
+import type { ResourceDataType } from './resourceDataType';
 import { hasSerializedNode, restoreArtifactPresentation } from './resourcePresentation';
 import './resource-workspace.css';
 
@@ -33,7 +41,7 @@ const LINEAGE = 'lineage';
 const SOURCE = 'source';
 const COPY = {
   title: '资源详情',
-  detail: '结构化详情',
+  detail: '概览',
   lineage: '血缘',
   source: 'YAML 源码',
   native: '原生属性',
@@ -48,16 +56,24 @@ export function DbtResourceDetail({
   projectId,
   releaseId,
   resourceId,
+  tabTitle,
   onSelect,
+  onExplore,
+  onClose,
   api = metricPlatformApi,
 }: {
   projectId: string;
   releaseId: string;
   resourceId: string;
+  /** 目录中的可读资源名称，避免将不透明身份显示为编辑器标签。 */
+  tabTitle?: string;
   onSelect: (resourceId: string) => void;
+  onExplore?: (name: string) => void;
+  onClose?: () => void;
   api?: DetailApi;
 }) {
   const [presentation, setPresentation] = useState<DbtResourcePresentation>();
+  const [resolvedType, setResolvedType] = useState<ResourceDataType>();
   const [source, setSource] = useState<DbtSourceDocument>();
   const [lineage, setLineage] = useState<DbtLineage>();
   const [preview, setPreview] = useState<DbtQueryStatus>();
@@ -70,6 +86,7 @@ export function DbtResourceDetail({
   useEffect(() => {
     let active = true;
     setPresentation(undefined);
+    setResolvedType(undefined);
     setSource(undefined);
     setLineage(undefined);
     setPreview(undefined);
@@ -175,16 +192,51 @@ export function DbtResourceDetail({
   };
   return (
     <section className="resource-detail" aria-label={COPY.title}>
+      <div className="resource-editor-tabs">
+        <span>
+          <FileTextOutlined /> {tabTitle ?? resourceName(resourceId)}
+        </span>
+        {onClose && (
+          <Button type="text" size="small" aria-label="关闭资源" onClick={onClose}>
+            ×
+          </Button>
+        )}
+      </div>
       <header className="resource-detail-heading">
-        <div className="resource-title-line">
-          <Typography.Title level={3}>{presentation?.title ?? COPY.title}</Typography.Title>
-          {presentation && (
-            <Tag color="blue">{RESOURCE_LABELS[presentation.kind] ?? presentation.kind}</Tag>
-          )}
+        <div className="resource-breadcrumb">
+          {projectId} <span>/</span> {presentation && RESOURCE_LABELS[presentation.kind]}{' '}
+          <span>/</span> {presentation?.title}
         </div>
-        <Typography.Text className="resource-id" copyable>
-          {resourceId}
-        </Typography.Text>
+        <div className="resource-heading-content">
+          <div>
+            <FunctionOutlined className="resource-heading-icon" aria-hidden />
+            <div className="resource-title-line">
+              <Typography.Title level={3}>{presentation?.title ?? COPY.title}</Typography.Title>
+              {presentation && (
+                <Tag color="blue">{RESOURCE_LABELS[presentation.kind] ?? presentation.kind}</Tag>
+              )}
+            </div>
+            <p className="resource-description">
+              {(presentation?.sections
+                .map((section) => section.fields.description)
+                .find((value) => typeof value === 'string') as string) ?? ''}
+            </p>
+          </div>
+          <Space>
+            {presentation?.kind === 'METRIC' && presentation.queryable && onExplore && (
+              <Button
+                type="primary"
+                icon={<PlayCircleOutlined />}
+                onClick={() => onExplore(presentation.title)}
+              >
+                开始分析
+              </Button>
+            )}
+            <Button icon={<CodeOutlined />} onClick={() => setTab(SOURCE)}>
+              查看源码
+            </Button>
+          </Space>
+        </div>
       </header>
       {error && (
         <Alert
@@ -206,33 +258,61 @@ export function DbtResourceDetail({
               icon: <FileTextOutlined aria-hidden />,
               children: (
                 <div className="resource-overview">
-                  {(presentation.kind === 'METRIC' || presentation.kind === 'DIMENSION') && (
-                    <ResourceTypeSummary
-                      presentation={presentation}
+                  <div className="resource-definition">
+                    <h4>基本信息</h4>
+                    <div className="resource-definition-grid">
+                      {(presentation.kind === 'METRIC' || presentation.kind === 'DIMENSION') && (
+                        <ResourceTypeSummary
+                          presentation={presentation}
+                          lineage={lineage}
+                          projectId={projectId}
+                          api={api}
+                          onResolve={setResolvedType}
+                        />
+                      )}
+                      {presentation.sections.map((section) => (
+                        <section className="resource-section" key={section.title}>
+                          <h4>{section.title}</h4>
+                          <ResourceFields
+                            fields={Object.fromEntries(
+                              Object.entries(section.fields)
+                                .filter(([key]) => key !== 'description')
+                                .map(([key, value]) => [
+                                  key === 'type' && presentation.kind === 'METRIC'
+                                    ? 'metricType'
+                                    : key === 'type' && presentation.kind === 'DIMENSION'
+                                      ? 'dimensionType'
+                                      : key,
+                                  value,
+                                ]),
+                            )}
+                          />
+                        </section>
+                      ))}
+                    </div>
+                  </div>
+                  {lineage && (
+                    <LineageSummary
+                      dataType={resolvedType}
                       lineage={lineage}
-                      projectId={projectId}
-                      api={api}
+                      onSelect={onSelect}
+                      onOpen={() => setTab(LINEAGE)}
                     />
                   )}
-                  {presentation.sections.map((section) => (
-                    <section className="resource-section" key={section.title}>
-                      <h4>{section.title}</h4>
-                      <ResourceFields
-                        fields={Object.fromEntries(
-                          Object.entries(section.fields).map(([key, value]) => [
-                            key === 'type' && presentation.kind === 'METRIC'
-                              ? 'metricType'
-                              : key === 'type' && presentation.kind === 'DIMENSION'
-                                ? 'dimensionType'
-                                : key,
-                            value,
-                          ]),
-                        )}
-                      />
-                    </section>
-                  ))}
+                  {lineageError && tab === DETAIL && (
+                    <Alert
+                      type="warning"
+                      title={lineageError}
+                      action={
+                        <Button onClick={() => setRetry((value) => value + 1)}>{COPY.retry}</Button>
+                      }
+                    />
+                  )}
                   <details className="resource-native">
                     <summary>{COPY.native}</summary>
+                    <Typography.Text className="resource-id" copyable>
+                      {resourceId}
+                    </Typography.Text>
                     <pre>{JSON.stringify(presentation.nativeDetails, null, 2)}</pre>
                   </details>
                   {presentation.queryable && physicalKinds.has(presentation.kind) && (

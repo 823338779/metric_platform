@@ -66,6 +66,12 @@ export type PublishedResult = {
   sql?: string;
   errorCode?: string;
   truncated?: boolean;
+  /** 运行服务返回的查询用途，用于区分 SQL 解释与取数结果。 */
+  mode?: PublishedQuery['mode'];
+  /** 本次查询固定的源码版本；服务未返回时不推测。 */
+  targetCommitSha?: string;
+  /** 运行服务报告的耗时（毫秒）。 */
+  durationMs?: number;
 };
 
 const ROOT = '/semantic-projects';
@@ -84,7 +90,9 @@ export function createPublishedCatalogApi(fetcher?: Fetcher) {
         `${release(id, version)}/catalog?${new URLSearchParams({ q, page: String(page), size: '50', ...(kind ? { kind } : {}) })}`,
       ),
     resource: (id: string, version: string, resourceId: string) =>
-      request<PublishedResource>(`${release(id, version)}/resources/${segment(resourceId)}`),
+      request<PublishedResource & { releaseId: string }>(
+        `${release(id, version)}/resources/${segment(resourceId)}`,
+      ),
     detail: (
       id: string,
       version: string,

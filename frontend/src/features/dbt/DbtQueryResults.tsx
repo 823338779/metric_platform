@@ -1,4 +1,4 @@
-import { Alert, Card, Empty, Radio, Select, Space, Table, Tag, Typography } from 'antd';
+import { Alert, Card, Empty, Radio, Space, Table, Tag, Typography } from 'antd';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import * as echarts from 'echarts/core';
 import { BarChart, LineChart } from 'echarts/charts';
@@ -7,6 +7,7 @@ import { CanvasRenderer } from 'echarts/renderers';
 import type { DbtQueryStatus } from '../../api/types';
 import { buildVisualization, visualizationFields } from './queryVisualization';
 import './exploration.css';
+import { ChoiceChips } from './AnalysisControls';
 
 const TIME = /DATE|TIME/i;
 const LINE = 'line';
@@ -143,7 +144,7 @@ export function DbtQueryResults({
 
   return (
     <Card
-      title="查询结果"
+      title="图表与明细"
       extra={<Tag color={complete ? 'success' : 'processing'}>状态：{result.status}</Tag>}
     >
       <Space direction="vertical" style={{ width: '100%' }} size="middle">
@@ -180,24 +181,34 @@ export function DbtQueryResults({
           fields.measures.length > 0 && (
             <>
               <div className="chart-controls">
-                <label>
-                  展示指标
-                  <Select
-                    aria-label="展示指标"
-                    value={measure}
-                    onChange={setMeasure}
+                <div>
+                  <p>展示指标</p>
+                  <ChoiceChips
+                    label="展示指标"
+                    single
+                    selected={[String(measure)]}
                     options={fields.measures.map((column) => ({
-                      value: column.index,
+                      value: String(column.index),
                       label: column.name,
                     }))}
+                    onChange={(values) => {
+                      if (values[0]) setMeasure(Number(values[0]));
+                    }}
                   />
-                </label>
-                <label>
-                  横轴
-                  <Select
-                    aria-label="横轴"
-                    value={x}
-                    onChange={(index) => {
+                </div>
+                <div>
+                  <p>横轴</p>
+                  <ChoiceChips
+                    label="横轴"
+                    single
+                    selected={[String(x)]}
+                    options={fields.dimensions.map((column) => ({
+                      value: String(column.index),
+                      label: column.name,
+                    }))}
+                    onChange={(values) => {
+                      if (!values[0]) return;
+                      const index = Number(values[0]);
                       setX(index);
                       setSeriesDimensions(
                         fields.dimensions
@@ -206,25 +217,20 @@ export function DbtQueryResults({
                       );
                       setChartType(TIME.test(result.columns![index].type) ? LINE : BAR);
                     }}
-                    options={fields.dimensions.map((column) => ({
-                      value: column.index,
-                      label: column.name,
-                    }))}
                   />
-                </label>
+                </div>
                 {metricNames && fields.dimensions.length > 1 && (
-                  <label>
-                    系列维度
-                    <Select
-                      mode="multiple"
-                      aria-label="系列维度"
-                      value={seriesDimensions}
-                      onChange={setSeriesDimensions}
+                  <div>
+                    <p>系列维度</p>
+                    <ChoiceChips
+                      label="系列维度"
+                      selected={seriesDimensions.map(String)}
                       options={fields.dimensions
                         .filter((column) => column.index !== x)
-                        .map((column) => ({ value: column.index, label: column.name }))}
+                        .map((column) => ({ value: String(column.index), label: column.name }))}
+                      onChange={(values) => setSeriesDimensions(values.map(Number))}
                     />
-                  </label>
+                  </div>
                 )}
               </div>
               {data.message && <Alert type="info" title={data.message} />}
@@ -252,7 +258,7 @@ export function DbtQueryResults({
           <Table
             size="small"
             pagination={{ pageSize: 20 }}
-            scroll={{ x: true }}
+            scroll={{ x: 'max-content' }}
             columns={result.columns.map((column, index) => ({
               title: `${column.name} (${column.type})`,
               dataIndex: String(index),

@@ -1,4 +1,4 @@
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { afterEach, beforeAll, expect, it, vi } from 'vitest';
 import { MemoryRouter, Route, Routes, useNavigate } from 'react-router-dom';
 import { ApiProblem } from '../../api/httpClient';
@@ -80,8 +80,11 @@ it('loads fixed-release options and submits the returned metric_time token', asy
   await waitFor(() =>
     expect(screen.getByRole('button', { name: '运行查询' }).hasAttribute('disabled')).toBe(false),
   );
-  fireEvent.mouseDown(screen.getByRole('combobox', { name: '日期粒度' }));
-  fireEvent.click(await screen.findByText('月'));
+  fireEvent.click(
+    within(screen.getByRole('group', { name: '日期粒度' })).getByRole('button', {
+      name: '月',
+    }),
+  );
   fireEvent.click(screen.getByRole('button', { name: '运行查询' }));
   await waitFor(() =>
     expect(client.submitDbtQuery).toHaveBeenCalledWith(
@@ -140,11 +143,10 @@ it('loads metrics beyond the first catalog page', async () => {
   await waitFor(() =>
     expect(client.getDbtCatalog).toHaveBeenCalledWith('demo', 'A', '', 1, 100, 'METRIC'),
   );
-  fireEvent.mouseDown(screen.getByRole('combobox', { name: '指标' }));
-  fireEvent.change(screen.getByRole('combobox', { name: '指标' }), {
+  fireEvent.change(screen.getByRole('textbox', { name: '搜索指标' }), {
     target: { value: 'metric_100' },
   });
-  expect(await screen.findByRole('option', { name: 'metric_100' })).toBeTruthy();
+  expect(await screen.findByRole('checkbox', { name: 'metric_100' })).toBeTruthy();
 });
 
 it('does not show a stale submit failure after switching releases', async () => {
@@ -239,8 +241,10 @@ it('passes the current typed filter into dimension value enumeration', async () 
   await waitFor(() =>
     expect(screen.getByRole('button', { name: '运行查询' }).hasAttribute('disabled')).toBe(false),
   );
-  fireEvent.mouseDown(screen.getByRole('combobox', { name: '筛选维度' }));
-  fireEvent.click(await screen.findByText('Region'));
+  fireEvent.click(screen.getByText('筛选与排序'));
+  fireEvent.click(
+    within(screen.getByRole('group', { name: '筛选维度' })).getByRole('button', { name: 'Region' }),
+  );
   fireEvent.change(screen.getByRole('textbox', { name: '筛选值' }), { target: { value: 'North' } });
   fireEvent.click(screen.getByRole('button', { name: '查询维度值' }));
   await waitFor(() =>
@@ -310,9 +314,16 @@ it('distinguishes same-name dimensions and submits the selected source token', a
   await waitFor(() =>
     expect(screen.getByRole('button', { name: '运行查询' }).hasAttribute('disabled')).toBe(false),
   );
-  fireEvent.mouseDown(screen.getByRole('combobox', { name: '维度' }));
-  expect(await screen.findByText('region（shop__region）')).toBeTruthy();
-  fireEvent.click(screen.getByText('region（user__region）'));
+  expect(
+    within(screen.getByRole('group', { name: '维度' })).getByRole('button', {
+      name: 'region（shop__region）',
+    }),
+  ).toBeTruthy();
+  fireEvent.click(
+    within(screen.getByRole('group', { name: '维度' })).getByRole('button', {
+      name: 'region（user__region）',
+    }),
+  );
   fireEvent.click(screen.getByRole('button', { name: '运行查询' }));
   await waitFor(() =>
     expect(client.submitDbtQuery).toHaveBeenCalledWith(
@@ -328,10 +339,14 @@ it('submits the selected dimension and date grain for the current metric', async
   await waitFor(() =>
     expect(screen.getByRole('button', { name: '运行查询' }).hasAttribute('disabled')).toBe(false),
   );
-  fireEvent.mouseDown(screen.getByRole('combobox', { name: '维度' }));
-  fireEvent.click(await screen.findByText('Region'));
-  fireEvent.mouseDown(screen.getByRole('combobox', { name: '日期粒度' }));
-  fireEvent.click(await screen.findByText('月'));
+  fireEvent.click(
+    within(screen.getByRole('group', { name: '维度' })).getByRole('button', { name: 'Region' }),
+  );
+  fireEvent.click(
+    within(screen.getByRole('group', { name: '日期粒度' })).getByRole('button', {
+      name: '月',
+    }),
+  );
   fireEvent.click(screen.getByRole('button', { name: '运行查询' }));
   await waitFor(() =>
     expect(client.submitDbtQuery).toHaveBeenCalledWith(
