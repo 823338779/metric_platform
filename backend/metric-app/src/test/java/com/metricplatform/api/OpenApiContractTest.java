@@ -52,11 +52,9 @@ class OpenApiContractTest {
                                         "/paths/~1api~1v1~1semantic-projects~1{projectId}~1catalog/get/responses/410")
                                 .isObject())
                 .isTrue();
-        assertThat(
-                        document.at(
-                                        "/paths/~1internal~1git-sync~1events/post/security/0/gitWebhookHmac")
-                                .isArray())
-                .isTrue();
+        var webhookSecurity = document.at("/paths/~1internal~1git-sync~1events/post/security");
+        assertThat(webhookSecurity.isArray()).isTrue();
+        assertThat(webhookSecurity).isEmpty();
         assertThat(document.path("paths").has("/api/v1/metrics")).isFalse();
         assertThat(document.path("paths").has("/api/v1/dimensions")).isFalse();
         assertThat(document.path("paths").has("/api/v1/datasets")).isFalse();

@@ -31,9 +31,9 @@ Java 包统一以 `com.metricplatform` 为根，按平台职责组织：
 
 需要 JDK 21、Node.js、npm、PostgreSQL 和 Redis。位于 Agent 工作区时，从工作区根目录启动共享基础设施：
 
-后端服务配置统一维护在 `backend/metric-app/src/main/resources/application.yml`，Spring Boot 在 IDEA、Maven 和可执行 JAR 启动时自动加载。数据库连接与密码、Redis 连接与密码、HTTP 端口、Git 固定绑定与缓存目录、Webhook 密钥、dbt 运行服务地址以及认证和初始管理员参数均直接写在该文件中，无需在 IDEA 启动配置中重复填写。当前数据库为 `metric_platform`、端口为 `8090`、dbt 运行服务地址为 `http://127.0.0.1:8000`；Git 缓存使用当前工作区的绝对路径，移动工作区时需修改该配置。Webhook 密钥在手动模式下为空，启用 Webhook 时直接填写 `metric-platform.git-sync.webhook-secret`。
+后端服务配置统一维护在 `backend/metric-app/src/main/resources/application.yml`，Spring Boot 在 IDEA、Maven 和可执行 JAR 启动时自动加载。数据库连接与密码、Redis 连接与密码、HTTP 端口、Git 固定绑定与缓存目录、Webhook 密钥、dbt 运行服务地址以及认证和初始管理员参数均直接写在该文件中，无需在 IDEA 启动配置中重复填写。当前数据库为 `metric_platform`、端口为 `8090`、dbt 运行服务地址为 `http://127.0.0.1:8000`；Git 缓存使用当前工作区的绝对路径，移动工作区时需修改该配置。Forgejo Webhook 无需密钥或登录鉴权，自动同步开关使用下述本机配置。
 
-`application-swarm.yml` 保留 Swarm profile 专用的优雅停机配置。Spring Boot 的标准环境变量和命令行覆盖规则仍然生效；日常配置修改以服务配置文件为准。
+Webhook 启用开关通过仓库外的 `${user.home}/.metric-platform/webhook.properties` 注入，配置方式见 [Forgejo main 自动发布](docs/dbt-publication.md#forgejo-main-自动发布)，不要将真实密钥写入版本库。`application-swarm.yml` 保留 Swarm profile 专用的优雅停机配置。Spring Boot 的标准环境变量和命令行覆盖规则仍然生效；日常配置修改以服务配置文件为准。
 
 ```powershell
 docker compose -f .\infra\compose\compose.yml up -d

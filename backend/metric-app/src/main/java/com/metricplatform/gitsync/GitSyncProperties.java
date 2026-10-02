@@ -39,8 +39,11 @@ public class GitSyncProperties {
     /** 必须匹配 READY 产物的固定计算引擎工具链版本。 */
     private String toolchainVersion;
 
-    /** 由服务配置文件提供的 Webhook 签名密钥；不记录、不对外返回。 */
+    /** 仅用于旧自定义协议的签名密钥；Forgejo 原生通知不使用。 */
     private String webhookSecret;
+
+    /** Forgejo 载荷中的 owner/repository 全名；为空时不接受 Forgejo 原生通知。 */
+    private String forgejoRepository;
 
     private Duration pollInterval = Duration.ofSeconds(30);
     private Duration gitTimeout = Duration.ofSeconds(30);

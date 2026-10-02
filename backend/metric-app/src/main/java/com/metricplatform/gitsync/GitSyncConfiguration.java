@@ -48,8 +48,6 @@ public class GitSyncConfiguration {
                 || p.getConfigVersion().isBlank()
                 || p.getToolchainVersion() == null
                 || p.getToolchainVersion().isBlank()
-                || (p.isEnabled()
-                        && (p.getWebhookSecret() == null || p.getWebhookSecret().length() < 16))
                 || p.getPollInterval() == null
                 || p.getPollInterval().toMillis() < 1000)
             throw new IllegalStateException("项目 Git 同步配置不完整或轮询间隔过短");

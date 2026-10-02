@@ -1,5 +1,8 @@
 # 指标平台启动配置：服务参数直接在本文件维护，IDEA 与命令行启动均自动加载。
 spring:
+  # 本机 Webhook 启用开关保存在仓库外，IDEA 与命令行共用。
+  config:
+    import: optional:file:${user.home}/.metric-platform/webhook.properties
   # Spring 应用标识，用于日志与监控中的服务识别。
   application:
     name: metric-platform
@@ -57,8 +60,10 @@ metric-platform:
     # 手动刷新信号及在途构建状态的检查间隔、Git 命令超时。
     poll-interval: PT5S
     git-timeout: PT30S
-    # Webhook 签名密钥直接在此填写；当前手动模式保留为空。
+    # 仅旧自定义协议使用签名密钥；Forgejo 原生通知无需密钥或鉴权。
     webhook-secret: ""
+    # Forgejo 原生 Push 的仓库全名，区别于平台内部 repository-id。
+    forgejo-repository: agent-admin/metrics
   dbt-runtime:
     # 构建和查询执行服务；开启客户端本身不会提交构建任务。
     enabled: true

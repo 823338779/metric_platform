@@ -39,20 +39,34 @@ paths:
     post:
       summary: 通知平台刷新配置仓库的 main 快照
       description: >-
-        仅启用 git-sync 时存在。请求体最多 4096 字节，使用部署密钥对原始请求体做
+        legacy 模式且启用 git-sync 时存在；service-proxy 模式返回 409 publication_managed_by_service。
+        自定义事件请求体最多 4096 字节，使用部署密钥对原始请求体做
         HMAC-SHA256，X-Git-Signature 为 sha256= 加小写十六进制摘要。
+        Forgejo 原生事件无需密钥、签名或 Authorization，最多 1048576 字节，
+        X-Forgejo-Event 必须提供。仅处理 push，repository.full_name 必须匹配
+        部署配置 forgejo-repository。删除分支、before 等于 after 和非 main 分支忽略。
         事件只用于唤醒，平台自行拉取配置远端；相同事件可重发，非 main 分支忽略。
-        202 表示刷新信号已接收，不表示定义已生效；启动扫描和周期轮询补偿丢失信号。
-      security: [{ gitWebhookHmac: [] }]
+        202 表示刷新信号已接收，不表示定义已生效；启动时扫描，后台调度消费刷新信号并推进在途任务。
+      security: []
+      parameters:
+        - in: header
+          name: X-Forgejo-Event
+          description: 使用 Forgejo 原生协议时必填；push 以外的事件忽略。
+          schema: { type: string }
       requestBody:
         required: true
         content:
-          application/json: { schema: { $ref: '#/components/schemas/GitSyncEvent' } }
+          application/json:
+            schema:
+              oneOf:
+                - { $ref: '#/components/schemas/GitSyncEvent' }
+                - { $ref: '#/components/schemas/ForgejoPushEvent' }
       responses:
         '202': { description: 已接收刷新信号或忽略非 main 分支 }
         '400': { description: 载荷、协议版本或仓库标识错误 }
-        '401': { description: HMAC 签名缺失或无效 }
-        '413': { description: 请求体超过 4096 字节 }
+        '401': { description: 仅旧自定义协议的 HMAC 签名缺失或无效 }
+        '409': { description: 发布由 dbt-service 管理 }
+        '413': { description: 超过载荷上限，自定义协议 4096 字节，Forgejo 协议 1048576 字节 }
         '415': { description: 仅接受 application/json }
   /api/v1/semantic-projects:
     get:
@@ -974,6 +988,19 @@ components:
         upstreamResourceId: { type: string }
         downstreamResourceId: { type: string }
         kind: { type: string }
+    ForgejoPushEvent:
+      type: object
+      description: Forgejo 原生 Push 载荷；额外字段允许但不参与构建参数。
+      required: [ref, before, after, repository]
+      properties:
+        ref: { type: string, minLength: 1, description: 完整 Git 引用，仅 refs/heads/main 触发 }
+        before: { type: string, pattern: '^[0-9a-f]{40}$', description: 更新前的提交 SHA }
+        after: { type: string, pattern: '^[0-9a-f]{40}$', description: 更新后的提交 SHA，全零表示删除分支 }
+        repository:
+          type: object
+          required: [full_name]
+          properties:
+            full_name: { type: string, description: 部署配置中的 owner/repository 全名 }
     GitSyncEvent:
       type: object
       additionalProperties: false

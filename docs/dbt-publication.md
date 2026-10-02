@@ -6,6 +6,16 @@
 
 只有 SHA、输入摘要、配置版本和工具链版本均未变化时，重复刷新才跳过创建新构建。只要 SHA 变化，即使仅修改 README 或提交的 dbt 输入摘要相同，也创建独立候选、幂等键和运行任务，重新全量构建并发布，不复用旧 run。新候选的目标 SHA 与实际构建来源 SHA 一致；旧的在途候选标记为过时。相同 SHA 的在途任务继续推进，失败任务不会因重复刷新自动重试；新的 SHA 不受上一次成功或失败状态影响。
 
+## Forgejo main 自动发布
+
+本节用于 `metric.publication.mode=legacy`。在 Forgejo 的 `agent-admin/metrics` 仓库设置中添加 **Forgejo** 类型 Webhook：URL 为 `http://host.docker.internal:8090/internal/git-sync/events`，方法 POST，内容类型 `application/json`，Secret 和 Authorization Header 均留空，仅选择 Push Events，分支过滤填写 `main`，启用 Active。这是 Forgejo 容器访问宿主机平台的地址；根工作区 Compose 已将该主机加入 Webhook 允许名单。
+
+应用会自动读取仓库外的 `${user.home}/.metric-platform/webhook.properties`。在该文件配置 `metric-platform.git-sync.enabled=true` 即可，Forgejo 原生通知不需要密钥、签名或登录鉴权。`application.yml` 的 `forgejo-repository=agent-admin/metrics` 匹配事件中的仓库全名，`repository-id=metrics_store` 仍用于平台内部发布记录。修改本机配置后重启平台。
+
+平台接收 [Forgejo 原生 Webhook 载荷](https://forgejo.org/docs/latest/user/repository/webhooks/)，使用 `X-Forgejo-Event` 区分事件，不校验签名或 Authorization。原生载荷上限为 1 MiB，旧自定义 `X-Git-Signature` 协议仍需签名且保持 4096 字节。非 Push、非 main、删除分支及未改变 SHA 的事件不触发；其他仓库被拒绝。通知只唤醒固定远端读取，不允许通知指定构建远端或执行命令。
+
+发布复用下文的全量构建和失败保留旧版语义。重复投递按实际 main SHA 和构建配置去重；连续推送可合并为最新 main，不保证每个中间 SHA 都构建。Webhook 返回 202 仅表示已接收。可在 Forgejo 的 Recent Deliveries 查看状态，并在指标平台的发布历史核对 SHA 与最终状态。停机期间的漏投递可通过 Forgejo 重投；平台启动也会扫描一次。`service-proxy` 模式禁止此发布入口并返回 409，不应同时启用两个发布者。
+
 ## 开关和固定绑定
 
 空定义是有效的清空发布：manifest 中模型、source、语义模型和指标均明确为空，且原生目录与构建结果均为空时，运行服务跳过无指标可执行的查询探针，并报告查询能力和代表性查询结果为 false。仍须校验产物格式、版本、摘要、配置和目标 SHA；缺失或损坏的产物不能视为空发布。平台将活动版本切换为空目录，旧物理表、视图与发布历史保留。构建交给 dbt 执行；删除定义不等于删除旧物理表。平台不包含自动清理调度、删表调用或相关开关。
@@ -25,7 +35,7 @@ metric-platform:
     schema-name: dbt_ecom
     config-version: local-debug-v5
     toolchain-version: dbt-core 1.12.5 / metricflow 0.213.0
-    # 手动模式为空；启用 Webhook 时直接填写签名密钥。
+    # 仅旧自定义协议需要密钥，Forgejo 原生通知保留为空。
     webhook-secret: ""
     poll-interval: PT30S
   dbt-runtime:
