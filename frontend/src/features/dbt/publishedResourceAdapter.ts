@@ -2,6 +2,7 @@ import type {
   PublishedCatalogApi,
   PublishedResource,
   PublishedResult,
+  PublishedQuery,
 } from '../../api/publishedCatalogApi';
 import type {
   DbtLineage,
@@ -58,6 +59,8 @@ export function publishedTreeResource(resource: PublishedResource): DbtResource 
 
 /** 仅适配展示契约；所有读取和执行仍走 v2，资源与查询身份不转换为名称。 */
 export function publishedResourceAdapter(api: PublishedCatalogApi) {
+  // 适配器生命周期绑定分支/版本；未知受理结果保留原请求，不能重试生成新任务。
+  const pendingPreviews = new Map<string, PublishedQuery>();
   const resource = async (project: string, id: string, release: string) => {
     const value = await api.resource(project, release, id);
     if (value.releaseId !== release || value.resourceId !== id) throw new Error(MISMATCH);
@@ -154,15 +157,19 @@ export function publishedResourceAdapter(api: PublishedCatalogApi) {
       };
     },
     async previewDbtDataset(project: string, id: string, release: string, limit: number) {
-      const value = await api.submit(project, {
+      const signature = JSON.stringify([project, id, release, limit]);
+      const body = pendingPreviews.get(signature) ?? {
         releaseId: release,
         idempotencyKey: crypto.randomUUID(),
         mode: PREVIEW,
         datasetResourceId: id,
         metricResourceIds: [],
         limit,
-      });
+      };
+      pendingPreviews.set(signature, body);
+      const value = await api.submit(project, body);
       if (value.releaseId !== release) throw new Error(MISMATCH);
+      pendingPreviews.delete(signature);
       return { ...publishedResult(value, PREVIEW), status: 'PENDING' as const };
     },
     async getDbtQuery(project: string, query: string) {

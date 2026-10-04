@@ -14,6 +14,18 @@ public interface PublishedCatalogGateway {
     JsonNode queryOptions(String projectId, JsonNode request);
     JsonNode submitQuery(String projectId, JsonNode request);
     JsonNode query(String projectId, UUID queryId);
+    // 显式分支实例限定所有读取与查询；旧无分支方法保留生产兼容路径。
+    JsonNode branches(String projectId);
+    JsonNode branch(String projectId, UUID branchId);
+    JsonNode publication(String projectId, UUID branchId);
+    JsonNode releases(String projectId, UUID branchId);
+    JsonNode release(String projectId, UUID branchId, UUID releaseId);
+    JsonNode catalog(String projectId, UUID branchId, UUID releaseId, String q, String kind, int page, int size);
+    JsonNode resource(String projectId, UUID branchId, UUID releaseId, String resourceId, String view);
+    JsonNode diff(String projectId, UUID branchId, UUID releaseId);
+    JsonNode queryOptions(String projectId, UUID branchId, JsonNode request);
+    JsonNode submitQuery(String projectId, UUID branchId, JsonNode request);
+    JsonNode query(String projectId, UUID branchId, UUID queryId);
     JsonNode compatibility(String projectId, String operation, JsonNode request);
 
     /** 仅携带受控错误码，禁止传播上游正文中的执行诊断或连接信息。 */

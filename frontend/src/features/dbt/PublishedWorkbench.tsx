@@ -11,7 +11,7 @@ import {
 import { DbtQueryResults } from './DbtQueryResults';
 import { publishedResult } from './publishedResourceAdapter';
 import { businessTimeToIso } from './businessTime';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useParams, useSearchParams } from 'react-router-dom';
 import { ApiProblem } from '../../api/httpClient';
 import {
@@ -21,6 +21,8 @@ import {
   type PublishedQuery,
   type PublishedResource,
   type PublishedResult,
+  type BranchView,
+  type Publication,
 } from '../../api/publishedCatalogApi';
 
 const EMPTY = '';
@@ -30,6 +32,7 @@ const PREVIEW = 'PREVIEW';
 const DIMENSION_VALUES = 'DIMENSION_VALUES';
 const READY = 'READY';
 const FAILED = 'FAILED';
+const PRODUCTION = 'PRODUCTION';
 const errorText = (error: unknown) =>
   error instanceof ApiProblem && error.problem.status === 410
     ? '该版本已被替代，请刷新到最新发布版本并重新选择维度。'
@@ -37,8 +40,31 @@ const errorText = (error: unknown) =>
 /** v2 页面只渲染已发布属性，选择值使用资源和选项身份。 */
 export function PublishedWorkbench({ api = publishedCatalogApi }: { api?: PublishedCatalogApi }) {
   const { projectId = EMPTY } = useParams();
+  const [params] = useSearchParams();
+  const branchId = params.get('branchId');
+  const releaseId = params.get('releaseId');
+  // 每个上下文持有独立组件及请求门面，旧查询可以完成但不能更新另一分支页面。
+  const scopedApi = useMemo(
+    () => (branchId ? { ...api, ...api.inBranch({ projectId, branchId, releaseId }) } : api),
+    [api, projectId, branchId, releaseId],
+  );
+  return (
+    <FixedPublishedWorkbench
+      key={JSON.stringify([projectId, branchId, releaseId])}
+      api={scopedApi}
+    />
+  );
+}
+
+function FixedPublishedWorkbench({ api }: { api: PublishedCatalogApi }) {
+  const { projectId = EMPTY } = useParams();
   const [params, setParams] = useSearchParams();
   const releaseId = params.get('releaseId') ?? EMPTY;
+  const branchId = params.get('branchId');
+  const [identity, setIdentity] = useState<{ branch: BranchView; release: Publication } | null>(
+    null,
+  );
+  const [identityError, setIdentityError] = useState(false);
   const initialMetric = params.get('metricResourceId') ?? EMPTY;
   const [submittedMode, setSubmittedMode] = useState<PublishedQuery['mode']>(QUERY);
   const [submittedMetrics, setSubmittedMetrics] = useState<string[]>([]);
@@ -67,6 +93,34 @@ export function PublishedWorkbench({ api = publishedCatalogApi }: { api?: Publis
   const [refresh, setRefresh] = useState(0);
 
   useEffect(() => {
+    if (!branchId || !releaseId) return;
+    const fixedBranchId = branchId;
+    let active = true;
+    // 身份展示只读取固定 URL 目标，读取失败不得替换查询版本或回退生产。
+    async function readIdentity() {
+      try {
+        const [branch, release] = await Promise.all([
+          api.branch(projectId, fixedBranchId),
+          api.release(projectId, releaseId),
+        ]);
+        if (
+          branch.branchId !== branchId ||
+          branch.projectId !== projectId ||
+          release.releaseId !== releaseId
+        )
+          throw new Error('查询身份不一致');
+        if (active) setIdentity({ branch, release });
+      } catch {
+        if (active) setIdentityError(true);
+      }
+    }
+    void readIdentity();
+    return () => {
+      active = false;
+    };
+  }, [api, projectId, branchId, releaseId]);
+
+  useEffect(() => {
     // 版本改变立即清除旧选择，防止新标题下暂时展示旧目录。
     submissionGeneration.current++;
     setResult(null);
@@ -76,6 +130,9 @@ export function PublishedWorkbench({ api = publishedCatalogApi }: { api?: Publis
     setOptionsReady(false);
     setBusy(false);
     submission.current = null;
+    return () => {
+      submissionGeneration.current++;
+    };
   }, [projectId, releaseId, initialMetric]);
 
   async function latest() {
@@ -296,6 +353,25 @@ export function PublishedWorkbench({ api = publishedCatalogApi }: { api?: Publis
           刷新已发布版本
         </Button>
       </header>
+      <section aria-label="查询上下文">
+        <p>
+          项目：{projectId} · 分支：{identity?.branch.gitRef ?? branchId ?? '生产分支'} · 环境：
+          {identity
+            ? identity.branch.mode === PRODUCTION
+              ? '线上'
+              : '开发预览'
+            : branchId
+              ? '读取中'
+              : '线上'}
+        </p>
+        <p>
+          固定版本：<code>{releaseId || '尚未选择'}</code> · 源码提交：
+          <code>{identity?.release.sourceSha ?? '尚未读取'}</code>
+        </p>
+        {identityError && (
+          <Alert type="warning" title="分支身份详情读取失败，查询目标仍为上述固定 ID。" />
+        )}
+      </section>
       {error && <Alert type="error" title={error} />}
       <div className="analysis-studio">
         <MetricLibrary

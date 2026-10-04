@@ -816,6 +816,756 @@ paths:
         '503':
           $ref: '#/components/responses/Problem'
       description: 仅 service-proxy 模式启用。平台不导入资源、不发布版本；历史版本目录和新查询返回 410，已受理查询继续固定原版本。
+  /api/v2/semantic-projects/{projectId}/branches:
+    get:
+      operationId: listPublishedBranches
+      summary: 读取服务固定分支上下文
+      parameters:
+      - &id001
+        name: projectId
+        in: path
+        required: true
+        schema:
+          type: string
+      responses:
+        '200':
+          description: 服务返回的分支资源
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/V2Branch'
+        '400': &id002
+          $ref: '#/components/responses/Problem'
+        '401': &id003
+          $ref: '#/components/responses/Problem'
+        '404': &id004
+          $ref: '#/components/responses/Problem'
+        '409': &id005
+          $ref: '#/components/responses/Problem'
+        '410': &id006
+          $ref: '#/components/responses/Problem'
+        '422': &id007
+          $ref: '#/components/responses/Problem'
+        '502': &id008
+          $ref: '#/components/responses/Problem'
+        '503': &id009
+          $ref: '#/components/responses/Problem'
+  /api/v2/semantic-projects/{projectId}/branches/{branchId}:
+    get:
+      operationId: getPublishedBranch
+      summary: 读取服务固定分支上下文
+      parameters:
+      - *id001
+      - &id010
+        name: branchId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      responses:
+        '200':
+          description: 服务返回的分支资源
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/V2Branch'
+        '400': *id002
+        '401': *id003
+        '404': *id004
+        '409': *id005
+        '410': *id006
+        '422': *id007
+        '502': *id008
+        '503': *id009
+  /api/v2/semantic-projects/{projectId}/branches/{branchId}/publication:
+    get:
+      summary: 读取服务活动发布指针
+      operationId: branch_publication_v2_projects__project_id__publication_get
+      parameters:
+      - name: projectId
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Project Id
+      - name: branchId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                allOf:
+                - $ref: '#/components/schemas/V2PublishedProject'
+                - type: object
+                  required:
+                  - branchId
+                  properties:
+                    branchId:
+                      type: string
+                      format: uuid
+                      description: 原请求固定的分支实例
+        '422':
+          $ref: '#/components/responses/Problem'
+        '401':
+          $ref: '#/components/responses/Problem'
+        '404':
+          $ref: '#/components/responses/Problem'
+        '409':
+          $ref: '#/components/responses/Problem'
+        '410':
+          $ref: '#/components/responses/Problem'
+        '502':
+          $ref: '#/components/responses/Problem'
+        '503':
+          $ref: '#/components/responses/Problem'
+        '400': *id002
+      description: 固定 branchId；不触发构建、发布或本地资源导入。已受理查询保持原 releaseId。旧无分支路径始终读取生产。
+  /api/v2/semantic-projects/{projectId}/branches/{branchId}/releases:
+    get:
+      summary: 查看服务发布历史
+      operationId: branch_releases_v2_projects__project_id__releases_get
+      parameters:
+      - name: projectId
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Project Id
+      - name: branchId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  allOf:
+                  - $ref: '#/components/schemas/V2PublicationDescriptor'
+                  - type: object
+                    required:
+                    - branchId
+                    properties:
+                      branchId:
+                        type: string
+                        format: uuid
+                        description: 原请求固定的分支实例
+        '422':
+          $ref: '#/components/responses/Problem'
+        '401':
+          $ref: '#/components/responses/Problem'
+        '404':
+          $ref: '#/components/responses/Problem'
+        '409':
+          $ref: '#/components/responses/Problem'
+        '410':
+          $ref: '#/components/responses/Problem'
+        '502':
+          $ref: '#/components/responses/Problem'
+        '503':
+          $ref: '#/components/responses/Problem'
+        '400': *id002
+      description: 固定 branchId；不触发构建、发布或本地资源导入。已受理查询保持原 releaseId。旧无分支路径始终读取生产。
+  /api/v2/semantic-projects/{projectId}/branches/{branchId}/releases/{releaseId}:
+    get:
+      summary: 查看发布记录
+      operationId: branch_release_v2_projects__project_id__releases__release_id__get
+      parameters:
+      - name: projectId
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Project Id
+      - name: releaseId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+          title: Release Id
+      - name: branchId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                allOf:
+                - $ref: '#/components/schemas/V2PublicationDescriptor'
+                - type: object
+                  required:
+                  - branchId
+                  properties:
+                    branchId:
+                      type: string
+                      format: uuid
+                      description: 原请求固定的分支实例
+        '422':
+          $ref: '#/components/responses/Problem'
+        '401':
+          $ref: '#/components/responses/Problem'
+        '404':
+          $ref: '#/components/responses/Problem'
+        '409':
+          $ref: '#/components/responses/Problem'
+        '410':
+          $ref: '#/components/responses/Problem'
+        '502':
+          $ref: '#/components/responses/Problem'
+        '503':
+          $ref: '#/components/responses/Problem'
+        '400': *id002
+      description: 固定 branchId；不触发构建、发布或本地资源导入。已受理查询保持原 releaseId。旧无分支路径始终读取生产。
+  /api/v2/semantic-projects/{projectId}/branches/{branchId}/releases/{releaseId}/catalog:
+    get:
+      summary: 读取固定发布版本的目录
+      operationId: branch_catalog_v2_projects__project_id__releases__release_id__catalog_get
+      parameters:
+      - name: projectId
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Project Id
+      - name: releaseId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+          title: Release Id
+      - name: q
+        in: query
+        required: false
+        schema:
+          type: string
+          default: ''
+          title: Q
+      - name: kind
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - $ref: '#/components/schemas/V2ResourceKind'
+          - type: 'null'
+          title: Kind
+      - name: page
+        in: query
+        required: false
+        schema:
+          type: integer
+          minimum: 1
+          default: 1
+          title: Page
+      - name: size
+        in: query
+        required: false
+        schema:
+          type: integer
+          maximum: 200
+          minimum: 1
+          default: 50
+          title: Size
+      - name: branchId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                allOf:
+                - $ref: '#/components/schemas/V2PublishedPage'
+                - type: object
+                  required:
+                  - branchId
+                  properties:
+                    branchId:
+                      type: string
+                      format: uuid
+                      description: 原请求固定的分支实例
+        '422':
+          $ref: '#/components/responses/Problem'
+        '401':
+          $ref: '#/components/responses/Problem'
+        '404':
+          $ref: '#/components/responses/Problem'
+        '409':
+          $ref: '#/components/responses/Problem'
+        '410':
+          $ref: '#/components/responses/Problem'
+        '502':
+          $ref: '#/components/responses/Problem'
+        '503':
+          $ref: '#/components/responses/Problem'
+        '400': *id002
+      description: 固定 branchId；不触发构建、发布或本地资源导入。已受理查询保持原 releaseId。旧无分支路径始终读取生产。
+  /api/v2/semantic-projects/{projectId}/branches/{branchId}/releases/{releaseId}/resources/{resourceId}:
+    get:
+      summary: 读取类型化资源
+      operationId: branch_resource_v2_projects__project_id__releases__release_id__resources__resource_id__get
+      parameters:
+      - name: projectId
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Project Id
+      - name: releaseId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+          title: Release Id
+      - name: resourceId
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Resource Id
+      - name: branchId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                allOf:
+                - $ref: '#/components/schemas/V2ResourceResponse'
+                - type: object
+                  required:
+                  - branchId
+                  properties:
+                    branchId:
+                      type: string
+                      format: uuid
+                      description: 原请求固定的分支实例
+        '422':
+          $ref: '#/components/responses/Problem'
+        '401':
+          $ref: '#/components/responses/Problem'
+        '404':
+          $ref: '#/components/responses/Problem'
+        '409':
+          $ref: '#/components/responses/Problem'
+        '410':
+          $ref: '#/components/responses/Problem'
+        '502':
+          $ref: '#/components/responses/Problem'
+        '503':
+          $ref: '#/components/responses/Problem'
+        '400': *id002
+      description: 固定 branchId；不触发构建、发布或本地资源导入。已受理查询保持原 releaseId。旧无分支路径始终读取生产。
+  /api/v2/semantic-projects/{projectId}/branches/{branchId}/releases/{releaseId}/resources/{resourceId}/lineage:
+    get:
+      summary: 读取资源血缘
+      operationId: branch_handler_v2_projects__project_id__releases__release_id__resources__resource_id__lineage_get
+      parameters:
+      - name: projectId
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Project Id
+      - name: releaseId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+          title: Release Id
+      - name: resourceId
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Resource Id
+      - name: branchId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                allOf:
+                - $ref: '#/components/schemas/V2LineageResponse'
+                - type: object
+                  required:
+                  - branchId
+                  properties:
+                    branchId:
+                      type: string
+                      format: uuid
+                      description: 原请求固定的分支实例
+        '422':
+          $ref: '#/components/responses/Problem'
+        '401':
+          $ref: '#/components/responses/Problem'
+        '404':
+          $ref: '#/components/responses/Problem'
+        '409':
+          $ref: '#/components/responses/Problem'
+        '410':
+          $ref: '#/components/responses/Problem'
+        '502':
+          $ref: '#/components/responses/Problem'
+        '503':
+          $ref: '#/components/responses/Problem'
+        '400': *id002
+      description: 固定 branchId；不触发构建、发布或本地资源导入。已受理查询保持原 releaseId。旧无分支路径始终读取生产。
+  /api/v2/semantic-projects/{projectId}/branches/{branchId}/releases/{releaseId}/resources/{resourceId}/source:
+    get:
+      summary: 读取发布时源码
+      operationId: branch_handler_v2_projects__project_id__releases__release_id__resources__resource_id__source_get
+      parameters:
+      - name: projectId
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Project Id
+      - name: releaseId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+          title: Release Id
+      - name: resourceId
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Resource Id
+      - name: branchId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                allOf:
+                - $ref: '#/components/schemas/V2SourceResponse'
+                - type: object
+                  required:
+                  - branchId
+                  properties:
+                    branchId:
+                      type: string
+                      format: uuid
+                      description: 原请求固定的分支实例
+        '422':
+          $ref: '#/components/responses/Problem'
+        '401':
+          $ref: '#/components/responses/Problem'
+        '404':
+          $ref: '#/components/responses/Problem'
+        '409':
+          $ref: '#/components/responses/Problem'
+        '410':
+          $ref: '#/components/responses/Problem'
+        '502':
+          $ref: '#/components/responses/Problem'
+        '503':
+          $ref: '#/components/responses/Problem'
+        '400': *id002
+      description: 固定 branchId；不触发构建、发布或本地资源导入。已受理查询保持原 releaseId。旧无分支路径始终读取生产。
+  /api/v2/semantic-projects/{projectId}/branches/{branchId}/releases/{releaseId}/resources/{resourceId}/native-details:
+    get:
+      summary: 读取原生产物追溯
+      operationId: branch_handler_v2_projects__project_id__releases__release_id__resources__resource_id__native_details_get
+      parameters:
+      - name: projectId
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Project Id
+      - name: releaseId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+          title: Release Id
+      - name: resourceId
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Resource Id
+      - name: branchId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                allOf:
+                - $ref: '#/components/schemas/V2NativeDetailsResponse'
+                - type: object
+                  required:
+                  - branchId
+                  properties:
+                    branchId:
+                      type: string
+                      format: uuid
+                      description: 原请求固定的分支实例
+        '422':
+          $ref: '#/components/responses/Problem'
+        '401':
+          $ref: '#/components/responses/Problem'
+        '404':
+          $ref: '#/components/responses/Problem'
+        '409':
+          $ref: '#/components/responses/Problem'
+        '410':
+          $ref: '#/components/responses/Problem'
+        '502':
+          $ref: '#/components/responses/Problem'
+        '503':
+          $ref: '#/components/responses/Problem'
+        '400': *id002
+      description: 固定 branchId；不触发构建、发布或本地资源导入。已受理查询保持原 releaseId。旧无分支路径始终读取生产。
+  /api/v2/semantic-projects/{projectId}/branches/{branchId}/query-options:
+    post:
+      summary: 获取固定版本可组合选项
+      operationId: branch_options_v2_projects__project_id__query_options_post
+      parameters:
+      - name: projectId
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Project Id
+      - name: branchId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/V2QueryOptionsRequest'
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                allOf:
+                - $ref: '#/components/schemas/V2QueryOptionsResponse'
+                - type: object
+                  required:
+                  - branchId
+                  properties:
+                    branchId:
+                      type: string
+                      format: uuid
+                      description: 原请求固定的分支实例
+        '422':
+          $ref: '#/components/responses/Problem'
+        '401':
+          $ref: '#/components/responses/Problem'
+        '404':
+          $ref: '#/components/responses/Problem'
+        '409':
+          $ref: '#/components/responses/Problem'
+        '410':
+          $ref: '#/components/responses/Problem'
+        '502':
+          $ref: '#/components/responses/Problem'
+        '503':
+          $ref: '#/components/responses/Problem'
+        '400': *id002
+      description: 固定 branchId；不触发构建、发布或本地资源导入。已受理查询保持原 releaseId。旧无分支路径始终读取生产。
+  /api/v2/semantic-projects/{projectId}/branches/{branchId}/queries:
+    post:
+      summary: 按资源身份受理查询
+      operationId: branch_submit_v2_projects__project_id__queries_post
+      parameters:
+      - name: projectId
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Project Id
+      - name: branchId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/V2PublishedQueryRequest'
+      responses:
+        '202':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                allOf:
+                - $ref: '#/components/schemas/V2QueryReceipt'
+                - type: object
+                  required:
+                  - branchId
+                  properties:
+                    branchId:
+                      type: string
+                      format: uuid
+                      description: 原请求固定的分支实例
+        '422':
+          $ref: '#/components/responses/Problem'
+        '401':
+          $ref: '#/components/responses/Problem'
+        '404':
+          $ref: '#/components/responses/Problem'
+        '409':
+          $ref: '#/components/responses/Problem'
+        '410':
+          $ref: '#/components/responses/Problem'
+        '502':
+          $ref: '#/components/responses/Problem'
+        '503':
+          $ref: '#/components/responses/Problem'
+        '400': *id002
+      description: 固定 branchId；不触发构建、发布或本地资源导入。已受理查询保持原 releaseId。旧无分支路径始终读取生产。
+  /api/v2/semantic-projects/{projectId}/branches/{branchId}/queries/{queryId}:
+    get:
+      summary: 读取已受理查询结果
+      operationId: branch_query_v2_projects__project_id__queries__query_id__get
+      parameters:
+      - name: projectId
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Project Id
+      - name: queryId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+          title: Query Id
+      - name: branchId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                allOf:
+                - $ref: '#/components/schemas/V2QueryResult'
+                - type: object
+                  required:
+                  - branchId
+                  properties:
+                    branchId:
+                      type: string
+                      format: uuid
+                      description: 原请求固定的分支实例
+        '422':
+          $ref: '#/components/responses/Problem'
+        '401':
+          $ref: '#/components/responses/Problem'
+        '404':
+          $ref: '#/components/responses/Problem'
+        '409':
+          $ref: '#/components/responses/Problem'
+        '410':
+          $ref: '#/components/responses/Problem'
+        '502':
+          $ref: '#/components/responses/Problem'
+        '503':
+          $ref: '#/components/responses/Problem'
+        '400': *id002
+      description: 固定 branchId；不触发构建、发布或本地资源导入。已受理查询保持原 releaseId。旧无分支路径始终读取生产。
+  /api/v2/semantic-projects/{projectId}/branches/{branchId}/releases/{releaseId}/diff:
+    get:
+      operationId: getPublishedBranchDiff
+      summary: 读取服务固定分支上下文
+      parameters:
+      - *id001
+      - *id010
+      - name: releaseId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      responses:
+        '200':
+          description: 服务返回的分支资源
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/V2BranchDiff'
+        '400': *id002
+        '401': *id003
+        '404': *id004
+        '409': *id005
+        '410': *id006
+        '422': *id007
+        '502': *id008
+        '503': *id009
 components:
   securitySchemes:
     bearerAuth: { type: http, scheme: bearer }
@@ -831,6 +1581,131 @@ components:
         application/problem+json:
           schema: { $ref: '#/components/schemas/Problem' }
   schemas:
+    V2Branch:
+      type: object
+      description: 由 dbt-service 登记的独立分支实例；同 ref 重建时 ID 变化。
+      required:
+      - projectId
+      - branchId
+      - gitRef
+      - mode
+      - status
+      - version
+      - baseCommitSha
+      - baseReleaseId
+      - observedHeadSha
+      - activeReleaseId
+      - latestReleaseId
+      - mergeRequestUrl
+      properties:
+        projectId:
+          type: string
+        branchId:
+          type: string
+          format: uuid
+        gitRef:
+          type: string
+        mode:
+          type: string
+          enum:
+          - PRODUCTION
+          - PREVIEW
+        status:
+          type: string
+          enum:
+          - PROVISIONING
+          - ACTIVE
+          - DELETING
+          - DELETED
+          - FAILED
+        version:
+          type: integer
+          minimum: 1
+        baseCommitSha:
+          type:
+          - string
+          - 'null'
+        baseReleaseId:
+          type:
+          - string
+          - 'null'
+        observedHeadSha:
+          type:
+          - string
+          - 'null'
+        activeReleaseId:
+          type:
+          - string
+          - 'null'
+        latestReleaseId:
+          type:
+          - string
+          - 'null'
+        mergeRequestUrl:
+          type:
+          - string
+          - 'null'
+    V2BranchDiff:
+      type: object
+      required:
+      - branchId
+      - releaseId
+      - baseCommitSha
+      - targetCommitSha
+      - productionAdvanced
+      - resourceBaselineAvailable
+      - files
+      - resources
+      - truncated
+      properties:
+        branchId:
+          type: string
+          format: uuid
+        releaseId:
+          type: string
+          format: uuid
+        baseCommitSha:
+          type:
+          - string
+          - 'null'
+        targetCommitSha:
+          type: string
+        productionAdvanced:
+          type: boolean
+        resourceBaselineAvailable:
+          type: boolean
+        truncated:
+          type: boolean
+        files:
+          type: array
+          items:
+            type: object
+            required:
+            - path
+            - status
+            - diff
+            properties:
+              path:
+                type: string
+              status:
+                type: string
+              diff:
+                type: string
+        resources:
+          type: array
+          items:
+            type: object
+            required:
+            - nativeId
+            - kind
+            - status
+            properties:
+              nativeId:
+                type: string
+              kind:
+                type: string
+              status:
+                type: string
     DbtResourcePresentation:
       type: object
       required: [releaseId, resourceId, kind, title, sections, nativeDetails, queryable]
@@ -1713,6 +2588,28 @@ components:
       - buildMode
       - catalogSchemaVersion
       properties:
+        branchId:
+          type: string
+          format: uuid
+          description: 分支路由下必填的实例归属；旧生产协议可省略
+        gitRef:
+          type: string
+          description: 此版本固定的远端引用
+        validationSummary:
+          type: [object, 'null']
+          description: 服务过滤后的有界验证摘要，不包含凭据或原始 stderr
+          properties:
+            phase: { type: string }
+            truncated: { type: boolean }
+            checks:
+              type: array
+              items:
+                type: object
+                required: [name, status]
+                properties:
+                  name: { type: string }
+                  status: { type: string }
+                  message: { type: [string, 'null'] }
         projectId:
           type: string
         releaseId:

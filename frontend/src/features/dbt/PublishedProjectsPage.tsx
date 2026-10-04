@@ -74,6 +74,9 @@ export function PublishedProjectsPage({
         {!error && !projects.length && <Empty description="暂无已登记项目" />}
         {projects.map((project) => (
           <Card key={project.projectId} title={project.projectId}>
+            <Link to={`/dbt/projects/${encodeURIComponent(project.projectId)}/catalog`}>
+              选择线上或开发分支
+            </Link>
             {project.activePublication ? (
               <div className="project-entry-actions">
                 <Link

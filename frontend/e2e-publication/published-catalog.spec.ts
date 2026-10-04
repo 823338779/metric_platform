@@ -7,7 +7,9 @@ const identity = {
   authVersion: 1,
 };
 const VERSION = 'release-a';
+const BRANCH = 'production-branch';
 const resource = {
+  branchId: BRANCH,
   releaseId: VERSION,
   resourceId: 'metric-opaque-id',
   nativeId: 'metric.native.sales',
@@ -40,17 +42,52 @@ test('published catalog uses the shared workspace and carries opaque identities 
   await page.route('**/api/v1/auth/me', (route) => route.fulfill({ json: identity }));
   await page.route('**/api/v2/semantic-projects/**', (route) => {
     const url = new URL(route.request().url());
+    // 增量契约 fixture：旧生产链接现解析登记分支，原页面及查询断言保持。
+    const branch = {
+      projectId: 'ecommerce_metrics',
+      branchId: BRANCH,
+      gitRef: 'refs/heads/main',
+      mode: 'PRODUCTION',
+      status: 'ACTIVE',
+      activeReleaseId: VERSION,
+      latestReleaseId: VERSION,
+      observedHeadSha: 'sha',
+      version: 1,
+    };
+    if (url.pathname.endsWith('/branches')) return route.fulfill({ json: [branch] });
+    if (url.pathname.endsWith(`/branches/${BRANCH}`)) return route.fulfill({ json: branch });
+    if (url.pathname.endsWith(`/releases/${VERSION}`))
+      return route.fulfill({
+        json: { branchId: BRANCH, releaseId: VERSION, sourceSha: 'sha', state: 'PUBLISHED' },
+      });
+    if (url.pathname.endsWith('/releases'))
+      return route.fulfill({
+        json: [{ branchId: BRANCH, releaseId: VERSION, sourceSha: 'sha', state: 'PUBLISHED' }],
+      });
     if (url.pathname.endsWith('/catalog'))
       return route.fulfill({
-        json: { releaseId: VERSION, page: 1, size: 50, total: 1, resources: [resource] },
+        json: {
+          branchId: BRANCH,
+          releaseId: VERSION,
+          page: 1,
+          size: 50,
+          total: 1,
+          resources: [resource],
+        },
       });
     if (url.pathname.endsWith('/lineage'))
       return route.fulfill({
-        json: { releaseId: VERSION, resourceId: resource.resourceId, dependencies: [] },
+        json: {
+          branchId: BRANCH,
+          releaseId: VERSION,
+          resourceId: resource.resourceId,
+          dependencies: [],
+        },
       });
     if (url.pathname.endsWith('/source'))
       return route.fulfill({
         json: {
+          branchId: BRANCH,
           releaseId: VERSION,
           resourceId: resource.resourceId,
           path: resource.sourcePath,
@@ -58,7 +95,7 @@ test('published catalog uses the shared workspace and carries opaque identities 
         },
       });
     if (url.pathname.endsWith('/query-options'))
-      return route.fulfill({ json: { releaseId: VERSION, options: [] } });
+      return route.fulfill({ json: { branchId: BRANCH, releaseId: VERSION, options: [] } });
     return route.fulfill({ json: resource });
   });
   await page.setViewportSize({ width: 1440, height: 1000 });

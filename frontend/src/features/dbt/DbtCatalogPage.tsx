@@ -275,7 +275,7 @@ export function DbtCatalogPage({
             </>
           )}
           <Link
-            to={`/dbt/projects/${encodeURIComponent(projectId)}/catalog?releaseId=${encodeURIComponent(activeReleaseId)}`}
+            to={`/dbt/projects/${encodeURIComponent(projectId)}/catalog?${new URLSearchParams({ releaseId: activeReleaseId, ...(params.get('branchId') ? { branchId: params.get('branchId')! } : {}) })}`}
           >
             查看当前发布版本
           </Link>
@@ -335,6 +335,7 @@ export function DbtCatalogPage({
           </div>
           <ResourceTree
             queryParameter={api.queryParameter}
+            branchId={params.get('branchId') ?? undefined}
             resources={resources}
             selected={selected}
             onSelect={setSelected}
@@ -418,7 +419,7 @@ export function DbtCatalogPage({
             onClose={() => setSelected('')}
             onExplore={(name) =>
               navigate(
-                `/dbt/projects/${encodeURIComponent(projectId)}/query?${new URLSearchParams({ releaseId: requestedRelease, [api.queryParameter ?? 'metric']: api.queryParameter ? selected : (resources.find((resource) => resource.resourceId === selected)?.name ?? name), resourceId: selected })}`,
+                `/dbt/projects/${encodeURIComponent(projectId)}/query?${new URLSearchParams({ releaseId: requestedRelease, ...(params.get('branchId') ? { branchId: params.get('branchId')! } : {}), [api.queryParameter ?? 'metric']: api.queryParameter ? selected : (resources.find((resource) => resource.resourceId === selected)?.name ?? name), resourceId: selected })}`,
               )
             }
             api={api as MetricPlatformApi}

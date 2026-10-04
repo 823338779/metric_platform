@@ -18,6 +18,36 @@ const BASE = {
 };
 
 describe('published presentation contract', () => {
+  it('预览响应丢失且活动版本推进后仍以原键恢复，独立适配器不共享请求', async () => {
+    const accepted = new Map<string, unknown>();
+    let advanced = false;
+    const submit = vi.fn(async (_project, body) => {
+      if (accepted.has(body.idempotencyKey)) return accepted.get(body.idempotencyKey);
+      if (advanced) throw new Error('410 superseded');
+      accepted.set(body.idempotencyKey, {
+        releaseId: RELEASE,
+        queryId: 'original',
+        state: 'QUEUED',
+      });
+      throw new Error('receipt lost');
+    });
+    const api = { submit } as unknown as PublishedCatalogApi;
+    const adapter = publishedResourceAdapter(api);
+    await expect(adapter.previewDbtDataset(PROJECT, 'dataset', RELEASE, 10)).rejects.toThrow(
+      'lost',
+    );
+    advanced = true;
+    expect((await adapter.previewDbtDataset(PROJECT, 'dataset', RELEASE, 10)).queryId).toBe(
+      'original',
+    );
+    expect(submit.mock.calls[1][1]).toEqual(submit.mock.calls[0][1]);
+    expect(accepted.size).toBe(1);
+    await expect(
+      publishedResourceAdapter(api).previewDbtDataset(PROJECT, 'dataset', RELEASE, 10),
+    ).rejects.toThrow('410');
+    expect(submit.mock.calls[2][1].idempotencyKey).not.toBe(submit.mock.calls[0][1].idempotencyKey);
+  });
+
   it('follows platform identities for a directly mapped column without calling a native ID', async () => {
     const resources = {
       dimension: {

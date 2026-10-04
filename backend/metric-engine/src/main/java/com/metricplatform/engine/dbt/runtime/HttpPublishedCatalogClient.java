@@ -39,9 +39,14 @@ public class HttpPublishedCatalogClient implements PublishedCatalogGateway {
             JSON = "application/json",
             UNAVAILABLE = "runtime_unavailable",
             INVALID = "invalid_runtime_response";
+    private static final String BRANCHES = "/branches",
+            RELEASE_COLLECTION = "/releases",
+            DIFF = "/diff";
     private static final Set<String> VIEWS = Set.of(EMPTY, "lineage", "source", "native-details");
     private static final Map<Integer, String> ERRORS =
             Map.of(
+                    401,
+                    "service_credential_required",
                     404,
                     "not_found",
                     409,
@@ -164,6 +169,103 @@ public class HttpPublishedCatalogClient implements PublishedCatalogGateway {
                 project(id) + "/compatibility/" + operation,
                 "queries".equals(operation) ? DbtQueryTimeAdapter.normalize(request) : request,
                 false);
+    }
+
+    // 分支请求仅使用类型化 UUID 和受控路径，不设置共享的当前分支状态。
+    private static String branchPath(String id, UUID branchId) {
+        return project(id) + BRANCHES + SLASH + branchId;
+    }
+
+    private static String branchRelease(String id, UUID branchId, UUID releaseId) {
+        return branchPath(id, branchId) + RELEASES + releaseId;
+    }
+
+    public JsonNode branches(String id) {
+        var value = call(GET, project(id) + BRANCHES, null, true);
+        value.forEach(PublishedProtocol::branch);
+        return value;
+    }
+
+    public JsonNode branch(String id, UUID branchId) {
+        return PublishedProtocol.branch(scoped(GET, branchPath(id, branchId), null, branchId));
+    }
+
+    public JsonNode publication(String id, UUID branchId) {
+        return PublishedProtocol.publication(
+                scoped(GET, branchPath(id, branchId) + PUBLICATION, null, branchId));
+    }
+
+    public JsonNode releases(String id, UUID branchId) {
+        var value = call(GET, branchPath(id, branchId) + RELEASE_COLLECTION, null, true);
+        value.forEach(item -> PublishedProtocol.release(PublishedProtocol.scoped(item, branchId)));
+        return value;
+    }
+
+    public JsonNode release(String id, UUID branchId, UUID version) {
+        return PublishedProtocol.release(
+                scoped(GET, branchRelease(id, branchId, version), null, branchId));
+    }
+
+    public JsonNode catalog(
+            String id, UUID branchId, UUID version, String q, String kind, int page, int size) {
+        return PublishedProtocol.catalog(
+                scoped(
+                        GET,
+                        branchRelease(id, branchId, version)
+                                + CATALOG
+                                + "?page="
+                                + page
+                                + "&size="
+                                + size
+                                + "&q="
+                                + encode(q == null ? EMPTY : q)
+                                + (kind == null || kind.isBlank()
+                                        ? EMPTY
+                                        : "&kind=" + encode(kind)),
+                        null,
+                        branchId));
+    }
+
+    public JsonNode resource(
+            String id, UUID branchId, UUID version, String resourceId, String view) {
+        if (!VIEWS.contains(view)) throw new IllegalArgumentException("未知目录子资源");
+        var value =
+                scoped(
+                        GET,
+                        branchRelease(id, branchId, version)
+                                + RESOURCES
+                                + encode(resourceId)
+                                + (view.isEmpty() ? EMPTY : SLASH + view),
+                        null,
+                        branchId);
+        return view.isEmpty() ? PublishedProtocol.resource(value) : value;
+    }
+
+    public JsonNode diff(String id, UUID branchId, UUID version) {
+        return scoped(GET, branchRelease(id, branchId, version) + DIFF, null, branchId);
+    }
+
+    public JsonNode queryOptions(String id, UUID branchId, JsonNode request) {
+        return PublishedProtocol.options(
+                scoped(POST, branchPath(id, branchId) + OPTIONS, request, branchId));
+    }
+
+    public JsonNode submitQuery(String id, UUID branchId, JsonNode request) {
+        return PublishedProtocol.query(
+                scoped(
+                        POST,
+                        branchPath(id, branchId) + QUERIES,
+                        DbtQueryTimeAdapter.normalize(request),
+                        branchId));
+    }
+
+    public JsonNode query(String id, UUID branchId, UUID queryId) {
+        return PublishedProtocol.query(
+                scoped(GET, branchPath(id, branchId) + QUERIES + SLASH + queryId, null, branchId));
+    }
+
+    private JsonNode scoped(String method, String path, JsonNode body, UUID branchId) {
+        return PublishedProtocol.scoped(call(method, path, body, false), branchId);
     }
 
     private JsonNode call(String method, String path, JsonNode body, boolean array) {

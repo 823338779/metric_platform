@@ -1,6 +1,20 @@
 # dbt 全量构建与版本发布运行说明
 
-## 发布含义
+## service-proxy 分支目录与查询
+
+使用 `metric.publication.mode=service-proxy` 时，dbt-service 是唯一发布者；旧平台 Git Webhook、扫描和本地目录导入不能同时启用。平台通过 `/api/v2/semantic-projects/{projectId}/branches` 读取登记分支，创建和删除由 Agent 调用服务完成，页面刷新不会触发构建。
+
+目录 URL 为 `/dbt/projects/{projectId}/catalog?branchId=...&releaseId=...`。没有 branchId 的旧目录链接明确解析生产登记；没有 releaseId 时首次采用该分支活动版本。此后页面保留固定版本，活动版本推进需显式刷新。资源详情、源码、差异和查询均固定此上下文。复制链接会保留原分支实例和版本；删除后同名新分支不会接管旧链接。
+
+页面分别展示可用提交、观测到的最新提交和构建历史。最新构建失败时旧活动版本仍可查询；选择失败版本只查看构建状态和安全测试摘要，不把旧资源冒充失败提交的结果。首次预览未就绪时禁用资源和查询入口，404、410、503 不转换为空目录或生产数据。
+
+开发分支差异以创建时固定基线为准，同时提示线上是否推进、资源基线是否可用和内容是否截断。合并请求链接仅接受服务返回的 HTTP(S) 地址。原始执行日志和连接配置不通过此界面返回。
+
+选项、PREVIEW、DIMENSION_VALUES 和查询结果使用固定分支/版本。受理响应丢失后保持原请求体和幂等键；旧查询返回时不绘制到已切换的分支页面。HTTP 410 要求显式刷新并重新选择资源，不自动重发到新版本。无分支的旧 API 仍指向生产。
+
+service-proxy 浏览器验证命令在根 README 的验证节维护。浏览器 fixture 验证 UI 与请求身份；真实 Forgejo、数据库权限和 SQL 结果一致性由工作区的跨服务验收覆盖。
+
+## legacy 发布含义
 
 平台只消费固定配置仓库 `main` 的最新提交。提交 SHA 变化时，平台以该 SHA 请求外部服务在固定的 StarRocks `dbt_ecom` schema 中使用本 run 专属表前缀全量构建并运行完整测试。服务报告 READY，且摘要、配置、工具链、物理 relation 和查询能力验证通过后，平台在 PostgreSQL 事务中导入只读目录并切换 `activeReleaseId`。Git push、构建成功与发布成功是三个不同状态；失败保持旧版可查询。
 

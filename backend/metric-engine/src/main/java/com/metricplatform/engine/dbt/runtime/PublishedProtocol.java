@@ -3,6 +3,7 @@ package com.metricplatform.engine.dbt.runtime;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.metricplatform.catalog.PublishedCatalogGateway;
 import java.util.Set;
+import java.util.UUID;
 
 /** 检查显示协议结构，不解析原生 manifest 或推导业务资源。 */
 final class PublishedProtocol {
@@ -12,10 +13,34 @@ final class PublishedProtocol {
             ACTIVE = "activePublication",
             KIND = "kind",
             ATTRIBUTES = "attributes";
+    private static final String BRANCH = "branchId",
+            REF = "gitRef",
+            MODE = "mode",
+            STATUS = "status";
     private static final Set<String> KINDS =
             Set.of("METRIC", "DIMENSION", "SEMANTIC_MODEL", "TABLE", "VIEW");
 
     private PublishedProtocol() {}
+
+    /** 分支身份由服务提供；拒绝缺字段响应，避免 UI 将不明目标当作线上。 */
+    static JsonNode branch(JsonNode node) {
+        text(node, PROJECT, BRANCH, REF, MODE, STATUS);
+        try {
+            UUID.fromString(node.path(BRANCH).asText());
+        } catch (IllegalArgumentException invalid) {
+            check(false);
+        }
+        check(node.path(REF).asText().startsWith("refs/heads/"));
+        check(Set.of("PRODUCTION", "PREVIEW").contains(node.path(MODE).asText()));
+        check(node.path("version").isIntegralNumber());
+        return node;
+    }
+
+    /** 请求路径是归属依据，增量字段不会改变既有发布协议。 */
+    static JsonNode scoped(JsonNode node, UUID branchId) {
+        check(node.isObject() && branchId.toString().equals(node.path(BRANCH).asText()));
+        return node;
+    }
 
     static JsonNode publication(JsonNode node) {
         text(node, PROJECT);

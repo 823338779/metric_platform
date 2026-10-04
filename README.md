@@ -1,6 +1,6 @@
 # Metric Platform
 
-Metric Platform 负责语义项目的版本发布、只读目录、查询和身份认证。平台控制 Git `main` 上项目的全量构建与发布，并将固定 `releaseId` 的类型化查询交给计算引擎。当前引擎实现为 dbt/MetricFlow，指标、维度等定义来自项目源码。
+Metric Platform 在 `service-proxy` 模式负责身份认证、线上与开发分支的只读目录、构建展示和固定版本查询；dbt-service 是唯一发布权威。项目资源来自 Git 中的 SQL/YAML，分支身份和构建结果由服务维护。下文中平台自身发布流程只适用于迁移前的 legacy 模式。
 
 ## 项目结构
 
@@ -80,6 +80,7 @@ npm ci
 npm test
 npm run build
 npm run test:e2e
+npm run test:e2e -- --config=playwright.publication.config.ts
 ```
 
 真实 PostgreSQL 浏览器验收需先启动 PostgreSQL profile 的 dbt 运行服务和已启用 Git 发布的平台，等待 fixture 项目出现 `PUBLISHED` 版本。随后在 `frontend/` 设置 `DBT_POSTGRES_E2E=1`、`DBT_POSTGRES_E2E_USER`、`DBT_POSTGRES_E2E_PASSWORD`，可选设置 `DBT_POSTGRES_E2E_PROJECT`，运行 `npm run test:e2e -- dbt-postgres-integration.spec.ts`。该测试通过页面登录，使用真实 API 验证发布目录、YAML 源码、月粒度指标查询与维度值；未设置开关时跳过真实集成场景。

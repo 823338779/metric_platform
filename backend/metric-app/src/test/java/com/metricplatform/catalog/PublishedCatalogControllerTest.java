@@ -27,6 +27,36 @@ class PublishedCatalogControllerTest {
     @MockitoBean CatalogReadRepository historicalCatalog;
 
     @Test
+    void forwardsBranchCatalogWithoutLocalPublicationOrMutations() throws Exception {
+        UUID branch = UUID.randomUUID();
+        UUID release = UUID.randomUUID();
+        when(authentication.authenticate(TOKEN))
+                .thenReturn(new PlatformPrincipal(UUID.randomUUID(), "test", "Test", null, 1));
+        when(gateway.catalog("p", branch, release, "", null, 1, 50))
+                .thenReturn(
+                        new ObjectMapper()
+                                .readTree(
+                                        "{\"branchId\":\""
+                                                + branch
+                                                + "\",\"releaseId\":\""
+                                                + release
+                                                + "\",\"resources\":[]}"));
+        var path = ROOT + "/p/branches/" + branch + "/releases/" + release + "/catalog";
+        mvc.perform(get(path)).andExpect(status().isUnauthorized());
+        mvc.perform(get(path).header("Authorization", "Bearer " + TOKEN))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.branchId").value(branch.toString()));
+        mvc.perform(
+                        post(ROOT + "/p/branches")
+                                .header("Authorization", "Bearer " + TOKEN)
+                                .contentType("application/json")
+                                .content("{}"))
+                .andExpect(status().isMethodNotAllowed());
+        verifyNoInteractions(historicalCatalog);
+        verify(gateway).catalog("p", branch, release, "", null, 1, 50);
+    }
+
+    @Test
     void protectsV2AndReadsWithoutLocalCatalog() throws Exception {
         when(gateway.projects()).thenReturn(new ObjectMapper().readTree("[]"));
         mvc.perform(get(ROOT)).andExpect(status().isUnauthorized());

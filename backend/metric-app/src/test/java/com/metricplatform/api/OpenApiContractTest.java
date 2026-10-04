@@ -16,7 +16,7 @@ class OpenApiContractTest {
         String contract = Files.readString(Path.of("..", "..", "api", "openapi.yaml"));
         JsonNode document = new ObjectMapper(new YAMLFactory()).readTree(contract);
         assertThat(document.path("openapi").asText()).isEqualTo("3.1.0");
-        assertThat(document.path("paths").size()).isEqualTo(30);
+        assertThat(document.path("paths").size()).isEqualTo(44);
         // 保留原 18 个路由的约束，并逐条验证本次新增的 12 个代理路由。
         String proxyRoot = "/api/v2/semantic-projects";
         for (String suffix :
@@ -35,6 +35,28 @@ class OpenApiContractTest {
                         "/{projectId}/queries/{queryId}")) {
             assertThat(document.path("paths").has(proxyRoot + suffix)).isTrue();
         }
+        // 保留原有 30 个路径断言，精确追加分支只读与查询契约。
+        String branchRoot = proxyRoot + "/{projectId}/branches";
+        for (String suffix :
+                java.util.List.of(
+                        "",
+                        "/{branchId}",
+                        "/{branchId}/publication",
+                        "/{branchId}/releases",
+                        "/{branchId}/releases/{releaseId}",
+                        "/{branchId}/releases/{releaseId}/catalog",
+                        "/{branchId}/releases/{releaseId}/diff",
+                        "/{branchId}/releases/{releaseId}/resources/{resourceId}",
+                        "/{branchId}/releases/{releaseId}/resources/{resourceId}/lineage",
+                        "/{branchId}/releases/{releaseId}/resources/{resourceId}/source",
+                        "/{branchId}/releases/{releaseId}/resources/{resourceId}/native-details",
+                        "/{branchId}/query-options",
+                        "/{branchId}/queries",
+                        "/{branchId}/queries/{queryId}")) {
+            assertThat(document.path("paths").has(branchRoot + suffix)).isTrue();
+        }
+        assertThat(document.path("paths").path(branchRoot).has("post")).isFalse();
+        assertThat(document.path("paths").path(branchRoot + "/{branchId}").has("delete")).isFalse();
         assertThat(
                         document.at(
                                         "/paths/~1api~1v1~1semantic-projects:refresh/post/responses/202")
