@@ -19,6 +19,8 @@ const QUERY = 'QUERY';
 const EXPLAIN = 'EXPLAIN';
 const FAILED = 'FAILED';
 const CANCELLED = 'CANCELLED';
+const OUTCOME_UNKNOWN = 'OUTCOME_UNKNOWN';
+const UNKNOWN_TITLE = '执行结果未知（OUTCOME_UNKNOWN），已停止自动轮询，请检查服务诊断。';
 const SQL_TITLE = '查询 SQL';
 const SQL_LABEL = '生成的 SQL';
 const SQL_PROGRESS = '正在生成 SQL，请稍候…';
@@ -100,6 +102,16 @@ export function DbtQueryResults({
       chart.dispose();
     };
   }, [data, chartType, view, complete]);
+
+  // 未知执行结果属于终态，保留诊断，不能继续显示执行中或自动重试。
+  if (result.status === OUTCOME_UNKNOWN)
+    return (
+      <Alert
+        type="warning"
+        title={UNKNOWN_TITLE}
+        description={[result.errorCode, result.errorMessage].filter(Boolean).join('：')}
+      />
+    );
 
   // 解释任务没有数据行，单独展示 SQL 和任务状态，避免误报“没有数据”。
   if (result.mode === EXPLAIN) {

@@ -1,8 +1,5 @@
 # 指标平台启动配置：服务参数直接在本文件维护，IDEA 与命令行启动均自动加载。
 spring:
-  # 本机 Webhook 启用开关保存在仓库外，IDEA 与命令行共用。
-  config:
-    import: optional:file:${user.home}/.metric-platform/webhook.properties
   # Spring 应用标识，用于日志与监控中的服务识别。
   application:
     name: metric-platform
@@ -38,36 +35,18 @@ management:
       probes:
         enabled: true
 metric-platform:
-  git-sync:
-    # 仅关闭启动自动扫描和 Webhook，页面按钮仍可手动触发。
-    enabled: false
-    # 固定仓库与项目绑定，须与 dbt 运行服务的绑定保持一致。
-    repository-id: metrics_store
-    # 与 metrics_store 的 origin 一致，只读取 Git 服务端 main 的已提交内容。
-    remote: http://127.0.0.1:3000/agent-admin/metrics.git
-    executable: git
-    # 服务维护的 Git 缓存目录，启动工作目录变化不影响该绝对路径。
-    cache-directory: E:/IdeaProjects/agent-root/tmp/metric-debug/git-cache
-    project-id: ecommerce_metrics
-    project-subdir: .
-    profile-binding-id: starrocks
-    # 构建表与视图固定写入 dbt_ecom，通过每次运行的表名前缀隔离版本。
-    schema-name: dbt_ecom
-    # 与当前已发布版本使用的运行配置及工具链标识一致。
-    # 固定物理库配置变更后，同一 SHA 也需在下次手动刷新时重新构建。
-    config-version: local-debug-v8
-    toolchain-version: dbt-core 1.12.5 / metricflow 0.213.0
-    # 手动刷新信号及在途构建状态的检查间隔、Git 命令超时。
-    poll-interval: PT5S
-    git-timeout: PT30S
-    # 仅旧自定义协议使用签名密钥；Forgejo 原生通知无需密钥或鉴权。
-    webhook-secret: ""
-    # Forgejo 原生 Push 的仓库全名，区别于平台内部 repository-id。
-    forgejo-repository: agent-admin/metrics
+  # Agent 是项目配置和真实 Git 分支唯一读取来源。
+  agent:
+    base-uri: ${AGENT_BASE_URI:http://127.0.0.1:8080}
+    service-token: ${AGENT_SERVICE_TOKEN:}
+    timeout: PT30S
+  build-history:
+    # 从上次已提交水位补拉；不会触发构建或部署。
+    poll-ms: 30000
   dbt-runtime:
-    # 构建和查询执行服务；开启客户端本身不会提交构建任务。
-    enabled: true
-    base-uri: http://127.0.0.1:8000
+    # 构建和查询执行服务；平台仅提供只读目录与查询代理。
+    base-uri: ${DBT_SERVICE_BASE_URI:http://127.0.0.1:8000}
+    service-token: ${DBT_SERVICE_TOKEN:}
     timeout: PT30S
   identity-auth:
     # 认证开关、令牌有效期、登录锁定阈值、锁定时长和请求频率限制。

@@ -4,7 +4,7 @@ import { useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNod
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { ApiProblem } from '../../api/httpClient';
 import { metricPlatformApi, type MetricPlatformApi } from '../../api/metricPlatformApi';
-import type { DbtCatalog, DbtRelease, DbtResource } from '../../api/types';
+import type { DbtCatalog, DbtResource } from '../../api/types';
 import { DbtResourceDetail } from './DbtResourceDetail';
 import { ResourceTree } from './ResourceTree';
 import './resource-workspace.css';
@@ -13,20 +13,7 @@ type CatalogApi = { queryParameter?: 'metricResourceId' } & Pick<
   MetricPlatformApi,
   'getDbtCatalog'
 > &
-  Partial<
-    Pick<
-      MetricPlatformApi,
-      | 'listDbtReleases'
-      | 'getDbtRelease'
-      | 'listDbtProjects'
-      | 'getDbtPresentation'
-      | 'getDbtSource'
-      | 'getDbtLineage'
-      | 'previewDbtDataset'
-      | 'getDbtQuery'
-      | 'getDbtResource'
-    >
-  >;
+  Partial<MetricPlatformApi>;
 
 const ALL = 'ALL';
 const OTHER = 'OTHER';
@@ -52,18 +39,18 @@ const labels: Record<string, string> = {
 export function DbtCatalogPage({
   api = metricPlatformApi,
   actions,
+  queryAvailable = true,
 }: {
   api?: CatalogApi;
   actions?: ReactNode;
+  /** 固定构建的查询能力，不影响目录与源码读取。 */
+  queryAvailable?: boolean;
 }) {
   const navigate = useNavigate();
-  const { projectId = '' } = useParams();
+  const { projectId = '', buildId: routeBuildId } = useParams();
   const [params, setParams] = useSearchParams();
-  const requestedRelease = params.get('releaseId') ?? '';
+  const requestedBuild = routeBuildId ?? params.get('buildId') ?? '';
   const [catalog, setCatalog] = useState<DbtCatalog>();
-  const [releases, setReleases] = useState<DbtRelease[]>([]);
-  const [historicalRelease, setHistoricalRelease] = useState<DbtRelease>();
-  const [activeReleaseId, setActiveReleaseId] = useState<string | null>();
   const selected = params.get(RESOURCE_PARAM) ?? '';
   const setSelected = (id: string) =>
     setParams((current) => {
@@ -82,49 +69,10 @@ export function DbtCatalogPage({
   const splitter = useRef<{ x: number; width: number } | undefined>(undefined);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
-  const historical = activeReleaseId != null && requestedRelease !== activeReleaseId;
-  useEffect(() => {
-    if (!api.listDbtProjects) {
-      setActiveReleaseId(null);
-      return;
-    }
-    let active = true;
-    setActiveReleaseId(undefined);
-    void api
-      .listDbtProjects()
-      .then((projects) => {
-        if (active)
-          setActiveReleaseId(
-            projects.find((project) => project.projectId === projectId)?.activeReleaseId ?? null,
-          );
-      })
-      .catch(() => {
-        if (active) setActiveReleaseId(null);
-      });
-    return () => {
-      active = false;
-    };
-  }, [api, projectId]);
-  useEffect(() => {
-    setHistoricalRelease(undefined);
-    if (!historical || !api.getDbtRelease) return;
-    let active = true;
-    void api
-      .getDbtRelease(projectId, requestedRelease)
-      .then((release) => {
-        if (active && release.releaseId === requestedRelease) setHistoricalRelease(release);
-      })
-      .catch(() => {
-        if (active) setError('发布记录读取失败');
-      });
-    return () => {
-      active = false;
-    };
-  }, [api, historical, projectId, requestedRelease]);
   useEffect(() => {
     let active = true;
     // 浏览器历史也能改变筛选；新范围必须从第一页读取，不能合并旧范围的资源。
-    const scope = JSON.stringify([projectId, requestedRelease, kind, search]);
+    const scope = JSON.stringify([projectId, requestedBuild, kind, search]);
     if (catalogScope.current !== scope) {
       catalogScope.current = scope;
       setCatalog(undefined);
@@ -138,30 +86,26 @@ export function DbtCatalogPage({
     }
     if (page === 0) setCatalog(undefined);
     setError('');
-    if (!requestedRelease) {
-      setError('缺少发布版本 releaseId');
+    if (!requestedBuild) {
+      setError('缺少发布版本 buildId');
       return () => {
         active = false;
       };
     }
-    if (activeReleaseId === undefined || historical)
-      return () => {
-        active = false;
-      };
     // 常见类型在服务端分页；其他资源遍历当前版本后筛选，避免漏掉后续页。
     setLoading(true);
     const loadCatalog = async () => {
       if (kind !== OTHER)
-        return api.getDbtCatalog(projectId, requestedRelease, search, page, 20, kind);
+        return api.getDbtCatalog(projectId, requestedBuild, search, page, 20, kind);
       const resources: DbtResource[] = [];
       for (let index = 0; active; index++) {
-        const value = await api.getDbtCatalog(projectId, requestedRelease, search, index, 100);
-        if (value.releaseId !== requestedRelease) throw new Error('目录版本与请求不一致');
+        const value = await api.getDbtCatalog(projectId, requestedBuild, search, index, 100);
+        if (value.buildId !== requestedBuild) throw new Error('目录版本与请求不一致');
         resources.push(...value.resources.filter((resource) => !labels[resource.kind]));
         if (value.resources.length < 100 || (index + 1) * 100 >= value.total) break;
       }
       return {
-        releaseId: requestedRelease,
+        buildId: requestedBuild,
         page,
         size: 20,
         total: resources.length,
@@ -170,11 +114,11 @@ export function DbtCatalogPage({
     };
     void loadCatalog()
       .then((value) => {
-        if (active && value.releaseId === requestedRelease)
+        if (active && value.buildId === requestedBuild)
           setCatalog((previous) => ({
             ...value,
             resources:
-              page > 0 && previous?.releaseId === value.releaseId
+              page > 0 && previous?.buildId === value.buildId
                 ? [
                     ...new Map(
                       [...previous.resources, ...value.resources].map((resource) => [
@@ -201,32 +145,7 @@ export function DbtCatalogPage({
     return () => {
       active = false;
     };
-  }, [
-    api,
-    projectId,
-    requestedRelease,
-    search,
-    page,
-    kind,
-    activeReleaseId,
-    historical,
-    loadAttempt,
-  ]);
-  useEffect(() => {
-    if (!api.listDbtReleases) return;
-    let active = true;
-    void api
-      .listDbtReleases(projectId)
-      .then((value) => {
-        if (active) setReleases(value);
-      })
-      .catch(() => {
-        if (active) setReleases([]);
-      });
-    return () => {
-      active = false;
-    };
-  }, [api, projectId]);
+  }, [api, projectId, requestedBuild, search, page, kind, loadAttempt]);
   useEffect(() => {
     setLocated(undefined);
     if (
@@ -238,7 +157,7 @@ export function DbtCatalogPage({
       return;
     let active = true;
     void api
-      .getDbtResource(projectId, selected, requestedRelease)
+      .getDbtResource(projectId, selected, requestedBuild)
       .then((resource) => {
         if (active && resource.resourceId === selected) setLocated(resource);
       })
@@ -248,8 +167,7 @@ export function DbtCatalogPage({
     return () => {
       active = false;
     };
-  }, [api, catalog, projectId, requestedRelease, selected]);
-  const release = historicalRelease ?? releases.find((item) => item.releaseId === requestedRelease);
+  }, [api, catalog, projectId, requestedBuild, selected]);
   const resources = useMemo(
     () => (catalog ? (located ? [...catalog.resources, located] : catalog.resources) : []),
     [catalog, located],
@@ -260,28 +178,6 @@ export function DbtCatalogPage({
     api.getDbtLineage &&
     api.previewDbtDataset &&
     api.getDbtQuery;
-  if (historical)
-    return (
-      <Space direction="vertical" style={{ width: '100%' }}>
-        <Alert type="info" title="该发布版本仅保留发布记录" />
-        {error && <Alert type="error" title={error} />}
-        <Card title="历史发布">
-          <Typography.Text>releaseId：{requestedRelease}</Typography.Text>
-          {release && (
-            <>
-              <Typography.Paragraph>发布提交：{release.targetCommitSha}</Typography.Paragraph>
-              <Typography.Paragraph>发布状态：{release.state}</Typography.Paragraph>
-              <Typography.Paragraph>清理状态：{release.cleanupState}</Typography.Paragraph>
-            </>
-          )}
-          <Link
-            to={`/dbt/projects/${encodeURIComponent(projectId)}/catalog?${new URLSearchParams({ releaseId: activeReleaseId, ...(params.get('branchId') ? { branchId: params.get('branchId')! } : {}) })}`}
-          >
-            查看当前发布版本
-          </Link>
-        </Card>
-      </Space>
-    );
   return (
     <div className="catalog-page">
       {error && <Alert type="error" title={error} />}
@@ -335,21 +231,18 @@ export function DbtCatalogPage({
           </div>
           <ResourceTree
             queryParameter={api.queryParameter}
-            branchId={params.get('branchId') ?? undefined}
             resources={resources}
             selected={selected}
             onSelect={setSelected}
             projectId={projectId}
-            releaseId={requestedRelease}
+            buildId={requestedBuild}
           />
           <div className="catalog-explorer-footer">
             {actions}
-            {requestedRelease && (
+            {requestedBuild && (
               <details className="explorer-release">
                 <summary>发布版本信息</summary>
-                <p title={requestedRelease}>releaseId：{requestedRelease}</p>
-                {release && <p>发布提交：{release.targetCommitSha}</p>}
-                {release && <p>发布时间：{release.publishedAt ?? '尚未发布'}</p>}
+                <p title={requestedBuild}>buildId：{requestedBuild}</p>
               </details>
             )}
             <span>
@@ -410,16 +303,17 @@ export function DbtCatalogPage({
         />
         {selected && catalog && detailReady ? (
           <DbtResourceDetail
-            key={`${catalog.releaseId}:${selected}`}
+            queryAvailable={queryAvailable}
+            key={`${catalog.buildId}:${selected}`}
             projectId={projectId}
-            releaseId={catalog.releaseId}
+            buildId={catalog.buildId}
             resourceId={selected}
             tabTitle={resources.find((resource) => resource.resourceId === selected)?.name}
             onSelect={setSelected}
             onClose={() => setSelected('')}
             onExplore={(name) =>
               navigate(
-                `/dbt/projects/${encodeURIComponent(projectId)}/query?${new URLSearchParams({ releaseId: requestedRelease, ...(params.get('branchId') ? { branchId: params.get('branchId')! } : {}), [api.queryParameter ?? 'metric']: api.queryParameter ? selected : (resources.find((resource) => resource.resourceId === selected)?.name ?? name), resourceId: selected })}`,
+                `/dbt/builds/${encodeURIComponent(requestedBuild)}/query?${new URLSearchParams({ buildId: requestedBuild, [api.queryParameter ?? 'metric']: api.queryParameter ? selected : (resources.find((resource) => resource.resourceId === selected)?.name ?? name), resourceId: selected })}`,
               )
             }
             api={api as MetricPlatformApi}

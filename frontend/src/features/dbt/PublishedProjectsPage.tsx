@@ -1,108 +1,103 @@
-import { Alert, Button, Card, Empty, Space, Tag, Typography } from 'antd';
+import { Alert, Button, Card, Empty } from 'antd';
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import {
-  publishedCatalogApi,
-  type PublishedCatalogApi,
-  type PublishedProject,
-  type Publication,
-} from '../../api/publishedCatalogApi';
+  buildCatalogApi,
+  type BuildCatalogApi,
+  type DevelopmentProject,
+  type BuildPage,
+} from '../../api/buildCatalogApi';
 
-const EMPTY = '';
-const POLL_MS = 5000;
-const READ_ERROR = '发布信息读取失败，保留上次结果；刷新后重试。';
-const STATES: Record<string, string> = {
-  PREPARING: '准备中',
-  BUILDING: '构建中',
-  VALIDATING: '验证中',
-  PUBLISHED: '已发布',
-  FAILED: '失败',
-  SUPERSEDED: '已被新候选替代',
-};
-
-/** 页面刷新只读取服务结果，不触发构建或批准发布。 */
-export function PublishedProjectsPage({
-  api = publishedCatalogApi,
-}: {
-  api?: PublishedCatalogApi;
-}) {
-  const [projects, setProjects] = useState<PublishedProject[]>([]);
-  const [releases, setReleases] = useState<Record<string, Publication[]>>({});
-  const [error, setError] = useState(EMPTY);
+/** 项目选择来自Agent，历史构建来自平台投影；Agent失联不阻断已有历史。 */
+export function PublishedProjectsPage({ api = buildCatalogApi }: { api?: BuildCatalogApi }) {
+  const [projects, setProjects] = useState<DevelopmentProject[]>([]);
+  const [history, setHistory] = useState<BuildPage | null>(null);
+  const [error, setError] = useState('');
   const [refresh, setRefresh] = useState(0);
+  const [loadingMore, setLoadingMore] = useState(false);
   useEffect(() => {
     let active = true;
-    let timer: ReturnType<typeof setTimeout>;
-    async function load() {
-      try {
-        const latest = await api.projects();
-        const histories = await Promise.all(
-          latest.map(
-            async (project) => [project.projectId, await api.releases(project.projectId)] as const,
-          ),
-        );
-        if (!active) return;
-        setProjects(latest);
-        setReleases(Object.fromEntries(histories));
-        setError(EMPTY);
-      } catch {
-        if (active) setError(READ_ERROR);
-      } finally {
-        if (active) timer = setTimeout(() => void load(), POLL_MS);
-      }
+    async function read() {
+      setError('');
+      const list = async () => {
+        const result: DevelopmentProject[] = [];
+        let cursor: string | undefined;
+        do {
+          const page = await api.projects(cursor);
+          result.push(...page.items);
+          cursor = page.nextCursor ?? undefined;
+        } while (cursor && active);
+        return result;
+      };
+      const [projectResult, buildResult] = await Promise.allSettled([list(), api.builds()]);
+      if (!active) return;
+      if (projectResult.status === 'fulfilled') setProjects(projectResult.value);
+      else setError('Agent 项目列表不可用，以下构建历史仍可查看。');
+      if (buildResult.status === 'fulfilled') setHistory(buildResult.value);
     }
-    void load();
+    void read();
     return () => {
       active = false;
-      clearTimeout(timer);
     };
   }, [api, refresh]);
+  // 游标由服务生成，追加历史时保留每条记录的固定构建身份。
+  async function loadMore() {
+    if (!history?.nextCursor) return;
+    const cursor = history.nextCursor;
+    setLoadingMore(true);
+    try {
+      const page = await api.builds({ cursor });
+      setHistory((current) =>
+        current?.nextCursor === cursor
+          ? { ...page, items: [...current.items, ...page.items] }
+          : current,
+      );
+    } catch {
+      setError('构建历史读取失败，请重试。');
+    } finally {
+      setLoadingMore(false);
+    }
+  }
   return (
     <section className="projects-page">
       <header className="projects-heading">
-        <div>
-          <h2>语义项目</h2>
-          <p>查看发布状态，从同一版本开始管理资源与分析数据。</p>
-        </div>
-        <Button onClick={() => setRefresh((value) => value + 1)}>刷新发布结果</Button>
+        <h2>语义项目与构建历史</h2>
+        <Button onClick={() => setRefresh((value) => value + 1)}>刷新状态</Button>
       </header>
-      <Space orientation="vertical" style={{ width: '100%' }}>
-        <Typography.Text>
-          展示 dbt-service 已发布的完整目录；每 5 秒重新读取发布状态。
-        </Typography.Text>
-        {error && <Alert type="warning" title={error} />}
-        {!error && !projects.length && <Empty description="暂无已登记项目" />}
-        {projects.map((project) => (
-          <Card key={project.projectId} title={project.projectId}>
-            <Link to={`/dbt/projects/${encodeURIComponent(project.projectId)}/catalog`}>
-              选择线上或开发分支
+      {error && <Alert type="warning" title={error} />}{' '}
+      {!projects.length && !history?.items.length && <Empty description="暂无项目或构建" />}
+      {projects.map((project) => (
+        <Card key={project.projectId} title={project.name}>
+          <p>{project.repository}</p>
+          {project.developmentConfigured && (
+            <Link
+              to={`/dbt/projects/${encodeURIComponent(project.projectId)}/catalog?${new URLSearchParams({ repository: project.repository ?? '' })}`}
+            >
+              选择项目分支
             </Link>
-            {project.activePublication ? (
-              <div className="project-entry-actions">
-                <Link
-                  to={`/dbt/projects/${encodeURIComponent(project.projectId)}/catalog?releaseId=${project.activePublication.releaseId}`}
-                >
-                  查看当前目录
-                </Link>
-                <Link
-                  to={`/dbt/projects/${encodeURIComponent(project.projectId)}/query?releaseId=${encodeURIComponent(project.activePublication.releaseId)}`}
-                >
-                  分析探索
-                </Link>
-              </div>
-            ) : (
-              <span>尚未发布</span>
-            )}
-            {releases[project.projectId]?.map((release) => (
-              <p key={release.releaseId}>
-                <Tag>{STATES[release.state] ?? release.state}</Tag>
-                {release.releaseId} · {release.buildMode}
-                {release.errorCode && ` · ${release.errorCode}`}
-              </p>
-            ))}
-          </Card>
-        ))}
-      </Space>
+          )}
+        </Card>
+      ))}
+      {history && (
+        <section aria-label="构建历史">
+          <p>
+            来源：{history.source} · 同步时间：{history.syncedAt}
+          </p>
+          {history.items.map((build) => (
+            <p key={build.buildId}>
+              {build.repository} · {build.branchName} · {build.buildStatus}{' '}
+              <Link to={`/dbt/builds/${encodeURIComponent(build.buildId)}/catalog`}>
+                {build.buildId}
+              </Link>
+            </p>
+          ))}
+          {history.nextCursor && (
+            <Button loading={loadingMore} onClick={() => void loadMore()}>
+              加载更多构建
+            </Button>
+          )}
+        </section>
+      )}
     </section>
   );
 }

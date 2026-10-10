@@ -1,4 +1,4 @@
-import { Alert, Button, Empty, Input, Typography } from 'antd';
+import { Alert, Button, Empty, Input } from 'antd';
 import { PlayCircleOutlined, CodeOutlined, FilterOutlined } from '@ant-design/icons';
 import {
   AnalysisEmpty,
@@ -11,60 +11,48 @@ import {
 import { DbtQueryResults } from './DbtQueryResults';
 import { publishedResult } from './publishedResourceAdapter';
 import { businessTimeToIso } from './businessTime';
-import { useEffect, useMemo, useRef, useState } from 'react';
-import { Link, useParams, useSearchParams } from 'react-router-dom';
+import { useEffect, useRef, useState } from 'react';
+import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { ApiProblem } from '../../api/httpClient';
 import {
-  publishedCatalogApi,
-  type PublishedCatalogApi,
+  buildCatalogApi,
+  type BuildCatalogApi,
   type PublishedOption,
   type PublishedQuery,
   type PublishedResource,
   type PublishedResult,
-  type BranchView,
-  type Publication,
-} from '../../api/publishedCatalogApi';
+  type BuildView,
+} from '../../api/buildCatalogApi';
 
 const EMPTY = '';
 const QUERY = 'QUERY';
 const EXPLAIN = 'EXPLAIN';
 const PREVIEW = 'PREVIEW';
 const DIMENSION_VALUES = 'DIMENSION_VALUES';
-const READY = 'READY';
+const READY = 'SUCCEEDED';
 const FAILED = 'FAILED';
-const PRODUCTION = 'PRODUCTION';
-const errorText = (error: unknown) =>
-  error instanceof ApiProblem && error.problem.status === 410
-    ? '该版本已被替代，请刷新到最新发布版本并重新选择维度。'
-    : '读取或查询失败，当前显示内容可能来自上次读取，请重试。';
-/** v2 页面只渲染已发布属性，选择值使用资源和选项身份。 */
-export function PublishedWorkbench({ api = publishedCatalogApi }: { api?: PublishedCatalogApi }) {
-  const { projectId = EMPTY } = useParams();
-  const [params] = useSearchParams();
-  const branchId = params.get('branchId');
-  const releaseId = params.get('releaseId');
-  // 每个上下文持有独立组件及请求门面，旧查询可以完成但不能更新另一分支页面。
-  const scopedApi = useMemo(
-    () => (branchId ? { ...api, ...api.inBranch({ projectId, branchId, releaseId }) } : api),
-    [api, projectId, branchId, releaseId],
-  );
-  return (
-    <FixedPublishedWorkbench
-      key={JSON.stringify([projectId, branchId, releaseId])}
-      api={scopedApi}
-    />
-  );
-}
+const OUTCOME_UNKNOWN = 'OUTCOME_UNKNOWN';
+const LOAD_MORE = '加载更多结果';
 
-function FixedPublishedWorkbench({ api }: { api: PublishedCatalogApi }) {
-  const { projectId = EMPTY } = useParams();
-  const [params, setParams] = useSearchParams();
-  const releaseId = params.get('releaseId') ?? EMPTY;
-  const branchId = params.get('branchId');
-  const [identity, setIdentity] = useState<{ branch: BranchView; release: Publication } | null>(
-    null,
-  );
+const errorText = (error: unknown) =>
+  error instanceof ApiProblem
+    ? `${error.problem.code ?? error.problem.status}：${error.problem.detail}`
+    : `读取或查询失败，当前显示内容可能来自上次读取，请重试。${error instanceof Error ? error.message : EMPTY}`;
+/** 查询表单以固定 buildId 为生命周期边界，保留选择交互与用户排序。 */
+export function PublishedWorkbench({ api = buildCatalogApi }: { api?: BuildCatalogApi }) {
+  const { buildId: routeBuildId } = useParams();
+  const [params] = useSearchParams();
+  const buildId = routeBuildId ?? params.get('buildId') ?? EMPTY;
+  return <FixedPublishedWorkbench key={buildId} api={api} />;
+}
+function FixedPublishedWorkbench({ api }: { api: BuildCatalogApi }) {
+  const { projectId = EMPTY, buildId: routeBuildId } = useParams();
+  const navigate = useNavigate();
+  const [params] = useSearchParams();
+  const buildId = routeBuildId ?? params.get('buildId') ?? EMPTY;
+  const [identity, setIdentity] = useState<BuildView | null>(null);
   const [identityError, setIdentityError] = useState(false);
+  const [availableBuild, setAvailableBuild] = useState<string | null>(null);
   const initialMetric = params.get('metricResourceId') ?? EMPTY;
   const [submittedMode, setSubmittedMode] = useState<PublishedQuery['mode']>(QUERY);
   const [submittedMetrics, setSubmittedMetrics] = useState<string[]>([]);
@@ -93,33 +81,34 @@ function FixedPublishedWorkbench({ api }: { api: PublishedCatalogApi }) {
   const [refresh, setRefresh] = useState(0);
 
   useEffect(() => {
-    if (!branchId || !releaseId) return;
-    const fixedBranchId = branchId;
+    if (!buildId) return;
     let active = true;
-    // 身份展示只读取固定 URL 目标，读取失败不得替换查询版本或回退生产。
-    async function readIdentity() {
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    async function read() {
       try {
-        const [branch, release] = await Promise.all([
-          api.branch(projectId, fixedBranchId),
-          api.release(projectId, releaseId),
-        ]);
-        if (
-          branch.branchId !== branchId ||
-          branch.projectId !== projectId ||
-          release.releaseId !== releaseId
-        )
-          throw new Error('查询身份不一致');
-        if (active) setIdentity({ branch, release });
+        const value = await api.build(buildId);
+        if (!active) return;
+        if (value.buildId !== buildId) throw new Error('构建身份不一致');
+        setIdentity(value);
+        const deployment = await api.current({
+          repository: value.repository,
+          branchName: value.branchName,
+          environment: value.environment,
+        });
+        if (active) {
+          setAvailableBuild(deployment.activeBuildId);
+          timer = setTimeout(() => void read(), 5000);
+        }
       } catch {
         if (active) setIdentityError(true);
       }
     }
-    void readIdentity();
+    void read();
     return () => {
       active = false;
+      if (timer) clearTimeout(timer);
     };
-  }, [api, projectId, branchId, releaseId]);
-
+  }, [api, buildId]);
   useEffect(() => {
     // 版本改变立即清除旧选择，防止新标题下暂时展示旧目录。
     submissionGeneration.current++;
@@ -133,38 +122,32 @@ function FixedPublishedWorkbench({ api }: { api: PublishedCatalogApi }) {
     return () => {
       submissionGeneration.current++;
     };
-  }, [projectId, releaseId, initialMetric]);
+  }, [projectId, buildId, initialMetric]);
 
   async function latest() {
-    const turn = ++generation.current;
+    if (!identity) return;
     try {
-      const project = await api.publication(projectId);
-      if (turn !== generation.current) return;
-      const version = project.activePublication?.releaseId;
-      if (!version) {
-        setError('该项目尚未发布');
+      const target = await api.current({
+        repository: identity.repository,
+        branchName: identity.branchName,
+        environment: identity.environment,
+      });
+      if (!target.activeBuildId) {
+        setError('当前分支尚未部署');
         return;
       }
-      setParams((current) => {
-        const next = new URLSearchParams(current);
-        next.set('releaseId', version);
-        if (version !== releaseId) {
-          next.delete('resourceId');
-          next.delete('metricResourceId');
-        }
-        return next;
-      });
-      setRefresh((value) => value + 1);
+      if (target.activeBuildId !== buildId)
+        navigate(`/dbt/builds/${encodeURIComponent(target.activeBuildId)}/query`);
+      else setRefresh((value) => value + 1);
     } catch (failure) {
-      if (turn === generation.current) setError(errorText(failure));
+      setError(errorText(failure));
     }
   }
-
   useEffect(() => {
     const turn = ++generation.current;
     setError(EMPTY);
-    if (!releaseId) {
-      void latest();
+    if (!buildId) {
+      setError('请从固定构建目录进入查询');
       return;
     }
     setLoading(true);
@@ -172,13 +155,14 @@ function FixedPublishedWorkbench({ api }: { api: PublishedCatalogApi }) {
       try {
         {
           const all: PublishedResource[] = [];
-          let number = 1;
+          let cursor: string | undefined;
           while (true) {
-            const part = await api.catalog(projectId, releaseId, EMPTY, 'METRIC', number++);
+            const part = await api.catalog(buildId, { kind: 'METRIC', cursor });
             if (turn !== generation.current) return;
-            if (part.releaseId !== releaseId) throw new Error('目录版本不匹配');
-            all.push(...part.resources);
-            if (all.length >= part.total || part.resources.length === 0) break;
+            if (part.buildId !== buildId) throw new Error('目录版本不匹配');
+            all.push(...part.items);
+            if (!part.nextCursor) break;
+            cursor = part.nextCursor;
           }
           if (turn !== generation.current) return;
           setMetrics(all);
@@ -196,7 +180,7 @@ function FixedPublishedWorkbench({ api }: { api: PublishedCatalogApi }) {
     return () => {
       generation.current++;
     };
-  }, [api, projectId, releaseId, initialMetric, refresh]);
+  }, [api, projectId, buildId, initialMetric, refresh]);
 
   useEffect(() => {
     if (!selected.includes(sortField) && !groups.includes(sortField)) setSortField(EMPTY);
@@ -209,41 +193,65 @@ function FixedPublishedWorkbench({ api }: { api: PublishedCatalogApi }) {
     setGroups([]);
     setGrains({});
     setFilterOption(EMPTY);
-    if (!selected.length || !releaseId) return;
-    api
-      .options(projectId, releaseId, selected)
-      .then((value) => {
-        if (active) {
-          if (value.releaseId !== releaseId) throw new Error('选项版本不匹配');
-          setOptions(value.options);
-          setOptionsReady(true);
-        }
-      })
+    if (!selected.length || !buildId) return;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const ids = [...new Set(selected)].sort();
+    async function observe(value: Awaited<ReturnType<BuildCatalogApi['options']>>) {
+      if (!active) return;
+      if (value.buildId !== buildId) throw new Error('选项版本不匹配');
+      if (value.state === READY) {
+        setOptions(value.options);
+        setOptionsReady(true);
+        return;
+      }
+      if (
+        value.state === FAILED ||
+        value.state === 'CANCELLED' ||
+        value.state === 'OUTCOME_UNKNOWN'
+      )
+        throw new Error(value.error?.message ?? '查询选项生成失败');
+      timer = setTimeout(() => {
+        void api
+          .getOptions(value.optionsTaskId)
+          .then(observe)
+          .catch((failure) => {
+            if (active) setError(errorText(failure));
+          });
+      }, 1000);
+    }
+    void api
+      .options(buildId, { idempotencyKey: crypto.randomUUID(), metricResourceIds: ids })
+      .then(observe)
       .catch((failure) => {
         if (active) setError(errorText(failure));
       });
     return () => {
       active = false;
+      if (timer) clearTimeout(timer);
     };
-  }, [api, projectId, releaseId, selected]);
-
+  }, [api, buildId, selected]);
   useEffect(() => {
     if (
       !result ||
       result.state === READY ||
       result.state === FAILED ||
+      result.state === OUTCOME_UNKNOWN ||
       result.state === 'CANCELLED'
     )
       return;
     let active = true;
     const timer = setTimeout(() => {
       api
-        .query(projectId, result.queryId)
-        .then((value) => {
+        .query(result.queryId)
+        .then(async (value) => {
           if (active) {
-            if (value.releaseId !== result.releaseId || value.queryId !== result.queryId)
+            if (value.buildId !== result.buildId || value.queryId !== result.queryId)
               throw new Error('查询身份不匹配');
-            setResult(value);
+            if (value.state === READY && value.resultAvailable)
+              value = await api.results(value.queryId);
+            if (value.buildId !== result.buildId || value.queryId !== result.queryId)
+              throw new Error('查询结果身份不匹配');
+            if (active) setResult(value);
           }
         })
         .catch((failure) => {
@@ -272,7 +280,6 @@ function FixedPublishedWorkbench({ api }: { api: PublishedCatalogApi }) {
     setBusy(true);
     setError(EMPTY);
     const selection = {
-      releaseId,
       mode,
       metricResourceIds: mode === PREVIEW ? [] : selected,
       groupBy:
@@ -311,10 +318,17 @@ function FixedPublishedWorkbench({ api }: { api: PublishedCatalogApi }) {
         body: { ...selection, idempotencyKey: crypto.randomUUID() },
       };
     try {
-      const accepted = await api.submit(projectId, submission.current.body);
-      if (accepted.releaseId !== releaseId) throw new Error('查询版本不匹配');
+      const accepted = await api.submit(buildId, submission.current.body);
+      if (accepted.buildId !== buildId) throw new Error('查询版本不匹配');
       if (turn === submissionGeneration.current) {
-        setResult(accepted);
+        const value =
+          accepted.state === READY && accepted.resultAvailable
+            ? await api.results(accepted.queryId)
+            : accepted;
+        if (value.buildId !== buildId || value.queryId !== accepted.queryId)
+          throw new Error('查询结果身份不匹配');
+        if (turn !== submissionGeneration.current) return;
+        setResult(value);
         setSubmittedMode(mode);
         setSubmittedMetrics(
           metrics
@@ -323,6 +337,30 @@ function FixedPublishedWorkbench({ api }: { api: PublishedCatalogApi }) {
         );
         submission.current = null;
       }
+    } catch (failure) {
+      if (turn === submissionGeneration.current) setError(errorText(failure));
+    } finally {
+      if (turn === submissionGeneration.current) setBusy(false);
+    }
+  }
+
+  // 结果翻页沿用原查询身份；晚到的页面不能混入后续查询。
+  async function loadMoreResults() {
+    if (!result || result.nextOffset == null) return;
+    const offset = result.nextOffset;
+    const original = result;
+    const turn = submissionGeneration.current;
+    setBusy(true);
+    try {
+      const page = await api.results(original.queryId, offset);
+      if (page.queryId !== original.queryId || page.buildId !== original.buildId)
+        throw new Error('查询结果身份不匹配');
+      if (turn === submissionGeneration.current)
+        setResult((current) =>
+          current?.queryId === original.queryId
+            ? { ...current, ...page, rows: [...(current.rows ?? []), ...(page.rows ?? [])] }
+            : current,
+        );
     } catch (failure) {
       if (turn === submissionGeneration.current) setError(errorText(failure));
     } finally {
@@ -344,7 +382,7 @@ function FixedPublishedWorkbench({ api }: { api: PublishedCatalogApi }) {
     <section className="analysis-page">
       <header className="analysis-heading">
         <div>
-          <Link to={`/dbt/projects/${encodeURIComponent(projectId)}/catalog?${params}`}>
+          <Link to={`/dbt/builds/${encodeURIComponent(buildId)}/catalog?${params}`}>
             返回资源目录
           </Link>
           <h1>分析探索</h1>
@@ -355,23 +393,23 @@ function FixedPublishedWorkbench({ api }: { api: PublishedCatalogApi }) {
       </header>
       <section aria-label="查询上下文">
         <p>
-          项目：{projectId} · 分支：{identity?.branch.gitRef ?? branchId ?? '生产分支'} · 环境：
-          {identity
-            ? identity.branch.mode === PRODUCTION
-              ? '线上'
-              : '开发预览'
-            : branchId
-              ? '读取中'
-              : '线上'}
+          仓库：{identity?.repository} · 分支：{identity?.branchName} · 环境：
+          {identity?.environment}
         </p>
         <p>
-          固定版本：<code>{releaseId || '尚未选择'}</code> · 源码提交：
-          <code>{identity?.release.sourceSha ?? '尚未读取'}</code>
+          固定版本：<code>{buildId || '尚未选择'}</code> · 源码提交：
+          <code>{identity?.commitSha ?? '尚未读取'}</code>
         </p>
         {identityError && (
           <Alert type="warning" title="分支身份详情读取失败，查询目标仍为上述固定 ID。" />
         )}
       </section>
+      {availableBuild && availableBuild !== buildId && (
+        <Alert type="info" title="有效部署已更新，当前查询仍固定原构建；点击刷新后重新选择。" />
+      )}
+      {identity && !identity.queryAvailable && (
+        <Alert type="warning" title={`查询不可用：${identity.queryUnavailableReason}`} />
+      )}
       {error && <Alert type="error" title={error} />}
       <div className="analysis-studio">
         <MetricLibrary
@@ -542,14 +580,16 @@ function FixedPublishedWorkbench({ api }: { api: PublishedCatalogApi }) {
               </label>
               <div>
                 <Button
-                  disabled={!optionsReady || groups.length !== 1 || busy}
+                  disabled={
+                    !identity?.queryAvailable || !optionsReady || groups.length !== 1 || busy
+                  }
                   onClick={() => void submit(DIMENSION_VALUES)}
                 >
                   维度值
                 </Button>
                 <Button
                   icon={<CodeOutlined />}
-                  disabled={!optionsReady || busy}
+                  disabled={!identity?.queryAvailable || !optionsReady || busy}
                   onClick={() => void submit(EXPLAIN)}
                 >
                   查看 SQL
@@ -558,7 +598,7 @@ function FixedPublishedWorkbench({ api }: { api: PublishedCatalogApi }) {
                   type="primary"
                   icon={<PlayCircleOutlined />}
                   aria-label="查询"
-                  disabled={!optionsReady || busy}
+                  disabled={!identity?.queryAvailable || !optionsReady || busy}
                   loading={busy}
                   onClick={() => void submit(QUERY)}
                 >
@@ -570,9 +610,7 @@ function FixedPublishedWorkbench({ api }: { api: PublishedCatalogApi }) {
           <section className="analysis-result" aria-label="查询结果" aria-live="polite">
             <header>
               <h2>查询结果</h2>
-              <span>
-                {result ? `查询 ${result.queryId} · 版本 ${result.releaseId}` : '等待运行'}
-              </span>
+              <span>{result ? `查询 ${result.queryId} · 版本 ${result.buildId}` : '等待运行'}</span>
             </header>
             {result ? (
               <>
@@ -585,6 +623,11 @@ function FixedPublishedWorkbench({ api }: { api: PublishedCatalogApi }) {
                     result={publishedResult(result, submittedMode)}
                     metricNames={submittedMetrics}
                   />
+                )}
+                {result.nextOffset != null && (
+                  <Button loading={busy} disabled={busy} onClick={() => void loadMoreResults()}>
+                    {LOAD_MORE}
+                  </Button>
                 )}
               </>
             ) : busy ? (

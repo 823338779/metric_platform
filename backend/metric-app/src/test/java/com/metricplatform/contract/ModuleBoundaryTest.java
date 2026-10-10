@@ -47,8 +47,8 @@ class ModuleBoundaryTest {
                                 "java",
                                 "com",
                                 "metricplatform",
-                                "engine",
-                                "EngineClient.java")));
+                                "catalog",
+                                "BuildGateway.java")));
         assertTrue(
                 Files.isRegularFile(
                         Path.of(

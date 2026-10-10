@@ -4,38 +4,23 @@ import static org.assertj.core.api.Assertions.*;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
-import java.nio.file.Files;
-import java.nio.file.Path;
+import java.nio.file.*;
 import org.junit.jupiter.api.Test;
 
 class SemanticOpenApiContractTest {
-    private static final String ROOT = "/api/v1/semantic-projects/{projectId}";
-
     @Test
     void openApiIncludesVersionedPresentationAndMetricFlowRoutes() throws Exception {
         var api =
                 new ObjectMapper(new YAMLFactory())
                         .readTree(Files.readString(Path.of("..", "..", "api", "openapi.yaml")));
-        var paths = api.path("paths");
-        assertThat(paths.has(ROOT + "/resources/{resourceId}/presentation")).isTrue();
-        assertThat(paths.has(ROOT + "/resources/{resourceId}/source")).isTrue();
-        assertThat(paths.has(ROOT + "/query-options")).isTrue();
-        assertThat(paths.has(ROOT + "/queries:dimension-values")).isTrue();
-        assertThat(
-                        api.path("components")
-                                .path("schemas")
-                                .path("DbtQueryStatus")
-                                .path("properties")
-                                .path("mode")
-                                .path("enum")
-                                .toString())
-                .contains("DIMENSION_VALUES");
-        assertThat(
-                        api.path("components")
-                                .path("schemas")
-                                .path("DbtQueryStatus")
-                                .path("properties")
-                                .has("sql"))
+        var schemas = api.at("/components/schemas");
+        assertThat(schemas.path("QueryMode").path("enum").toString())
+                .contains("QUERY", "EXPLAIN", "PREVIEW", "DIMENSION_VALUES");
+        assertThat(schemas.path("QueryRequest").path("properties").has("buildId")).isFalse();
+        assertThat(schemas.path("QueryRequest").path("properties").has("releaseId")).isFalse();
+        assertThat(schemas.path("ResultPage").path("properties").has("sql")).isTrue();
+        assertThat(schemas.path("ResultPage").path("properties").has("nextOffset")).isTrue();
+        assertThat(schemas.path("OptionsTaskView").path("properties").has("optionsTaskId"))
                 .isTrue();
     }
 }

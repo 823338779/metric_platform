@@ -29,7 +29,7 @@ beforeAll(() => {
 afterEach(cleanup);
 const result = (columns: { name: string; type: string }[], rows: unknown[][]): DbtQueryStatus => ({
   queryId: 'q',
-  releaseId: 'r',
+  buildId: 'r',
   targetCommitSha: 'sha',
   mode: 'QUERY',
   status: 'COMPLETED',

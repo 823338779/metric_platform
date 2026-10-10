@@ -32,7 +32,7 @@ it('reloads the first page when browser history changes a filter after loading m
       .mockImplementation(
         (_: string, __: string, ___: string, page: number, ____: number, kind?: string) =>
           Promise.resolve({
-            releaseId: 'A',
+            buildId: 'A',
             page,
             size: 20,
             total: 21,
@@ -46,7 +46,7 @@ it('reloads the first page when browser history changes a filter after loading m
       ),
   };
   render(
-    <MemoryRouter initialEntries={['/dbt/projects/demo/catalog?releaseId=A']}>
+    <MemoryRouter initialEntries={['/dbt/projects/demo/catalog?buildId=A']}>
       <BackToPreviousFilter />
       <Routes>
         <Route
@@ -70,7 +70,7 @@ it('reloads the first page when browser history changes a filter after loading m
 it('collapses resource folders and locates a deep-linked resource inside the tree', async () => {
   const client = {
     getDbtCatalog: vi.fn().mockResolvedValue({
-      releaseId: 'A',
+      buildId: 'A',
       page: 0,
       size: 20,
       total: 1,
@@ -87,7 +87,7 @@ it('collapses resource folders and locates a deep-linked resource inside the tre
   };
   render(
     <MemoryRouter
-      initialEntries={['/dbt/projects/demo/catalog?releaseId=A&resourceId=metric.shop.units_sold']}
+      initialEntries={['/dbt/projects/demo/catalog?buildId=A&resourceId=metric.shop.units_sold']}
     >
       <Routes>
         <Route
@@ -109,15 +109,13 @@ it('collapses resource folders and locates a deep-linked resource inside the tre
 
 function SwitchRelease() {
   const navigate = useNavigate();
-  return (
-    <button onClick={() => navigate('/dbt/projects/demo/catalog?releaseId=B')}>切换版本</button>
-  );
+  return <button onClick={() => navigate('/dbt/projects/demo/catalog?buildId=B')}>切换版本</button>;
 }
 
 it('groups resources and searches only within the pinned release', async () => {
   const api = {
     getDbtCatalog: vi.fn().mockResolvedValue({
-      releaseId: 'A',
+      buildId: 'A',
       page: 0,
       size: 20,
       total: 2,
@@ -128,7 +126,7 @@ it('groups resources and searches only within the pinned release', async () => {
     }),
   };
   render(
-    <MemoryRouter initialEntries={['/dbt/projects/demo/catalog?releaseId=A']}>
+    <MemoryRouter initialEntries={['/dbt/projects/demo/catalog?buildId=A']}>
       <Routes>
         <Route
           path="/dbt/projects/:projectId/catalog"
@@ -141,7 +139,7 @@ it('groups resources and searches only within the pinned release', async () => {
   expect(screen.getByRole('tab', { name: '指标' })).toBeTruthy();
   expect(screen.getByRole('tab', { name: '数据表' })).toBeTruthy();
   expect(screen.getByRole('link', { name: '探索数据' }).getAttribute('href')).toBe(
-    '/dbt/projects/demo/query?releaseId=A&metric=revenue',
+    '/dbt/builds/A/query?buildId=A&metric=revenue',
   );
   fireEvent.change(screen.getByPlaceholderText('搜索资源'), { target: { value: 'orders' } });
   fireEvent.click(screen.getByRole('button', { name: 'search' }));
@@ -154,7 +152,7 @@ it('includes unknown resource types from later pages in the other column', async
   const api = {
     getDbtCatalog: vi.fn().mockImplementation((_: string, __: string, ___: string, page: number) =>
       Promise.resolve({
-        releaseId: 'A',
+        buildId: 'A',
         page,
         size: 100,
         total: 101,
@@ -170,7 +168,7 @@ it('includes unknown resource types from later pages in the other column', async
     ),
   };
   render(
-    <MemoryRouter initialEntries={['/dbt/projects/demo/catalog?releaseId=A&kind=OTHER']}>
+    <MemoryRouter initialEntries={['/dbt/projects/demo/catalog?buildId=A&kind=OTHER']}>
       <Routes>
         <Route
           path="/dbt/projects/:projectId/catalog"
@@ -191,7 +189,7 @@ it('asks the server to filter resource kinds before pagination', async () => {
       .mockImplementation(
         (_: string, __: string, ___: string, ____: number, _____: number, kind?: string) =>
           Promise.resolve({
-            releaseId: 'A',
+            buildId: 'A',
             page: 0,
             size: 20,
             total: kind ? 1 : 21,
@@ -202,7 +200,7 @@ it('asks the server to filter resource kinds before pagination', async () => {
       ),
   };
   render(
-    <MemoryRouter initialEntries={['/dbt/projects/demo/catalog?releaseId=A']}>
+    <MemoryRouter initialEntries={['/dbt/projects/demo/catalog?buildId=A']}>
       <Routes>
         <Route
           path="/dbt/projects/:projectId/catalog"
@@ -226,7 +224,7 @@ it('clears old detail and ignores the old catalog response after release switch'
             finishOld = resolve;
           })
         : Promise.resolve({
-            releaseId: 'B',
+            buildId: 'B',
             page: 0,
             size: 20,
             total: 1,
@@ -235,7 +233,7 @@ it('clears old detail and ignores the old catalog response after release switch'
     ),
   };
   render(
-    <MemoryRouter initialEntries={['/dbt/projects/demo/catalog?releaseId=A']}>
+    <MemoryRouter initialEntries={['/dbt/projects/demo/catalog?buildId=A']}>
       <SwitchRelease />
       <Routes>
         <Route
@@ -248,7 +246,7 @@ it('clears old detail and ignores the old catalog response after release switch'
   fireEvent.click(screen.getByRole('button', { name: '切换版本' }));
   expect(await screen.findByText('new metric')).toBeTruthy();
   finishOld?.({
-    releaseId: 'A',
+    buildId: 'A',
     page: 0,
     size: 20,
     total: 1,
@@ -264,7 +262,7 @@ it('shows a cleaned release without loading the current catalog', async () => {
       .mockRejectedValue(new ApiProblem({ status: 410, title: 'Gone', detail: 'cleaned' })),
   };
   render(
-    <MemoryRouter initialEntries={['/dbt/projects/demo/catalog?releaseId=old']}>
+    <MemoryRouter initialEntries={['/dbt/projects/demo/catalog?buildId=old']}>
       <Routes>
         <Route
           path="/dbt/projects/:projectId/catalog"
@@ -277,20 +275,14 @@ it('shows a cleaned release without loading the current catalog', async () => {
   expect(api.getDbtCatalog).toHaveBeenCalledWith('demo', 'old', '', 0, 20, undefined);
 });
 
-it('shows a historical release record without loading its catalog', async () => {
+it('历史构建仍读取目录，不因当前部署变化拒绝历史资源', async () => {
   const client = {
-    listDbtProjects: vi.fn().mockResolvedValue([{ projectId: 'demo', activeReleaseId: 'new' }]),
-    listDbtReleases: vi.fn().mockResolvedValue([]),
-    getDbtRelease: vi.fn().mockResolvedValue({
-      releaseId: 'old',
-      targetCommitSha: 'a'.repeat(40),
-      state: 'PUBLISHED',
-      cleanupState: 'CLEANED',
-    }),
-    getDbtCatalog: vi.fn(),
+    getDbtCatalog: vi
+      .fn()
+      .mockResolvedValue({ buildId: 'old', page: 0, size: 20, total: 0, resources: [] }),
   };
   render(
-    <MemoryRouter initialEntries={['/dbt/projects/demo/catalog?releaseId=old']}>
+    <MemoryRouter initialEntries={['/dbt/projects/demo/catalog?buildId=old']}>
       <Routes>
         <Route
           path="/dbt/projects/:projectId/catalog"
@@ -299,17 +291,11 @@ it('shows a historical release record without loading its catalog', async () => 
       </Routes>
     </MemoryRouter>,
   );
-
-  expect(await screen.findByText('该发布版本仅保留发布记录')).toBeTruthy();
-  expect(await screen.findByText('发布状态：PUBLISHED')).toBeTruthy();
-  expect(screen.getByText('清理状态：CLEANED')).toBeTruthy();
-  expect(client.getDbtRelease).toHaveBeenCalledWith('demo', 'old');
-  expect(client.getDbtCatalog).not.toHaveBeenCalled();
-  expect(screen.getByRole('link', { name: '查看当前发布版本' })).toBeTruthy();
+  expect(await screen.findByText('该版本没有可展示资源')).toBeTruthy();
+  expect(client.getDbtCatalog).toHaveBeenCalledWith('demo', 'old', '', 0, 20, undefined);
 });
-
-it('requires a releaseId and rejects a different catalog release', async () => {
-  const api = { getDbtCatalog: vi.fn().mockResolvedValue({ releaseId: 'B', resources: [] }) };
+it('requires a buildId and rejects a different catalog release', async () => {
+  const api = { getDbtCatalog: vi.fn().mockResolvedValue({ buildId: 'B', resources: [] }) };
   const view = render(
     <MemoryRouter initialEntries={['/dbt/projects/demo/catalog']}>
       <Routes>
@@ -320,11 +306,11 @@ it('requires a releaseId and rejects a different catalog release', async () => {
       </Routes>
     </MemoryRouter>,
   );
-  expect(await screen.findByText('缺少发布版本 releaseId')).toBeTruthy();
+  expect(await screen.findByText('缺少发布版本 buildId')).toBeTruthy();
   expect(api.getDbtCatalog).not.toHaveBeenCalled();
   view.unmount();
   render(
-    <MemoryRouter initialEntries={['/dbt/projects/demo/catalog?releaseId=A']}>
+    <MemoryRouter initialEntries={['/dbt/projects/demo/catalog?buildId=A']}>
       <Routes>
         <Route
           path="/dbt/projects/:projectId/catalog"
@@ -334,5 +320,5 @@ it('requires a releaseId and rejects a different catalog release', async () => {
     </MemoryRouter>,
   );
   expect(await screen.findByText('目录版本与请求不一致')).toBeTruthy();
-  expect(screen.queryByText('releaseId：B')).toBeNull();
+  expect(screen.queryByText('buildId：B')).toBeNull();
 });

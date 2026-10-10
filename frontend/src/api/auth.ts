@@ -1,5 +1,7 @@
 const STORAGE_KEY = 'metric-platform.auth-session';
 const DBT_PROJECTS_PATH = '/dbt/projects';
+const FIXED_BUILD_PATH =
+  /^\/dbt\/builds\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\/(catalog|query)$/i;
 
 let redirecting = false;
 
@@ -53,7 +55,10 @@ export function safeReturnTo(value: string | null) {
   if (!value?.startsWith('/') || value.startsWith('//') || value.startsWith('/\\'))
     return DBT_PROJECTS_PATH;
   const pathname = value.split(/[?#]/, 1)[0];
-  return pathname === DBT_PROJECTS_PATH || pathname.startsWith(`${DBT_PROJECTS_PATH}/`)
+  // 仅放行实际固定构建页面，保留查询参数及片段，不扩大到任意内部或外部地址。
+  return pathname === DBT_PROJECTS_PATH ||
+    pathname.startsWith(`${DBT_PROJECTS_PATH}/`) ||
+    FIXED_BUILD_PATH.test(pathname)
     ? value
     : DBT_PROJECTS_PATH;
 }

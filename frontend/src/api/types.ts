@@ -5,29 +5,16 @@ export type ProblemDetails = {
   status: number;
   detail: string;
   instance?: string;
+  /** 服务业务错误码，保留跨 BFF 的错误身份。 */
+  code?: string;
+  /** 失败所处执行阶段。 */
+  phase?: string;
+  /** 错误关联的固定构建。 */
+  buildId?: string;
+  /** 服务声明是否允许重试。 */
+  retryable?: boolean;
 };
-// dbt 目录和查询只引用服务端已发布的 releaseId，不混用旧语义对象编辑 API。
-export type DbtProject = {
-  projectId: string;
-  observedSha: string | null;
-  activeReleaseId: UUID | null;
-  lastObservationStatus: string | null;
-  /** 最近完成的远端观测时间；用于确认后台已处理新的刷新信号。 */
-  lastObservedAt?: string | null;
-};
-export type DbtRelease = {
-  releaseId: UUID;
-  projectId: string;
-  targetCommitSha: string;
-  buildSourceSha: string;
-  projectDigest: string;
-  state: string;
-  cleanupState: string;
-  schemaName: string | null;
-  errorCode: string | null;
-  createdAt: string;
-  publishedAt: string | null;
-};
+// dbt 目录和查询只引用服务端已发布的 buildId，不混用旧语义对象编辑 API。
 export type DbtResource = {
   resourceId: string;
   nativeId: string;
@@ -39,19 +26,19 @@ export type DbtResource = {
   queryable: boolean;
 };
 export type DbtCatalog = {
-  releaseId: UUID;
+  buildId: UUID;
   page: number;
   size: number;
   total: number;
   resources: DbtResource[];
 };
 export type DbtLineage = {
-  releaseId: UUID;
+  buildId: UUID;
   resourceId: string;
   dependencies: { upstreamResourceId: string; downstreamResourceId: string; kind: string }[];
 };
 export type DbtResourcePresentation = {
-  releaseId: UUID;
+  buildId: UUID;
   resourceId: string;
   kind: string;
   title: string;
@@ -60,46 +47,22 @@ export type DbtResourcePresentation = {
   queryable: boolean;
 };
 export type DbtSourceDocument = {
-  releaseId: UUID;
+  buildId: UUID;
   buildSourceSha: string;
   sourcePath: string;
   content: string;
 };
-export type DbtQueryOptions = {
-  releaseId: UUID;
-  metrics: { name: string }[];
-  dimensions: { token: string; name: string; type?: string }[];
-  timeDimensions: { token: string; granularity: string }[];
-  allowedFilters: string[];
-};
-export type DbtQueryFilter = { field: string; operator: string; value: unknown };
-export type DbtQueryRequest = {
-  releaseId: UUID;
-  metrics: string[];
-  groupBy?: string[];
-  filters?: DbtQueryFilter[];
-  limit?: number;
-  startTime?: string;
-  endTime?: string;
-  orderBy?: string[];
-};
-export type DbtDimensionValuesRequest = {
-  releaseId: UUID;
-  metrics: string[];
-  dimension: string;
-  filters?: DbtQueryFilter[];
-  limit?: number;
-};
-export type DbtQuerySubmission = { queryId: UUID; releaseId: UUID; status: 'PENDING' };
 export type DbtQueryStatus = {
   queryId: UUID;
-  releaseId: UUID;
+  buildId: UUID;
   targetCommitSha: string;
   mode: 'QUERY' | 'EXPLAIN' | 'PREVIEW' | 'DIMENSION_VALUES';
-  status: 'PENDING' | 'RUNNING' | 'COMPLETED' | 'FAILED' | 'CANCELLED';
+  status: 'PENDING' | 'RUNNING' | 'COMPLETED' | 'FAILED' | 'CANCELLED' | 'OUTCOME_UNKNOWN';
   columns: { name: string; type: string }[] | null;
   rows: unknown[][] | null;
   errorCode: string | null;
+  /** 服务诊断原文，未知结果不能降级成继续运行。 */
+  errorMessage?: string | null;
   truncated: boolean | null;
   durationMs: number | null;
   /** EXPLAIN 完成后生成的 SQL，其他模式或未完成时可为空。 */

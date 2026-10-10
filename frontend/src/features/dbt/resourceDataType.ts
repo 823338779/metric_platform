@@ -85,10 +85,7 @@ export async function resolveResourceDataType(
   );
   if (!IDENTIFIER.test(expression)) return fallback;
   if (!lineage) return fallback;
-  if (
-    lineage.releaseId !== presentation.releaseId ||
-    lineage.resourceId !== presentation.resourceId
-  )
+  if (lineage.buildId !== presentation.buildId || lineage.resourceId !== presentation.resourceId)
     throw new Error(INVALID_METADATA);
   const parents = [
     ...new Set(
@@ -98,21 +95,21 @@ export async function resolveResourceDataType(
     ),
   ];
   if (parents.length !== 1) return fallback;
-  const owner = await api.getDbtResource(projectId, parents[0], presentation.releaseId);
+  const owner = await api.getDbtResource(projectId, parents[0], presentation.buildId);
   if (owner.resourceId !== parents[0]) throw new Error(INVALID_METADATA);
   if (owner.kind !== SEMANTIC_MODEL) return fallback;
   const ownerDefinition = record(JSON.parse(owner.definitionJson));
   const models = record(ownerDefinition.depends_on).nodes;
   if (!Array.isArray(models) || models.length !== 1 || !text(models[0])) return fallback;
   const modelId = text(models[0]);
-  let model = await api.getDbtPresentation(projectId, modelId, presentation.releaseId);
-  if (model.resourceId !== modelId || model.releaseId !== presentation.releaseId)
+  let model = await api.getDbtPresentation(projectId, modelId, presentation.buildId);
+  if (model.resourceId !== modelId || model.buildId !== presentation.buildId)
     throw new Error(INVALID_METADATA);
   if (!PHYSICAL_KINDS.has(model.kind)) return fallback;
   if (hasSerializedNode(model))
     model = restoreArtifactPresentation(
       model,
-      await api.getDbtResource(projectId, modelId, presentation.releaseId),
+      await api.getDbtResource(projectId, modelId, presentation.buildId),
     );
   const columnName = expression.replace(QUOTES, '');
   // 优先物理列元数据的 type；声明式 columns 只有 data_type，不能把维度的 categorical 当成列类型。

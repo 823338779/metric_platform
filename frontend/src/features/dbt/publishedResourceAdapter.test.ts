@@ -1,12 +1,12 @@
 import { describe, expect, it, vi } from 'vitest';
 import { publishedResourceAdapter, publishedResult } from './publishedResourceAdapter';
 import { resolveResourceDataType } from './resourceDataType';
-import type { PublishedCatalogApi } from '../../api/publishedCatalogApi';
+import type { BuildCatalogApi } from '../../api/buildCatalogApi';
 
 const RELEASE = 'release-a';
 const PROJECT = 'project';
 const BASE = {
-  releaseId: RELEASE,
+  buildId: RELEASE,
   nativeId: 'native',
   name: 'brand',
   displayName: '品牌',
@@ -25,13 +25,13 @@ describe('published presentation contract', () => {
       if (accepted.has(body.idempotencyKey)) return accepted.get(body.idempotencyKey);
       if (advanced) throw new Error('410 superseded');
       accepted.set(body.idempotencyKey, {
-        releaseId: RELEASE,
+        buildId: RELEASE,
         queryId: 'original',
         state: 'QUEUED',
       });
       throw new Error('receipt lost');
     });
-    const api = { submit } as unknown as PublishedCatalogApi;
+    const api = { submit } as unknown as BuildCatalogApi;
     const adapter = publishedResourceAdapter(api);
     await expect(adapter.previewDbtDataset(PROJECT, 'dataset', RELEASE, 10)).rejects.toThrow(
       'lost',
@@ -71,13 +71,13 @@ describe('published presentation contract', () => {
         attributes: { columns: { brand: { type: 'VARCHAR(64)' } } },
       },
     };
-    const resource = vi.fn(async (_project, _release, id: keyof typeof resources) => resources[id]);
-    const adapter = publishedResourceAdapter({ resource } as unknown as PublishedCatalogApi);
+    const resource = vi.fn(async (_release, id: keyof typeof resources) => resources[id]);
+    const adapter = publishedResourceAdapter({ resource } as unknown as BuildCatalogApi);
     const presentation = await adapter.getDbtPresentation(PROJECT, 'dimension', RELEASE);
     const value = await resolveResourceDataType(
       presentation,
       {
-        releaseId: RELEASE,
+        buildId: RELEASE,
         resourceId: 'dimension',
         dependencies: [
           { upstreamResourceId: 'dataset', downstreamResourceId: 'dimension', kind: 'dimension' },
@@ -87,16 +87,16 @@ describe('published presentation contract', () => {
       adapter,
     );
     expect(value.label).toBe('VARCHAR(64)');
-    expect(resource).toHaveBeenCalledWith(PROJECT, RELEASE, 'physical');
-    expect(resource).not.toHaveBeenCalledWith(PROJECT, RELEASE, 'native.model.id');
+    expect(resource).toHaveBeenCalledWith(RELEASE, 'physical');
+    expect(resource).not.toHaveBeenCalledWith(RELEASE, 'native.model.id');
   });
 
   it('rejects another release in resource details and lineage', async () => {
     const api = {
-      resource: vi.fn().mockResolvedValue({ ...BASE, resourceId: 'x', releaseId: 'other' }),
-      detail: vi.fn().mockResolvedValue({ releaseId: 'other', resourceId: 'x', dependencies: [] }),
+      resource: vi.fn().mockResolvedValue({ ...BASE, resourceId: 'x', buildId: 'other' }),
+      detail: vi.fn().mockResolvedValue({ buildId: 'other', resourceId: 'x', dependencies: [] }),
     };
-    const adapter = publishedResourceAdapter(api as unknown as PublishedCatalogApi);
+    const adapter = publishedResourceAdapter(api as unknown as BuildCatalogApi);
     await expect(adapter.getDbtPresentation(PROJECT, 'x', RELEASE)).rejects.toThrow('身份');
     await expect(adapter.getDbtLineage(PROJECT, 'x', RELEASE)).rejects.toThrow('身份');
   });
@@ -104,9 +104,8 @@ describe('published presentation contract', () => {
   it('keeps raw result values and maps query states without changing query identity', () => {
     const result = publishedResult({
       queryId: 'q',
-      projectId: PROJECT,
-      releaseId: RELEASE,
-      state: 'READY',
+      buildId: RELEASE,
+      state: 'SUCCEEDED',
       rows: [['9007199254740993.01']],
       columns: [{ name: 'amount', type: 'DECIMAL' }],
     });

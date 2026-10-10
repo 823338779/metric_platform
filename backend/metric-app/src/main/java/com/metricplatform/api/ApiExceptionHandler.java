@@ -1,7 +1,5 @@
 package com.metricplatform.api;
 
-import com.metricplatform.catalog.PublishedCatalogGateway;
-import com.metricplatform.engine.EngineClient;
 import com.metricplatform.identity.auth.LoginRateLimitException;
 import com.metricplatform.query.ReleaseGoneException;
 import java.sql.SQLException;
@@ -16,14 +14,22 @@ import org.springframework.web.method.annotation.MethodArgumentTypeMismatchExcep
 
 @RestControllerAdvice
 public class ApiExceptionHandler {
-    private static final String DBT_QUERY_REJECTED = "DBT_QUERY_REJECTED";
+    private static final String CODE = "code",
+            PHASE = "phase",
+            BUILD_ID = "buildId",
+            RETRYABLE = "retryable";
 
-    @ExceptionHandler(PublishedCatalogGateway.Failure.class)
-    ResponseEntity<ProblemDetail> publishedCatalogFailure(PublishedCatalogGateway.Failure failure) {
+    @ExceptionHandler(com.metricplatform.catalog.BuildGateway.Failure.class)
+    ResponseEntity<ProblemDetail> buildFailure(
+            com.metricplatform.catalog.BuildGateway.Failure failure) {
+        var error = failure.error();
         ProblemDetail body =
                 ProblemDetail.forStatusAndDetail(
-                        HttpStatusCode.valueOf(failure.status()), "已发布目录或查询暂不可用");
-        body.setProperty("code", failure.code());
+                        HttpStatusCode.valueOf(failure.status()), error.message());
+        body.setProperty(CODE, error.code());
+        body.setProperty(PHASE, error.phase());
+        body.setProperty(BUILD_ID, error.buildId());
+        body.setProperty(RETRYABLE, error.retryable());
         return ResponseEntity.status(failure.status())
                 .contentType(MediaType.APPLICATION_PROBLEM_JSON)
                 .body(body);
@@ -32,23 +38,6 @@ public class ApiExceptionHandler {
     @ExceptionHandler(ReleaseGoneException.class)
     ResponseEntity<ProblemDetail> releaseGone(ReleaseGoneException exception) {
         return problem(HttpStatus.GONE, "Release cleaned", exception.getMessage());
-    }
-
-    /** 外部服务的 422 仅暴露固定错误码，鉴权和服务故障不伪装成用户认证问题。 */
-    @ExceptionHandler(EngineClient.ServiceFailure.class)
-    ResponseEntity<ProblemDetail> engineFailure(EngineClient.ServiceFailure failure) {
-        HttpStatus status =
-                failure.status() == 422
-                        ? HttpStatus.UNPROCESSABLE_ENTITY
-                        : failure.transientFailure()
-                                ? HttpStatus.SERVICE_UNAVAILABLE
-                                : HttpStatus.BAD_GATEWAY;
-        ProblemDetail body = ProblemDetail.forStatusAndDetail(status, "dbt 运行服务拒绝查询或暂不可用");
-        body.setTitle("dbt query unavailable");
-        body.setProperty("code", DBT_QUERY_REJECTED);
-        return ResponseEntity.status(status)
-                .contentType(MediaType.APPLICATION_PROBLEM_JSON)
-                .body(body);
     }
 
     /** 数据库错误只返回可处理的上游故障，不泄露 SQL 和连接信息。 */

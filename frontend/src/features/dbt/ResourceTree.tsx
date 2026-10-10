@@ -31,18 +31,15 @@ export function ResourceTree({
   selected,
   onSelect,
   projectId,
-  releaseId,
+  buildId,
   queryParameter,
-  branchId,
 }: {
   resources: DbtResource[];
   selected: string;
   onSelect: (id: string) => void;
   projectId: string;
-  releaseId: string;
+  buildId: string;
   queryParameter?: 'metricResourceId';
-  /** 显式分支页面的查询链接必须保留原实例，不能退回生产路径。 */
-  branchId?: string;
 }) {
   const host = useRef<HTMLDivElement>(null);
   const [expanded, setExpanded] = useState<Key[]>([]);
@@ -101,7 +98,7 @@ export function ResourceTree({
             {kind === METRIC && resource.queryable && (
               <Link
                 onClick={(event) => event.stopPropagation()}
-                to={`/dbt/projects/${encodeURIComponent(projectId)}/query?${new URLSearchParams({ releaseId, ...(branchId ? { branchId } : {}), [queryParameter ?? 'metric']: queryParameter ? resource.resourceId : resource.name })}`}
+                to={`/dbt/builds/${encodeURIComponent(buildId)}/query?${new URLSearchParams({ buildId, [queryParameter ?? 'metric']: queryParameter ? resource.resourceId : resource.name })}`}
               >
                 {COPY.explore}
               </Link>
@@ -111,7 +108,7 @@ export function ResourceTree({
       });
     });
     return { data, folders, ancestors };
-  }, [resources, projectId, releaseId, queryParameter, branchId]);
+  }, [resources, projectId, buildId, queryParameter]);
   // 新加载的目录默认展开；用户随后折叠不会被普通重渲染覆盖。
   useEffect(() => {
     const added = folders.filter((key) => !previousFolders.current.has(key));

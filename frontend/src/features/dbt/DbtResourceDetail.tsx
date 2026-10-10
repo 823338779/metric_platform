@@ -39,6 +39,7 @@ const physicalKinds = new Set(['TABLE', 'VIEW', 'MODEL']);
 const DETAIL = 'detail';
 const LINEAGE = 'lineage';
 const SOURCE = 'source';
+const OUTCOME_UNKNOWN = 'OUTCOME_UNKNOWN';
 const COPY = {
   title: '资源详情',
   detail: '概览',
@@ -51,25 +52,28 @@ const COPY = {
   sourceLoading: '读取源码中…',
 };
 
-/** 同一详情内的产物、源码和血缘均固定在目录 releaseId。 */
+/** 同一详情内的产物、源码和血缘均固定在目录 buildId。 */
 export function DbtResourceDetail({
   projectId,
-  releaseId,
+  buildId,
   resourceId,
   tabTitle,
   onSelect,
   onExplore,
   onClose,
+  queryAvailable = true,
   api = metricPlatformApi,
 }: {
   projectId: string;
-  releaseId: string;
+  buildId: string;
   resourceId: string;
   /** 目录中的可读资源名称，避免将不透明身份显示为编辑器标签。 */
   tabTitle?: string;
   onSelect: (resourceId: string) => void;
   onExplore?: (name: string) => void;
   onClose?: () => void;
+  /** 固定构建的物理查询能力；历史目录仍可浏览。 */
+  queryAvailable?: boolean;
   api?: DetailApi;
 }) {
   const [presentation, setPresentation] = useState<DbtResourcePresentation>();
@@ -95,17 +99,17 @@ export function DbtResourceDetail({
     setLineageError('');
     setSourceError('');
     void api
-      .getDbtPresentation(projectId, resourceId, releaseId)
+      .getDbtPresentation(projectId, resourceId, buildId)
       .then(async (value) => {
         if (!active) return;
-        if (value.releaseId !== releaseId) {
+        if (value.buildId !== buildId) {
           setError('资源详情版本与请求不一致');
           return;
         }
         const restored = hasSerializedNode(value)
           ? restoreArtifactPresentation(
               value,
-              await api.getDbtResource(projectId, resourceId, releaseId),
+              await api.getDbtResource(projectId, resourceId, buildId),
             )
           : value;
         if (active) setPresentation(restored);
@@ -119,9 +123,9 @@ export function DbtResourceDetail({
           );
       });
     void api
-      .getDbtLineage(projectId, resourceId, releaseId)
+      .getDbtLineage(projectId, resourceId, buildId)
       .then((value) => {
-        if (active && value.releaseId === releaseId) setLineage(value);
+        if (active && value.buildId === buildId) setLineage(value);
         else if (active) setLineageError('血缘版本与请求不一致');
       })
       .catch(() => {
@@ -130,7 +134,7 @@ export function DbtResourceDetail({
     return () => {
       active = false;
     };
-  }, [api, projectId, releaseId, resourceId, retry]);
+  }, [api, projectId, buildId, resourceId, retry]);
 
   useEffect(() => {
     if (tab !== SOURCE) return;
@@ -138,10 +142,10 @@ export function DbtResourceDetail({
     setSource(undefined);
     setSourceError('');
     void api
-      .getDbtSource(projectId, resourceId, releaseId)
+      .getDbtSource(projectId, resourceId, buildId)
       .then((value) => {
         if (!active) return;
-        if (value.releaseId === releaseId) setSource(value);
+        if (value.buildId === buildId) setSource(value);
         else setSourceError('源码版本与请求不一致');
       })
       .catch(() => {
@@ -150,7 +154,7 @@ export function DbtResourceDetail({
     return () => {
       active = false;
     };
-  }, [api, projectId, releaseId, resourceId, tab, retry]);
+  }, [api, projectId, buildId, resourceId, tab, retry]);
   useEffect(() => {
     if (!previewQueryId) return;
     let active = true;
@@ -160,7 +164,7 @@ export function DbtResourceDetail({
       try {
         const result = await api.getDbtQuery(projectId, previewQueryId);
         if (!active) return;
-        if (result.releaseId !== releaseId) {
+        if (result.buildId !== buildId) {
           setError('预览版本与请求不一致');
           return;
         }
@@ -176,16 +180,19 @@ export function DbtResourceDetail({
       active = false;
       window.clearTimeout(timer);
     };
-  }, [api, projectId, releaseId, previewQueryId]);
+  }, [api, projectId, buildId, previewQueryId]);
   const loadPreview = async () => {
     try {
       setPreview(undefined);
-      const submitted = await api.previewDbtDataset(projectId, resourceId, releaseId, 20);
-      if (submitted.releaseId !== releaseId) {
+      const submitted = await api.previewDbtDataset(projectId, resourceId, buildId, 20);
+      if (submitted.buildId !== buildId) {
         setError('预览版本与请求不一致');
         return;
       }
-      setPreviewQueryId(submitted.queryId);
+      if (submitted.status === OUTCOME_UNKNOWN) {
+        setPreviewQueryId('');
+        setPreview(submitted);
+      } else setPreviewQueryId(submitted.queryId);
     } catch {
       setError('预览读取失败');
     }
@@ -316,7 +323,9 @@ export function DbtResourceDetail({
                     <pre>{JSON.stringify(presentation.nativeDetails, null, 2)}</pre>
                   </details>
                   {presentation.queryable && physicalKinds.has(presentation.kind) && (
-                    <Button onClick={() => void loadPreview()}>{COPY.preview}</Button>
+                    <Button disabled={!queryAvailable} onClick={() => void loadPreview()}>
+                      {COPY.preview}
+                    </Button>
                   )}
                   {preview && <DbtQueryResults result={preview} />}
                 </div>

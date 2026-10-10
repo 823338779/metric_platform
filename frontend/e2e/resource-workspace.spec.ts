@@ -1,10 +1,11 @@
 import { expect, test } from '@playwright/test';
+import { buildFixture, BUILD_A } from '../e2e-publication/build-fixture';
 
 const METRIC = 'metric.shop.units_sold';
 const MODEL = 'model.shop.fct_order_items';
 const SEMANTIC = 'semantic_model.shop.order_items';
-const RELEASE = 'release-1';
-const ROOT = '/dbt/projects/shop/catalog?releaseId=release-1';
+const BUILD = BUILD_A;
+const ROOT = `/dbt/builds/${BUILD_A}/catalog`;
 const SOURCE =
   'version: 2\n\nmetrics:\n  - name: units_sold\n    label: 商品销售数量\n    type: simple\n    type_params:\n      measure: units_sold\n';
 const resources = [
@@ -44,92 +45,27 @@ test('resource tree navigation, readable lineage and versioned YAML work on desk
 }) => {
   const errors: string[] = [];
   page.on('pageerror', (error) => errors.push(error.message));
-  await page.addInitScript(() =>
-    sessionStorage.setItem(
-      'metric-platform.auth-session',
-      JSON.stringify({
-        accessToken: 'test-token',
-        tokenType: 'Bearer',
-        expiresIn: 36000,
-        identity: {
-          identityId: 'admin',
-          subject: 'admin',
-          displayName: 'Administrator',
-          authVersion: 1,
-        },
-      }),
-    ),
-  );
-  await page.route('**/api/v1/auth/me', (route) =>
-    route.fulfill({
-      json: { identityId: 'admin', subject: 'admin', displayName: 'Administrator', authVersion: 1 },
-    }),
-  );
-  await page.route(/\/api\/v1\/semantic-projects(?:\/|\?|$)/, (route) => {
-    const url = new URL(route.request().url());
-    const path = decodeURIComponent(url.pathname);
-    if (path.endsWith('/semantic-projects'))
-      return route.fulfill({
-        json: [
-          {
-            projectId: 'shop',
-            activeReleaseId: RELEASE,
-            observedSha: '8c209f7',
-            lastObservationStatus: 'PUBLISHED',
-          },
-        ],
-      });
-    if (path.endsWith('/releases')) return route.fulfill({ json: [] });
-    if (path.endsWith('/catalog'))
-      return route.fulfill({
-        json: { releaseId: RELEASE, resources, total: resources.length, page: 0, size: 20 },
-      });
-    const id = path.split('/resources/')[1]?.split('/')[0] ?? METRIC;
-    const resource = resources.find((item) => item.resourceId === id) ?? {
-      resourceId: id,
-      nativeId: id,
-      kind: 'MODEL',
+  await buildFixture(page, {
+    source: SOURCE,
+    dependencies,
+    resources: resources.map((item) => ({
+      ...item,
+      displayName: item.name,
+      capabilities: item.queryable ? ['QUERY'] : [],
+      attributes: { type: 'simple', type_params: { measure: 'units_sold' } },
+      nativeDetails: { type: 'simple' },
+    })),
+    resource: (resourceId) => ({
+      resourceId,
+      nativeId: resourceId,
+      kind: 'TABLE',
       name: 'fct_order_items',
       sourcePath: 'models/fct_order_items.sql',
-      queryable: false,
-      definitionJson: '{}',
-    };
-    if (path.endsWith('/presentation'))
-      return route.fulfill({
-        json: {
-          releaseId: RELEASE,
-          resourceId: id,
-          title: resource.name,
-          kind: resource.kind,
-          queryable: resource.queryable,
-          sections: [
-            {
-              title: '业务定义',
-              fields: {
-                label: '商品销售数量',
-                type: 'simple',
-                type_params: { measure: 'units_sold' },
-                description: '按订单商品汇总销售数量，用于分析销量变化。',
-              },
-            },
-          ],
-          nativeDetails: { type: 'simple' },
-        },
-      });
-    if (path.endsWith('/lineage'))
-      return route.fulfill({ json: { releaseId: RELEASE, resourceId: id, dependencies } });
-    if (path.endsWith('/source'))
-      return route.fulfill({
-        json: {
-          releaseId: RELEASE,
-          buildSourceSha: '8c209f7d87babaf97cbeace94fe0d1331922b70c',
-          sourcePath: 'models/metrics.yml',
-          content: SOURCE,
-        },
-      });
-    return route.fulfill({ json: resource });
+      capabilities: [],
+      attributes: {},
+      nativeDetails: {},
+    }),
   });
-
   await page.setViewportSize({ width: 1440, height: 1000 });
   await page.goto(ROOT);
   await page.getByRole('treeitem', { name: /units_sold/ }).click();
@@ -143,7 +79,10 @@ test('resource tree navigation, readable lineage and versioned YAML work on desk
     'true',
   );
   await expect(page.getByText('商品销售数量', { exact: true })).toBeVisible();
-  await page.screenshot({ path: '../../tmp/metric-redesign-detail.png', fullPage: true });
+  await page.screenshot({
+    path: test.info().outputPath('metric-redesign-detail.png'),
+    fullPage: true,
+  });
   await page.getByRole('tab', { name: '血缘', exact: true }).click();
   const graph = page.getByRole('region', { name: '资源血缘图' });
   await expect(graph.locator('.lineage-node')).toHaveCount(4);
@@ -164,7 +103,10 @@ test('resource tree navigation, readable lineage and versioned YAML work on desk
           b.y + b.height <= a.y,
       ).toBe(true);
     }
-  await page.screenshot({ path: '../../tmp/metric-redesign-lineage.png', fullPage: true });
+  await page.screenshot({
+    path: test.info().outputPath('metric-redesign-lineage.png'),
+    fullPage: true,
+  });
   await graph.getByRole('button', { name: MODEL, exact: true }).click();
   await graph.getByRole('button', { name: '查看资源' }).click();
   await expect(page.getByRole('heading', { name: 'fct_order_items' })).toBeVisible();
@@ -187,7 +129,10 @@ test('resource tree navigation, readable lineage and versioned YAML work on desk
   );
   await page.getByRole('button', { name: '定位定义' }).click();
   await expect(page.locator('.source-definition')).toContainText('name: units_sold');
-  await page.screenshot({ path: '../../tmp/metric-redesign-source.png', fullPage: true });
+  await page.screenshot({
+    path: test.info().outputPath('metric-redesign-source.png'),
+    fullPage: true,
+  });
   await page.reload();
   await expect(page.getByRole('heading', { name: 'units_sold' })).toBeVisible();
   await page.setViewportSize({ width: 390, height: 844 });
@@ -203,6 +148,9 @@ test('resource tree navigation, readable lineage and versioned YAML work on desk
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(
     true,
   );
-  await page.screenshot({ path: '../../tmp/metric-redesign-mobile.png', fullPage: true });
+  await page.screenshot({
+    path: test.info().outputPath('metric-redesign-mobile.png'),
+    fullPage: true,
+  });
   expect(errors).toEqual([]);
 });

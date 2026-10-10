@@ -13,7 +13,12 @@ import org.springframework.stereotype.Component;
 @Getter
 @Setter
 public class DbtRuntimeProperties {
-    private boolean enabled;
-    private URI baseUri;
+    /** 运行服务全部请求使用的部署凭据。 */
+    private String serviceToken;
+
+    /** 唯一构建执行服务的固定部署地址。 */
+    private URI baseUri = URI.create("http://127.0.0.1:8000");
+
+    /** 单次服务请求的最长等待时间。 */
     private Duration timeout = Duration.ofSeconds(30);
 }

@@ -30,29 +30,37 @@ const COPY = {
 export function PlatformLayout() {
   const navigate = useNavigate();
   const { pathname } = useLocation();
-  const { projectId } = useParams();
+  const { projectId, buildId: routeBuildId } = useParams();
   const [params] = useSearchParams();
-  const releaseId = params.get('releaseId');
+  const buildId = routeBuildId ?? params.get('buildId');
   const queryPage = pathname.endsWith('/query');
-  const projectPath = projectId ? `${PROJECTS}/${encodeURIComponent(projectId)}` : PROJECTS;
+  const projectPath = buildId
+    ? `/dbt/builds/${encodeURIComponent(buildId)}`
+    : projectId
+      ? `${PROJECTS}/${encodeURIComponent(projectId)}`
+      : PROJECTS;
   // 工作区切换携带当前版本与资源上下文；不会静默切换到最新发布。
   const catalogPath = `${projectPath}/catalog?${params}`;
   const queryPath = `${projectPath}/query?${params}`;
   const displayName = getAuthSession()?.identity.displayName;
   return (
     <div
-      className={`platform-layout ${projectId ? 'platform-workbench' : 'platform-projects'} ${queryPage ? 'platform-analysis' : ''}`}
+      className={`platform-layout ${projectId || buildId ? 'platform-workbench' : 'platform-projects'} ${queryPage ? 'platform-analysis' : ''}`}
     >
       <nav className="platform-rail" aria-label={COPY.brand}>
         <Link className="platform-mark" to={PROJECTS} aria-label={COPY.brand}>
           MP
         </Link>
         <Tooltip title={COPY.projects} placement="right">
-          <Link to={PROJECTS} className={!projectId ? 'is-active' : ''} aria-label={COPY.projects}>
+          <Link
+            to={PROJECTS}
+            className={!projectId && !buildId ? 'is-active' : ''}
+            aria-label={COPY.projects}
+          >
             <FolderOpenOutlined />
           </Link>
         </Tooltip>
-        {projectId && (
+        {(projectId || buildId) && (
           <>
             <Tooltip title={COPY.catalog} placement="right">
               <Link
@@ -78,7 +86,7 @@ export function PlatformLayout() {
       </nav>
       <div className="platform-main">
         <header className="platform-header">
-          {projectId ? (
+          {projectId || buildId ? (
             <nav className="workspace-tabs" aria-label="工作区">
               <Link aria-current={!queryPage ? 'page' : undefined} to={catalogPath}>
                 {COPY.catalog}
@@ -91,9 +99,9 @@ export function PlatformLayout() {
             <h1>{COPY.projects}</h1>
           )}
           <div className="platform-session">
-            {releaseId && (
-              <span className="platform-version" title={releaseId}>
-                {COPY.version} <code>{releaseId.slice(0, 8)}</code>
+            {buildId && (
+              <span className="platform-version" title={buildId}>
+                {COPY.version} <code>{buildId.slice(0, 8)}</code>
               </span>
             )}
             <span className="platform-user">{displayName}</span>

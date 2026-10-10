@@ -1,18 +1,26 @@
 import { describe, expect, it, vi } from 'vitest';
 import { ApiProblem, createHttpClient } from './httpClient';
-import { createMetricPlatformApi } from './metricPlatformApi';
+import { createBuildCatalogApi } from './buildCatalogApi';
 
 describe('typed API client', () => {
   it('submits a versioned typed query without SQL', async () => {
     const fetcher = vi
       .fn()
       .mockResolvedValue({ ok: true, status: 200, json: async () => ({ valid: true }) });
-    const api = createMetricPlatformApi(fetcher);
-    await api.submitDbtQuery('sales', { releaseId: 'release-1', metrics: ['revenue'] });
+    const api = createBuildCatalogApi(fetcher);
+    await api.submit('11111111-1111-4111-8111-111111111111', {
+      idempotencyKey: 'q1',
+      mode: 'QUERY',
+      metricResourceIds: ['revenue'],
+    });
     expect(fetcher).toHaveBeenCalledWith(
-      expect.stringContaining('/semantic-projects/sales/queries'),
+      expect.stringContaining('/builds/11111111-1111-4111-8111-111111111111/queries'),
       expect.objectContaining({
-        body: JSON.stringify({ releaseId: 'release-1', metrics: ['revenue'] }),
+        body: JSON.stringify({
+          idempotencyKey: 'q1',
+          mode: 'QUERY',
+          metricResourceIds: ['revenue'],
+        }),
       }),
     );
   });
@@ -23,7 +31,7 @@ describe('typed API client', () => {
       json: async () => ({ title: 'Conflict', status: 409, detail: 'stale version' }),
     });
     await expect(
-      createHttpClient(fetcher)('/semantic-projects/sales/catalog'),
+      createHttpClient(fetcher)('/builds/11111111-1111-4111-8111-111111111111/catalog'),
     ).rejects.toMatchObject({
       problem: expect.objectContaining({ status: 409, detail: 'stale version' }),
     });

@@ -1,75 +1,45 @@
 import { expect, it, vi } from 'vitest';
 import { createMetricPlatformApi } from './metricPlatformApi';
-
-it('requests server-side refresh without choosing a repository or branch', async () => {
+const B = '11111111-1111-4111-8111-111111111111';
+it('展示适配器只调用固定build资源接口，源码与native详情保留', async () => {
+  const fetcher = vi.fn().mockImplementation(
+    async (url: string) =>
+      new Response(
+        JSON.stringify(
+          url.endsWith('/source')
+            ? { buildId: B, resourceId: 'x', path: 'models/x.yml', content: 'unknown: true' }
+            : {
+                buildId: B,
+                resourceId: 'x',
+                kind: 'METRIC',
+                capabilities: [],
+                attributes: {},
+                nativeDetails: { unknown: 42 },
+              },
+        ),
+      ),
+  );
+  const api = createMetricPlatformApi(fetcher);
+  expect((await api.getDbtPresentation('agent-project', 'x', B)).nativeDetails).toEqual({
+    unknown: 42,
+  });
+  expect((await api.getDbtSource('agent-project', 'x', B)).content).toBe('unknown: true');
+  expect(fetcher.mock.calls.map(([url]) => url)).toEqual([
+    `/api/v3/dbt/builds/${B}/resources/x`,
+    `/api/v3/dbt/builds/${B}/resources/x/source`,
+  ]);
+});
+it('目录分页传递服务不透明cursor', async () => {
   const fetcher = vi
     .fn()
-    .mockResolvedValue(new Response(JSON.stringify({ accepted: true }), { status: 202 }));
-  const result = await createMetricPlatformApi(fetcher).refreshDbtProjects();
-  expect(result.accepted).toBe(true);
-  expect(fetcher).toHaveBeenCalledWith(
-    '/api/v1/semantic-projects:refresh',
-    expect.objectContaining({ method: 'POST' }),
-  );
-  expect(fetcher.mock.calls[0][1].body).toBeUndefined();
-});
-
-it('submits a dbt query against the selected catalog release without SQL', async () => {
-  const fetcher = vi.fn().mockResolvedValue(
-    new Response(JSON.stringify({ queryId: 'q', releaseId: 'r', status: 'PENDING' }), {
-      status: 202,
-    }),
-  );
-  await createMetricPlatformApi(fetcher).submitDbtQuery('demo', {
-    releaseId: 'r',
-    metrics: ['revenue'],
-    limit: 10,
-  });
-  expect(fetcher).toHaveBeenCalledWith(
-    expect.stringContaining('/semantic-projects/demo/queries'),
-    expect.objectContaining({
-      method: 'POST',
-      body: JSON.stringify({ releaseId: 'r', metrics: ['revenue'], limit: 10 }),
-    }),
-  );
-});
-
-it('encodes multiple metrics and the fixed release in query options', async () => {
-  const fetcher = vi.fn().mockResolvedValue(new Response('{}'));
-  await createMetricPlatformApi(fetcher).getDbtQueryOptions('demo', 'release-1', [
-    'net revenue',
-    'orders',
-  ]);
-  expect(fetcher.mock.calls[0][0]).toContain('releaseId=release-1');
-  expect(fetcher.mock.calls[0][0]).toContain('metrics=net+revenue');
-  expect(fetcher.mock.calls[0][0]).toContain('metrics=orders');
-});
-
-it('loads presentation and source for the same release', async () => {
-  const fetcher = vi.fn().mockImplementation(() => Promise.resolve(new Response('{}')));
+    .mockResolvedValueOnce(
+      new Response(JSON.stringify({ buildId: B, items: [], nextCursor: 'opaque' })),
+    )
+    .mockResolvedValueOnce(
+      new Response(JSON.stringify({ buildId: B, items: [], nextCursor: null })),
+    );
   const api = createMetricPlatformApi(fetcher);
-  await api.getDbtPresentation('demo', 'metric.revenue', 'release-1');
-  await api.getDbtSource('demo', 'metric.revenue', 'release-1');
-  expect(fetcher.mock.calls.map((call) => call[0])).toEqual([
-    expect.stringContaining('/presentation?releaseId=release-1'),
-    expect.stringContaining('/source?releaseId=release-1'),
-  ]);
-});
-
-it('submits dimension values with fixed release and typed filters', async () => {
-  const fetcher = vi.fn().mockResolvedValue(new Response('{}'));
-  const body = {
-    releaseId: 'release-1',
-    metrics: ['revenue'],
-    dimension: 'region',
-    filters: [{ field: 'country', operator: '=', value: 'CN' }],
-    limit: 20,
-  };
-  await createMetricPlatformApi(fetcher).submitDbtDimensionValues('demo', body);
-  expect(fetcher.mock.calls[0][1]).toEqual(
-    expect.objectContaining({
-      method: 'POST',
-      body: JSON.stringify(body),
-    }),
-  );
+  await api.getDbtCatalog('p', B, '', 0, 20);
+  await api.getDbtCatalog('p', B, '', 1, 20);
+  expect(fetcher.mock.calls[1][0]).toContain('cursor=opaque');
 });

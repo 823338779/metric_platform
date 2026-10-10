@@ -1,6 +1,7 @@
 import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, beforeAll, expect, it, vi } from 'vitest';
 import { DbtResourceDetail } from './DbtResourceDetail';
+import { publishedResourceAdapter } from './publishedResourceAdapter';
 
 beforeAll(() => {
   globalThis.ResizeObserver = class {
@@ -19,7 +20,7 @@ beforeAll(() => {
 afterEach(cleanup);
 
 const presentation = (kind: string) => ({
-  releaseId: 'release-1',
+  buildId: 'release-1',
   resourceId: 'r',
   kind,
   title: `${kind} title`,
@@ -32,9 +33,9 @@ const api = (kind: string) => ({
   getDbtResource: vi.fn(),
   getDbtLineage: vi
     .fn()
-    .mockResolvedValue({ releaseId: 'release-1', resourceId: 'r', dependencies: [] }),
+    .mockResolvedValue({ buildId: 'release-1', resourceId: 'r', dependencies: [] }),
   getDbtSource: vi.fn().mockResolvedValue({
-    releaseId: 'release-1',
+    buildId: 'release-1',
     buildSourceSha: 'sha',
     sourcePath: 'models/metrics.yml',
     content: '<script>alert(1)</script>',
@@ -66,7 +67,7 @@ it('recovers a broken presentation from the same release without rendering seria
   render(
     <DbtResourceDetail
       projectId="demo"
-      releaseId="release-1"
+      buildId="release-1"
       resourceId="r"
       onSelect={vi.fn()}
       api={client as never}
@@ -83,7 +84,7 @@ it('does not request a fallback for a valid presentation', async () => {
   render(
     <DbtResourceDetail
       projectId="demo"
-      releaseId="release-1"
+      buildId="release-1"
       resourceId="r"
       onSelect={vi.fn()}
       api={client as never}
@@ -103,7 +104,7 @@ it('shows a dimension data type separately from its semantic category', async ()
   render(
     <DbtResourceDetail
       projectId="demo"
-      releaseId="release-1"
+      buildId="release-1"
       resourceId="r"
       onSelect={vi.fn()}
       api={client as never}
@@ -133,7 +134,7 @@ it('shows a recoverable error instead of internal flags when the original defini
   render(
     <DbtResourceDetail
       projectId="demo"
-      releaseId="release-1"
+      buildId="release-1"
       resourceId="r"
       onSelect={vi.fn()}
       api={client as never}
@@ -150,7 +151,7 @@ it.each(['METRIC', 'DIMENSION', 'SEMANTIC_MODEL', 'TABLE', 'VIEW'])(
     render(
       <DbtResourceDetail
         projectId="demo"
-        releaseId="release-1"
+        buildId="release-1"
         resourceId="r"
         onSelect={vi.fn()}
         api={api(kind) as never}
@@ -168,7 +169,7 @@ it('shows YAML as inert text from the same release', async () => {
   render(
     <DbtResourceDetail
       projectId="demo"
-      releaseId="release-1"
+      buildId="release-1"
       resourceId="r"
       onSelect={vi.fn()}
       api={client as never}
@@ -187,7 +188,7 @@ it('shows source location and reports lineage errors instead of claiming there a
   render(
     <DbtResourceDetail
       projectId="demo"
-      releaseId="release-1"
+      buildId="release-1"
       resourceId="r"
       onSelect={vi.fn()}
       api={client as never}
@@ -207,7 +208,7 @@ it('hides preview for a non-queryable relation', async () => {
   render(
     <DbtResourceDetail
       projectId="demo"
-      releaseId="release-1"
+      buildId="release-1"
       resourceId="r"
       onSelect={vi.fn()}
       api={client as never}
@@ -221,7 +222,7 @@ it('locates the metric definition instead of a same-name measure earlier in the 
   const client = api('METRIC');
   client.getDbtPresentation.mockResolvedValue({ ...presentation('METRIC'), title: 'units_sold' });
   client.getDbtSource.mockResolvedValue({
-    releaseId: 'release-1',
+    buildId: 'release-1',
     buildSourceSha: 'sha',
     sourcePath: 'models/metrics.yml',
     content:
@@ -230,7 +231,7 @@ it('locates the metric definition instead of a same-name measure earlier in the 
   const { container } = render(
     <DbtResourceDetail
       projectId="demo"
-      releaseId="release-1"
+      buildId="release-1"
       resourceId="metric.units_sold"
       onSelect={vi.fn()}
       api={client as never}
@@ -245,14 +246,14 @@ it('locates the metric definition instead of a same-name measure earlier in the 
 
 it('reports a later preview poll failure and stops after leaving detail', async () => {
   const client = api('TABLE');
-  client.previewDbtDataset.mockResolvedValue({ queryId: 'q', releaseId: 'release-1' });
+  client.previewDbtDataset.mockResolvedValue({ queryId: 'q', buildId: 'release-1' });
   client.getDbtQuery
-    .mockResolvedValueOnce({ queryId: 'q', releaseId: 'release-1', status: 'RUNNING' })
+    .mockResolvedValueOnce({ queryId: 'q', buildId: 'release-1', status: 'RUNNING' })
     .mockRejectedValueOnce(new Error('network'));
   const view = render(
     <DbtResourceDetail
       projectId="demo"
-      releaseId="release-1"
+      buildId="release-1"
       resourceId="r"
       onSelect={vi.fn()}
       api={client as never}
@@ -265,4 +266,80 @@ it('reports a later preview poll failure and stops after leaving detail', async 
   view.unmount();
   await new Promise((resolve) => setTimeout(resolve, 1100));
   expect(client.getDbtQuery).toHaveBeenCalledTimes(calls);
+});
+
+it('历史目录可见但物理查询不可用时禁止预览', async () => {
+  const client = api('TABLE');
+  render(
+    <DbtResourceDetail
+      projectId="demo"
+      buildId="release-1"
+      resourceId="r"
+      onSelect={vi.fn()}
+      api={client as never}
+      queryAvailable={false}
+    />,
+  );
+  const preview = await screen.findByRole('button', { name: '预览数据' });
+  expect(preview.hasAttribute('disabled')).toBe(true);
+  fireEvent.click(preview);
+  expect(client.previewDbtDataset).not.toHaveBeenCalled();
+  expect(screen.getByRole('heading', { name: 'TABLE title' })).toBeTruthy();
+});
+
+it('PREVIEW未知结果保留终态和诊断并停止后续轮询', async () => {
+  const client = api('TABLE');
+  const gateway = {
+    query: vi.fn().mockResolvedValue({
+      queryId: '55555555-5555-4555-8555-555555555555',
+      buildId: 'release-1',
+      state: 'OUTCOME_UNKNOWN',
+      error: { code: 'PREVIEW_OUTCOME_UNKNOWN', message: 'worker lost', retryable: false },
+    }),
+  };
+  const adapter = publishedResourceAdapter(gateway as never);
+  client.previewDbtDataset.mockResolvedValue({
+    queryId: '55555555-5555-4555-8555-555555555555',
+    buildId: 'release-1',
+    status: 'PENDING',
+  });
+  client.getDbtQuery.mockImplementation(adapter.getDbtQuery);
+  render(
+    <DbtResourceDetail
+      projectId="demo"
+      buildId="release-1"
+      resourceId="r"
+      onSelect={vi.fn()}
+      api={client as never}
+    />,
+  );
+  fireEvent.click(await screen.findByRole('button', { name: '预览数据' }));
+  await screen.findByText(/执行结果未知（OUTCOME_UNKNOWN）/);
+  await screen.findByText(/worker lost/);
+  await new Promise((resolve) => setTimeout(resolve, 1200));
+  expect(gateway.query).toHaveBeenCalledTimes(1);
+});
+
+it('PREVIEW受理即返回未知终态时不再请求状态', async () => {
+  const client = api('TABLE');
+  client.previewDbtDataset.mockResolvedValue({
+    queryId: '55555555-5555-4555-8555-555555555555',
+    buildId: 'release-1',
+    status: 'OUTCOME_UNKNOWN',
+    mode: 'PREVIEW',
+    errorCode: 'PREVIEW_OUTCOME_UNKNOWN',
+    errorMessage: 'receipt diagnostic',
+  });
+  render(
+    <DbtResourceDetail
+      projectId="demo"
+      buildId="release-1"
+      resourceId="r"
+      onSelect={vi.fn()}
+      api={client as never}
+    />,
+  );
+  fireEvent.click(await screen.findByRole('button', { name: '预览数据' }));
+  await screen.findByText(/receipt diagnostic/);
+  expect(client.getDbtQuery).not.toHaveBeenCalled();
 });

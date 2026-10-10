@@ -89,7 +89,7 @@ export function ResourceSource({
       <div className="source-metadata">
         <span>{source.buildSourceSha ? COPY.sha : '发布版本：'}</span>
         <Typography.Text code copyable>
-          {source.buildSourceSha || source.releaseId}
+          {source.buildSourceSha || source.buildId}
         </Typography.Text>
       </div>
       {error && <Alert type="warning" title={error} />}

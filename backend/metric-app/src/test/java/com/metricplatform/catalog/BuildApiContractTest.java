@@ -1,0 +1,309 @@
+package com.metricplatform.catalog;
+
+import static org.assertj.core.api.Assertions.*;
+import static org.mockito.Mockito.*;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
+
+import com.metricplatform.catalog.BuildContracts.*;
+import com.metricplatform.identity.auth.PlatformAuthenticationService;
+import com.metricplatform.security.PlatformPrincipal;
+import java.util.*;
+import org.junit.jupiter.api.*;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
+import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.test.context.ActiveProfiles;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
+import org.springframework.test.web.servlet.MockMvc;
+
+@SpringBootTest
+@AutoConfigureMockMvc
+@ActiveProfiles("test")
+class BuildApiContractTest {
+    @Autowired MockMvc mvc;
+
+    @Autowired
+    @org.springframework.beans.factory.annotation.Qualifier("requestMappingHandlerMapping")
+    org.springframework.web.servlet.mvc.method.annotation.RequestMappingHandlerMapping mappings;
+
+    @Autowired JdbcTemplate jdbc;
+    @MockitoBean BuildGateway gateway;
+    @MockitoBean AgentProjectGateway agent;
+    @MockitoBean PlatformAuthenticationService authentication;
+    private static final String ROOT = "/api/v3/dbt", TOKEN = "test-v3";
+    private final UUID build = UUID.randomUUID(), user = UUID.randomUUID();
+
+    @BeforeEach
+    void login() {
+        when(authentication.authenticate(TOKEN))
+                .thenReturn(new PlatformPrincipal(user, "test", "Test", null, 1));
+    }
+
+    @Test
+    @org.springframework.transaction.annotation.Transactional
+    void historyWithoutRepositoryRemainsAvailableAndCursorKeepsOptionalScope() throws Exception {
+        // 使用真实投影表覆盖首页、跨仓库翻页和 Agent 失联时的历史读取。
+        jdbc.update("delete from build_history");
+        for (int index = 1; index <= 3; index++) {
+            var repository = index == 1 ? "repo-a" : "repo-b";
+            var branch = index == 3 ? "main" : "feature/a";
+            var id = UUID.randomUUID();
+            var summary =
+                    new com.fasterxml.jackson.databind.ObjectMapper()
+                            .writeValueAsString(
+                                    Map.of(
+                                            "buildId",
+                                            id.toString(),
+                                            "repository",
+                                            repository,
+                                            "branchName",
+                                            branch,
+                                            "environment",
+                                            "PREVIEW",
+                                            "buildStatus",
+                                            "SUCCEEDED"));
+            jdbc.update(
+                    "insert into build_history(build_id,repository,branch_name,object_version,first_sequence,last_sequence,summary) values(?,?,?,1,?,?,?::jsonb)",
+                    id,
+                    repository,
+                    branch,
+                    index,
+                    index,
+                    summary);
+        }
+        var first =
+                mvc.perform(
+                                get(ROOT + "/builds")
+                                        .param("limit", "1")
+                                        .header("Authorization", "Bearer " + TOKEN))
+                        .andExpect(status().isOk())
+                        .andExpect(jsonPath("$.items.length()").value(1))
+                        .andExpect(jsonPath("$.items[0].repository").value("repo-a"))
+                        .andExpect(jsonPath("$.source").value("SERVICE_CHANGE_FEED"))
+                        .andReturn()
+                        .getResponse()
+                        .getContentAsString();
+        var cursor =
+                new com.fasterxml.jackson.databind.ObjectMapper()
+                        .readTree(first)
+                        .path("nextCursor")
+                        .asText();
+        mvc.perform(
+                        get(ROOT + "/builds")
+                                .param("cursor", cursor)
+                                .header("Authorization", "Bearer " + TOKEN))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.items.length()").value(2))
+                .andExpect(jsonPath("$.items[0].repository").value("repo-b"));
+        // null 也是游标作用域的一部分，不能带着全局游标新增仓库或分支筛选。
+        for (var filter : List.of("repository", "branchName")) {
+            mvc.perform(
+                            get(ROOT + "/builds")
+                                    .param("cursor", cursor)
+                                    .param(filter, "repo-a")
+                                    .header("Authorization", "Bearer " + TOKEN))
+                    .andExpect(status().isUnprocessableEntity());
+        }
+        mvc.perform(
+                        get(ROOT + "/builds")
+                                .param("branchName", "feature/a")
+                                .header("Authorization", "Bearer " + TOKEN))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.items.length()").value(2));
+        mvc.perform(
+                        get(ROOT + "/builds")
+                                .param("repository", "repo-b")
+                                .header("Authorization", "Bearer " + TOKEN))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.items.length()").value(2));
+        verifyNoInteractions(gateway, agent);
+    }
+
+    @Test
+    void bffPreservesBuildAndBusinessError() throws Exception {
+        when(gateway.catalog(eq(build), any())).thenReturn(new CatalogPage(List.of(), null, build));
+        mvc.perform(
+                        get(ROOT + "/builds/" + build + "/catalog")
+                                .header("Authorization", "Bearer " + TOKEN))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.buildId").value(build.toString()));
+        when(gateway.getBuild(build))
+                .thenThrow(
+                        new BuildGateway.Failure(
+                                410,
+                                new ErrorView(
+                                        "PHYSICAL_OBJECTS_REMOVED",
+                                        "removed",
+                                        false,
+                                        "QUERY",
+                                        build)));
+        mvc.perform(get(ROOT + "/builds/" + build).header("Authorization", "Bearer " + TOKEN))
+                .andExpect(status().isGone())
+                .andExpect(jsonPath("$.code").value("PHYSICAL_OBJECTS_REMOVED"))
+                .andExpect(jsonPath("$.phase").value("QUERY"))
+                .andExpect(jsonPath("$.buildId").value(build.toString()));
+    }
+
+    @Test
+    void rejectsOldRequestFieldsWithoutCallingService() throws Exception {
+        mvc.perform(
+                        post(ROOT + "/builds/" + build + "/queries")
+                                .header("Authorization", "Bearer " + TOKEN)
+                                .contentType("application/json")
+                                .content("{\"releaseId\":\"" + build + "\",\"mode\":\"QUERY\"}"))
+                .andExpect(status().isUnprocessableEntity());
+        verifyNoInteractions(gateway);
+    }
+
+    @Test
+    void agentOutageMarksBranchCacheStale() throws Exception {
+        var observed = "2026-10-10T01:00:00Z";
+        when(agent.listBranches("project"))
+                .thenReturn(
+                        new AgentProjectContracts.BranchList(
+                                List.of(new AgentProjectContracts.BranchView("feature/a", "sha")),
+                                observed,
+                                false,
+                                "AGENT"));
+        mvc.perform(
+                        get(ROOT + "/projects/project/branches")
+                                .header("Authorization", "Bearer " + TOKEN))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.cached").value(false));
+        when(agent.listBranches("project"))
+                .thenThrow(
+                        new BuildGateway.Failure(
+                                503, new ErrorView("AGENT_UNAVAILABLE", "down", true, null, null)));
+        mvc.perform(
+                        get(ROOT + "/projects/project/branches")
+                                .header("Authorization", "Bearer " + TOKEN))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.cached").value(true))
+                .andExpect(jsonPath("$.observedAt").value(observed))
+                .andExpect(jsonPath("$.source").value("AGENT_CACHE"));
+    }
+
+    @Test
+    void runtimeContractMatchesRegisteredRoutes() throws Exception {
+        var response =
+                mvc.perform(get(ROOT + "/contract"))
+                        .andExpect(status().isOk())
+                        .andExpect(jsonPath("$.protocolVersion").value("build-deployment-v3"))
+                        .andReturn()
+                        .getResponse()
+                        .getContentAsString();
+        var document = new com.fasterxml.jackson.databind.ObjectMapper().readTree(response);
+        for (var parameter :
+                document.path("paths").path(ROOT + "/builds").path("get").path("parameters")) {
+            if (parameter.path("name").asText().equals("repository"))
+                assertThat(parameter.path("required").asBoolean()).isFalse();
+        }
+        var actual = new java.util.TreeSet<String>();
+        mappings.getHandlerMethods()
+                .forEach(
+                        (mapping, method) ->
+                                mapping.getPatternValues().stream()
+                                        .filter(path -> path.startsWith(ROOT))
+                                        .forEach(
+                                                path ->
+                                                        actual.add(
+                                                                path.replace(
+                                                                        "{view:source|lineage|native-details}",
+                                                                        "{view}"))));
+        var declared = new java.util.TreeSet<String>();
+        document.path("paths")
+                .fieldNames()
+                .forEachRemaining(
+                        path -> {
+                            if (path.startsWith(ROOT)) declared.add(path);
+                        });
+        assertThat(actual).isEqualTo(declared);
+    }
+
+    @Test
+    void removedSemanticProjectRoutesAre404() throws Exception {
+        for (var path :
+                List.of(
+                        "/api/v1/semantic-projects",
+                        "/api/v2/semantic-projects",
+                        "/api/v1/semantic-projects/p/releases",
+                        "/api/v2/semantic-projects/p/branches"))
+            mvc.perform(get(path).header("Authorization", "Bearer " + TOKEN))
+                    .andExpect(status().isNotFound());
+    }
+
+    @Test
+    void existingLoginAndQueryAttributionRemain() throws Exception {
+        UUID query = UUID.randomUUID();
+        var request =
+                new QueryRequest(
+                        "key-1",
+                        QueryMode.QUERY,
+                        List.of("metric.revenue"),
+                        List.of(),
+                        List.of(),
+                        null,
+                        null,
+                        List.of(),
+                        100,
+                        null,
+                        null);
+        when(gateway.getBuild(build))
+                .thenReturn(
+                        new BuildView(
+                                build,
+                                "repo",
+                                "a",
+                                null,
+                                null,
+                                Environment.PREVIEW,
+                                "binding",
+                                "1",
+                                "1",
+                                BuildStatus.SUCCEEDED,
+                                "DONE",
+                                null,
+                                null,
+                                null,
+                                false,
+                                true,
+                                true,
+                                null,
+                                null,
+                                null));
+        when(gateway.query(build, request))
+                .thenReturn(
+                        new QueryView(
+                                query,
+                                build,
+                                BuildStatus.QUEUED,
+                                QueryMode.QUERY,
+                                null,
+                                "Asia/Shanghai",
+                                Map.of(),
+                                "metricflow_granularity_alignment",
+                                false,
+                                null));
+        mvc.perform(
+                        post(ROOT + "/builds/" + build + "/queries")
+                                .contentType("application/json")
+                                .content("{}"))
+                .andExpect(status().isUnauthorized());
+        var body = new com.fasterxml.jackson.databind.ObjectMapper().writeValueAsString(request);
+        mvc.perform(
+                        post(ROOT + "/builds/" + build + "/queries")
+                                .header("Authorization", "Bearer " + TOKEN)
+                                .contentType("application/json")
+                                .content(body))
+                .andExpect(status().isAccepted())
+                .andExpect(jsonPath("$.buildId").value(build.toString()));
+        assertThat(
+                        jdbc.queryForObject(
+                                "select user_id from build_query_audit where query_id=?",
+                                UUID.class,
+                                query))
+                .isEqualTo(user);
+    }
+}

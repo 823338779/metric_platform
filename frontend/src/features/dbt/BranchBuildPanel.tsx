@@ -1,58 +1,50 @@
-import { Alert, Tag } from 'antd';
-import type { Publication } from '../../api/publishedCatalogApi';
+import { Button, Tag } from 'antd';
+import type { BuildPage, DeploymentAttempt } from '../../api/buildCatalogApi';
 
-const FAILED = 'FAILED';
-
-/** 构建历史与活动指针分开显示，失败提交不会冒充旧可用版本。 */
+/** 构建状态、当前有效版本和部署尝试独立展示，成功构建不等于部署成功。 */
 export function BranchBuildPanel({
-  releases,
-  currentReleaseId,
-  activeReleaseId,
-  latestReleaseId,
+  history,
+  deployments,
+  currentBuildId,
+  activeBuildId,
   onSelect,
 }: {
-  releases: Publication[];
-  currentReleaseId: string | null;
-  activeReleaseId: string | null;
-  /** 最新尝试独立于当前可用版本，失败时必须持续可见。 */
-  latestReleaseId?: string | null;
-  onSelect?(id: string): void;
+  history: BuildPage;
+  deployments: DeploymentAttempt[];
+  currentBuildId: string | null;
+  activeBuildId: string | null;
+  onSelect: (id: string) => void;
 }) {
-  const current = releases.find((item) => item.releaseId === currentReleaseId);
-  const latest = releases.find((item) => item.releaseId === latestReleaseId);
   return (
-    <details open={current?.state === FAILED || latest?.state === FAILED}>
-      <summary>
-        构建与测试 · 可用版本 {activeReleaseId ?? '暂无'} · 最新构建 {latest?.state ?? '暂无'}
-      </summary>
-      {releases.length === 0 && <p>等待首次预览构建；Git 推送成功不表示预览就绪。</p>}
+    <details>
+      <summary>构建与部署历史</summary>
+      <p>
+        来源：{history.source} · 同步时间：{history.syncedAt}
+      </p>
       <ul>
-        {releases.map((release) => (
-          <li key={release.releaseId}>
-            <button
-              type="button"
-              disabled={!onSelect || release.releaseId === currentReleaseId}
-              onClick={() => onSelect?.(release.releaseId)}
+        {history.items.map((build) => (
+          <li key={build.buildId}>
+            <Tag>{build.buildStatus}</Tag>
+            <code>{build.buildId}</code> · {build.commitSha}{' '}
+            {build.buildId === activeBuildId && <strong>当前有效部署</strong>}{' '}
+            {build.error && (
+              <span>
+                {build.error.code}：{build.error.message}
+              </span>
+            )}
+            <Button
+              disabled={!build.catalogAvailable || build.buildId === currentBuildId}
+              onClick={() => onSelect(build.buildId)}
             >
-              {release.releaseId}
-            </button>{' '}
-            <code>{release.sourceSha}</code>{' '}
-            <Tag color={release.state === 'FAILED' ? 'red' : undefined}>{release.state}</Tag>
-            {release.errorCode && <p>错误码：{release.errorCode}</p>}
-            {release.validationSummary?.phase && <p>执行阶段：{release.validationSummary.phase}</p>}
-            {release.validationSummary && (
-              <ul>
-                {release.validationSummary.checks.map((check, index) => (
-                  <li key={`${check.name}:${index}`}>
-                    {check.name}：{check.status}
-                    {check.message && <p>{check.message}</p>}
-                  </li>
-                ))}
-              </ul>
-            )}
-            {release.validationSummary?.truncated && (
-              <Alert type="warning" title="验证摘要已截断" />
-            )}
+              查看固定构建
+            </Button>
+          </li>
+        ))}
+      </ul>
+      <ul>
+        {deployments.map((attempt) => (
+          <li key={attempt.generation}>
+            {attempt.buildId} · {attempt.deploymentStatus} · {attempt.reason}
           </li>
         ))}
       </ul>

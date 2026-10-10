@@ -1,285 +1,10 @@
 openapi: 3.1.0
 info:
-  title: Metric Platform API
-  version: v2
-  description: dbt-service 统一发布并持有活动指针；平台认证后代理读取类型化目录与查询结果。v1 在 service-proxy 模式下使用服务兼容映射，legacy 仅用于迁移前运行。
-security: [{ bearerAuth: [] }]
+  title: 指标平台固定构建 BFF
+  version: 3.0.0
+  description: 平台负责登录、历史投影及固定 buildId 查询；Agent 管理项目和分支。
+x-protocol-version: build-deployment-v3
 paths:
-  /api/v1/semantic-projects:refresh:
-    post:
-      summary: 迁移前手动请求同步固定配置仓库的 main 分支
-      description: >-
-        以下行为只适用于 legacy 模式。service-proxy 模式固定返回 409 publication_managed_by_service，页面刷新只读取服务发布结果。
-        需要登录，不依赖 git-sync.enabled 自动同步开关，也不要求 Webhook 密钥。
-        必须配置固定 Git 仓库与项目绑定并启用 dbt 运行服务。请求不接受仓库或分支参数。
-        刷新信号在下一轮 Git 同步调度中处理，
-        默认间隔为 30 秒；重复信号合并。202 仅表示已受理，不表示构建或发布完成。
-        构建和校验成功后才切换当前发布版本，失败保留旧版。
-        远端 main 的 SHA 变化时必须创建独立任务重新全量构建，包括仅修改 README 的提交；
-        SHA 与构建配置均未变化时可跳过重复构建，不跨 SHA 复用旧任务。
-        完整校验的空定义可发布为空目录；构建交给 dbt，平台不执行物理表清理。
-        删除定义或发布空目录不会自动删除旧构建表，发布历史和原始数据表保留。
-      responses:
-        '202':
-          description: 刷新请求已受理
-          content:
-            application/json:
-              schema:
-                type: object
-                required: [accepted]
-                properties:
-                  accepted: { type: boolean, const: true, description: 刷新信号已加入后台调度 }
-        '401': { $ref: '#/components/responses/Problem' }
-        '409': { $ref: '#/components/responses/Problem' }
-        '503':
-          description: 固定 Git 仓库、项目绑定或 dbt 运行服务尚未配置
-          content:
-            application/problem+json: { schema: { $ref: '#/components/schemas/Problem' } }
-  /internal/git-sync/events:
-    post:
-      summary: 通知平台刷新配置仓库的 main 快照
-      description: >-
-        legacy 模式且启用 git-sync 时存在；service-proxy 模式返回 409 publication_managed_by_service。
-        自定义事件请求体最多 4096 字节，使用部署密钥对原始请求体做
-        HMAC-SHA256，X-Git-Signature 为 sha256= 加小写十六进制摘要。
-        Forgejo 原生事件无需密钥、签名或 Authorization，最多 1048576 字节，
-        X-Forgejo-Event 必须提供。仅处理 push，repository.full_name 必须匹配
-        部署配置 forgejo-repository。删除分支、before 等于 after 和非 main 分支忽略。
-        事件只用于唤醒，平台自行拉取配置远端；相同事件可重发，非 main 分支忽略。
-        202 表示刷新信号已接收，不表示定义已生效；启动时扫描，后台调度消费刷新信号并推进在途任务。
-      security: []
-      parameters:
-        - in: header
-          name: X-Forgejo-Event
-          description: 使用 Forgejo 原生协议时必填；push 以外的事件忽略。
-          schema: { type: string }
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              oneOf:
-                - { $ref: '#/components/schemas/GitSyncEvent' }
-                - { $ref: '#/components/schemas/ForgejoPushEvent' }
-      responses:
-        '202': { description: 已接收刷新信号或忽略非 main 分支 }
-        '400': { description: 载荷、协议版本或仓库标识错误 }
-        '401': { description: 仅旧自定义协议的 HMAC 签名缺失或无效 }
-        '409': { description: 发布由 dbt-service 管理 }
-        '413': { description: 超过载荷上限，自定义协议 4096 字节，Forgejo 协议 1048576 字节 }
-        '415': { description: 仅接受 application/json }
-  /api/v1/semantic-projects:
-    get:
-      summary: 列出固定配置的 dbt 项目与生效版本
-      responses:
-        '200':
-          description: 项目状态列表
-          content:
-            application/json:
-              schema: { type: array, items: { $ref: '#/components/schemas/DbtProjectSummary' } }
-        '401': { $ref: '#/components/responses/Problem' }
-  /api/v1/semantic-projects/{projectId}/catalog:
-    get:
-      summary: 分页读取已发布 dbt 语义目录
-      parameters:
-        - { name: projectId, in: path, required: true, schema: { type: string } }
-        - { name: releaseId, in: query, schema: { $ref: '#/components/schemas/Uuid' } }
-        - { name: q, in: query, schema: { type: string } }
-        - { name: kind, in: query, schema: { type: string }, description: 在分页前按资源类型筛选 }
-        - { name: page, in: query, schema: { type: integer, minimum: 0, default: 0 } }
-        - { name: size, in: query, schema: { type: integer, minimum: 1, maximum: 100, default: 20 } }
-      responses:
-        '200':
-          description: 固定 releaseId 的只读目录
-          content:
-            application/json: { schema: { $ref: '#/components/schemas/DbtCatalogPage' } }
-        '401': { $ref: '#/components/responses/Problem' }
-        '404': { $ref: '#/components/responses/Problem' }
-        '410': { $ref: '#/components/responses/Problem' }
-        '422': { $ref: '#/components/responses/Problem' }
-  /api/v1/semantic-projects/{projectId}/resources/{resourceId}:
-    get:
-      summary: 读取已发布 dbt 资源的原生定义投影
-      parameters:
-        - { name: projectId, in: path, required: true, schema: { type: string } }
-        - { name: resourceId, in: path, required: true, schema: { type: string } }
-        - { name: releaseId, in: query, schema: { $ref: '#/components/schemas/Uuid' } }
-      responses:
-        '200':
-          description: 只读资源定义
-          content:
-            application/json: { schema: { $ref: '#/components/schemas/DbtResource' } }
-        '401': { $ref: '#/components/responses/Problem' }
-        '404': { $ref: '#/components/responses/Problem' }
-        '410': { $ref: '#/components/responses/Problem' }
-  /api/v1/semantic-projects/{projectId}/resources/{resourceId}/lineage:
-    get:
-      summary: 读取当前资源的有界血缘
-      parameters:
-        - { name: projectId, in: path, required: true, schema: { type: string } }
-        - { name: resourceId, in: path, required: true, schema: { type: string } }
-        - { name: releaseId, in: query, schema: { $ref: '#/components/schemas/Uuid' } }
-        - { name: limit, in: query, schema: { type: integer, minimum: 1, maximum: 200, default: 100 } }
-      responses:
-        '200':
-          description: 固定版本中的依赖边
-          content:
-            application/json: { schema: { $ref: '#/components/schemas/DbtLineage' } }
-        '401': { $ref: '#/components/responses/Problem' }
-        '404': { $ref: '#/components/responses/Problem' }
-        '410': { $ref: '#/components/responses/Problem' }
-        '422': { $ref: '#/components/responses/Problem' }
-  /api/v1/semantic-projects/{projectId}/resources/{resourceId}/presentation:
-    get:
-      summary: 按已发布 dbt 原生产物即时生成可视化详情
-      parameters:
-        - { name: projectId, in: path, required: true, schema: { type: string } }
-        - { name: resourceId, in: path, required: true, schema: { type: string } }
-        - { name: releaseId, in: query, required: true, schema: { $ref: '#/components/schemas/Uuid' } }
-      responses:
-        '200':
-          description: 类型化卡片与完整原生详情
-          content: { application/json: { schema: { $ref: '#/components/schemas/DbtResourcePresentation' } } }
-        '404': { $ref: '#/components/responses/Problem' }
-        '410': { $ref: '#/components/responses/Problem' }
-        '422': { $ref: '#/components/responses/Problem' }
-  /api/v1/semantic-projects/{projectId}/resources/{resourceId}/source:
-    get:
-      summary: 从构建来源 SHA 安全读取 YAML 源码
-      parameters:
-        - { name: projectId, in: path, required: true, schema: { type: string } }
-        - { name: resourceId, in: path, required: true, schema: { type: string } }
-        - { name: releaseId, in: query, required: true, schema: { $ref: '#/components/schemas/Uuid' } }
-      responses:
-        '200':
-          description: 固定来源版本的 YAML 源码
-          content: { application/json: { schema: { $ref: '#/components/schemas/DbtSourceDocument' } } }
-        '404': { $ref: '#/components/responses/Problem' }
-        '410': { $ref: '#/components/responses/Problem' }
-        '422': { $ref: '#/components/responses/Problem' }
-        '503': { $ref: '#/components/responses/Problem' }
-  /api/v1/semantic-projects/{projectId}/releases:
-    get:
-      summary: 查看项目最近发布候选和历史状态
-      parameters:
-        - { name: projectId, in: path, required: true, schema: { type: string } }
-      responses:
-        '200':
-          description: 最近最多 100 个版本，含已清理版本元数据
-          content:
-            application/json:
-              schema: { type: array, items: { $ref: '#/components/schemas/DbtReleaseSummary' } }
-        '401': { $ref: '#/components/responses/Problem' }
-        '404': { $ref: '#/components/responses/Problem' }
-  /api/v1/semantic-projects/{projectId}/releases/{releaseId}:
-    get:
-      summary: 查看发布版本状态与脱敏诊断
-      parameters:
-        - { name: projectId, in: path, required: true, schema: { type: string } }
-        - { name: releaseId, in: path, required: true, schema: { $ref: '#/components/schemas/Uuid' } }
-      responses:
-        '200':
-          description: 历史发布元数据，清理后仍保留
-          content:
-            application/json: { schema: { $ref: '#/components/schemas/DbtReleaseSummary' } }
-        '401': { $ref: '#/components/responses/Problem' }
-        '404': { $ref: '#/components/responses/Problem' }
-  /api/v1/semantic-projects/{projectId}/queries:
-    post:
-      summary: 对固定 dbt 发布版本提交类型化指标查询
-      parameters: [{ name: projectId, in: path, required: true, schema: { type: string } }]
-      requestBody:
-        required: true
-        content: { application/json: { schema: { $ref: '#/components/schemas/DbtTypedQuery' } } }
-      responses:
-        '202':
-          description: 查询已受理，结果通过任务 ID 读取
-          content: { application/json: { schema: { $ref: '#/components/schemas/DbtQuerySubmission' } } }
-        '404': { $ref: '#/components/responses/Problem' }
-        '410': { $ref: '#/components/responses/Problem' }
-        '422': { $ref: '#/components/responses/Problem' }
-        '502': { $ref: '#/components/responses/Problem' }
-        '503': { $ref: '#/components/responses/Problem' }
-  /api/v1/semantic-projects/{projectId}/query-options:
-    get:
-      summary: 读取固定发布版本的多指标可组合维度与时间粒度
-      parameters:
-        - { name: projectId, in: path, required: true, schema: { type: string } }
-        - { name: releaseId, in: query, required: true, schema: { $ref: '#/components/schemas/Uuid' } }
-        - { name: metrics, in: query, required: true, schema: { type: array, minItems: 1, items: { type: string } }, style: form, explode: true }
-      responses:
-        '200':
-          description: MetricFlow 原生 token 的可组合选项
-          content: { application/json: { schema: { $ref: '#/components/schemas/DbtQueryOptions' } } }
-        '404': { $ref: '#/components/responses/Problem' }
-        '410': { $ref: '#/components/responses/Problem' }
-        '422': { $ref: '#/components/responses/Problem' }
-        '502': { $ref: '#/components/responses/Problem' }
-        '503': { $ref: '#/components/responses/Problem' }
-  /api/v1/semantic-projects/{projectId}/queries:dimension-values:
-    post:
-      summary: 对固定发布版本提交维度值查询
-      parameters: [{ name: projectId, in: path, required: true, schema: { type: string } }]
-      requestBody:
-        required: true
-        content: { application/json: { schema: { $ref: '#/components/schemas/DbtDimensionValuesRequest' } } }
-      responses:
-        '202':
-          description: 维度值查询任务已受理
-          content: { application/json: { schema: { $ref: '#/components/schemas/DbtQuerySubmission' } } }
-        '404': { $ref: '#/components/responses/Problem' }
-        '410': { $ref: '#/components/responses/Problem' }
-        '422': { $ref: '#/components/responses/Problem' }
-        '502': { $ref: '#/components/responses/Problem' }
-        '503': { $ref: '#/components/responses/Problem' }
-  /api/v1/semantic-projects/{projectId}/queries:explain:
-    post:
-      summary: 对固定 dbt 发布版本异步解释类型化指标查询
-      parameters: [{ name: projectId, in: path, required: true, schema: { type: string } }]
-      requestBody:
-        required: true
-        content: { application/json: { schema: { $ref: '#/components/schemas/DbtTypedQuery' } } }
-      responses:
-        '202':
-          description: 解释任务已受理
-          content: { application/json: { schema: { $ref: '#/components/schemas/DbtQuerySubmission' } } }
-        '404': { $ref: '#/components/responses/Problem' }
-        '410': { $ref: '#/components/responses/Problem' }
-        '422': { $ref: '#/components/responses/Problem' }
-        '502': { $ref: '#/components/responses/Problem' }
-        '503': { $ref: '#/components/responses/Problem' }
-  /api/v1/semantic-projects/{projectId}/queries/{queryId}:
-    get:
-      summary: 读取固定发布版本的异步查询状态与类型化结果
-      parameters:
-        - { name: projectId, in: path, required: true, schema: { type: string } }
-        - { name: queryId, in: path, required: true, schema: { $ref: '#/components/schemas/Uuid' } }
-      responses:
-        '200':
-          description: 查询任务状态；DECIMAL/NUMERIC/BIGINT 值以字符串返回
-          content: { application/json: { schema: { $ref: '#/components/schemas/DbtQueryStatus' } } }
-        '404': { $ref: '#/components/responses/Problem' }
-        '410': { $ref: '#/components/responses/Problem' }
-        '502': { $ref: '#/components/responses/Problem' }
-        '503': { $ref: '#/components/responses/Problem' }
-  /api/v1/semantic-projects/{projectId}/datasets/{resourceId}:preview:
-    post:
-      summary: 对固定发布版本的数据集提交有界预览，不接受 SQL
-      parameters:
-        - { name: projectId, in: path, required: true, schema: { type: string } }
-        - { name: resourceId, in: path, required: true, schema: { type: string } }
-      requestBody:
-        required: true
-        content: { application/json: { schema: { $ref: '#/components/schemas/DbtPreviewRequest' } } }
-      responses:
-        '202':
-          description: 预览任务已受理
-          content: { application/json: { schema: { $ref: '#/components/schemas/DbtQuerySubmission' } } }
-        '404': { $ref: '#/components/responses/Problem' }
-        '410': { $ref: '#/components/responses/Problem' }
-        '422': { $ref: '#/components/responses/Problem' }
-        '502': { $ref: '#/components/responses/Problem' }
-        '503': { $ref: '#/components/responses/Problem' }
   /api/v1/auth/token:
     post:
       summary: Exchange one Metric Platform username and password for an access token
@@ -287,16 +12,25 @@ paths:
       requestBody:
         required: true
         content:
-          application/json: { schema: { $ref: '#/components/schemas/AuthTokenRequest' } }
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AuthTokenRequest'
       responses:
         '200':
           description: Ten-hour bearer token and canonical effective identity
           headers:
-            Cache-Control: { schema: { type: string, example: no-store } }
+            Cache-Control:
+              schema:
+                type: string
+                example: no-store
           content:
-            application/json: { schema: { $ref: '#/components/schemas/AuthTokenResponse' } }
-        '401': { $ref: '#/components/responses/Problem' }
-        '429': { $ref: '#/components/responses/Problem' }
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthTokenResponse'
+        '401':
+          $ref: '#/components/responses/Problem'
+        '429':
+          $ref: '#/components/responses/Problem'
   /api/v1/auth/me:
     get:
       summary: Resolve the canonical identity represented by the current token
@@ -304,186 +38,40 @@ paths:
         '200':
           description: Effective account identity
           content:
-            application/json: { schema: { $ref: '#/components/schemas/IdentitySummary' } }
-        '401': { $ref: '#/components/responses/Problem' }
-  /api/v2/semantic-projects:
-    get:
-      summary: 列出服务项目
-      operationId: projects_v2_projects_get
-      responses:
-        '200':
-          description: Successful Response
-          content:
             application/json:
               schema:
-                type: array
-                items:
-                  $ref: '#/components/schemas/V2PublishedProject'
+                $ref: '#/components/schemas/IdentitySummary'
         '401':
           $ref: '#/components/responses/Problem'
-        '404':
-          $ref: '#/components/responses/Problem'
-        '409':
-          $ref: '#/components/responses/Problem'
-        '410':
-          $ref: '#/components/responses/Problem'
-        '422':
-          $ref: '#/components/responses/Problem'
-        '502':
-          $ref: '#/components/responses/Problem'
-        '503':
-          $ref: '#/components/responses/Problem'
-      description: 仅 service-proxy 模式启用。平台不导入资源、不发布版本；历史版本目录和新查询返回 410，已受理查询继续固定原版本。
-  /api/v2/semantic-projects/{projectId}/publication:
+  /api/v3/dbt/builds:
     get:
-      summary: 读取服务活动发布指针
-      operationId: publication_v2_projects__project_id__publication_get
+      summary: 读取平台本地构建历史
+      description: repository 和 branchName 均为可选筛选；省略仓库时浏览全部本地历史。游标绑定原筛选条件，并按不可变首次变化序号分页。
+      operationId: history_v3_builds_get
       parameters:
-      - name: projectId
-        in: path
-        required: true
-        schema:
-          type: string
-          title: Project Id
-      responses:
-        '200':
-          description: Successful Response
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/V2PublishedProject'
-        '422':
-          $ref: '#/components/responses/Problem'
-        '401':
-          $ref: '#/components/responses/Problem'
-        '404':
-          $ref: '#/components/responses/Problem'
-        '409':
-          $ref: '#/components/responses/Problem'
-        '410':
-          $ref: '#/components/responses/Problem'
-        '502':
-          $ref: '#/components/responses/Problem'
-        '503':
-          $ref: '#/components/responses/Problem'
-      description: 仅 service-proxy 模式启用。平台不导入资源、不发布版本；历史版本目录和新查询返回 410，已受理查询继续固定原版本。
-  /api/v2/semantic-projects/{projectId}/releases:
-    get:
-      summary: 查看服务发布历史
-      operationId: releases_v2_projects__project_id__releases_get
-      parameters:
-      - name: projectId
-        in: path
-        required: true
-        schema:
-          type: string
-          title: Project Id
-      responses:
-        '200':
-          description: Successful Response
-          content:
-            application/json:
-              schema:
-                type: array
-                items:
-                  $ref: '#/components/schemas/V2PublicationDescriptor'
-        '422':
-          $ref: '#/components/responses/Problem'
-        '401':
-          $ref: '#/components/responses/Problem'
-        '404':
-          $ref: '#/components/responses/Problem'
-        '409':
-          $ref: '#/components/responses/Problem'
-        '410':
-          $ref: '#/components/responses/Problem'
-        '502':
-          $ref: '#/components/responses/Problem'
-        '503':
-          $ref: '#/components/responses/Problem'
-      description: 仅 service-proxy 模式启用。平台不导入资源、不发布版本；历史版本目录和新查询返回 410，已受理查询继续固定原版本。
-  /api/v2/semantic-projects/{projectId}/releases/{releaseId}:
-    get:
-      summary: 查看发布记录
-      operationId: release_v2_projects__project_id__releases__release_id__get
-      parameters:
-      - name: projectId
-        in: path
-        required: true
-        schema:
-          type: string
-          title: Project Id
-      - name: releaseId
-        in: path
-        required: true
-        schema:
-          type: string
-          format: uuid
-          title: Release Id
-      responses:
-        '200':
-          description: Successful Response
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/V2PublicationDescriptor'
-        '422':
-          $ref: '#/components/responses/Problem'
-        '401':
-          $ref: '#/components/responses/Problem'
-        '404':
-          $ref: '#/components/responses/Problem'
-        '409':
-          $ref: '#/components/responses/Problem'
-        '410':
-          $ref: '#/components/responses/Problem'
-        '502':
-          $ref: '#/components/responses/Problem'
-        '503':
-          $ref: '#/components/responses/Problem'
-      description: 仅 service-proxy 模式启用。平台不导入资源、不发布版本；历史版本目录和新查询返回 410，已受理查询继续固定原版本。
-  /api/v2/semantic-projects/{projectId}/releases/{releaseId}/catalog:
-    get:
-      summary: 读取固定发布版本的目录
-      operationId: catalog_v2_projects__project_id__releases__release_id__catalog_get
-      parameters:
-      - name: projectId
-        in: path
-        required: true
-        schema:
-          type: string
-          title: Project Id
-      - name: releaseId
-        in: path
-        required: true
-        schema:
-          type: string
-          format: uuid
-          title: Release Id
-      - name: q
+      - name: repository
         in: query
         required: false
         schema:
           type: string
-          default: ''
-          title: Q
-      - name: kind
+          title: Repository
+      - name: branchName
         in: query
         required: false
         schema:
           anyOf:
-          - $ref: '#/components/schemas/V2ResourceKind'
+          - type: string
           - type: 'null'
-          title: Kind
-      - name: page
+          title: Branchname
+      - name: cursor
         in: query
         required: false
         schema:
-          type: integer
-          minimum: 1
-          default: 1
-          title: Page
-      - name: size
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Cursor
+      - name: limit
         in: query
         required: false
         schema:
@@ -491,302 +79,495 @@ paths:
           maximum: 200
           minimum: 1
           default: 50
-          title: Size
+          title: Limit
       responses:
         '200':
           description: Successful Response
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/V2PublishedPage'
+                $ref: '#/components/schemas/Page_BuildView_'
         '422':
-          $ref: '#/components/responses/Problem'
+          description: 平台错误包装保留服务业务诊断
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
         '401':
-          $ref: '#/components/responses/Problem'
+          description: 平台错误包装保留服务业务诊断
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '403':
+          description: 平台错误包装保留服务业务诊断
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
         '404':
-          $ref: '#/components/responses/Problem'
+          description: 平台错误包装保留服务业务诊断
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
         '409':
-          $ref: '#/components/responses/Problem'
+          description: 平台错误包装保留服务业务诊断
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
         '410':
-          $ref: '#/components/responses/Problem'
-        '502':
-          $ref: '#/components/responses/Problem'
+          description: 平台错误包装保留服务业务诊断
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
         '503':
-          $ref: '#/components/responses/Problem'
-      description: 仅 service-proxy 模式启用。平台不导入资源、不发布版本；历史版本目录和新查询返回 410，已受理查询继续固定原版本。
-  /api/v2/semantic-projects/{projectId}/releases/{releaseId}/resources/{resourceId}:
+          description: 平台错误包装保留服务业务诊断
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+      security:
+      - bearerAuth: []
+  /api/v3/dbt/builds/{buildId}:
     get:
-      summary: 读取类型化资源
-      operationId: resource_v2_projects__project_id__releases__release_id__resources__resource_id__get
+      summary: Get
+      operationId: get_v3_builds__build_id__get
       parameters:
-      - name: projectId
-        in: path
-        required: true
-        schema:
-          type: string
-          title: Project Id
-      - name: releaseId
+      - name: buildId
         in: path
         required: true
         schema:
           type: string
           format: uuid
-          title: Release Id
-      - name: resourceId
-        in: path
-        required: true
-        schema:
-          type: string
-          title: Resource Id
+          title: Build Id
       responses:
         '200':
           description: Successful Response
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/V2ResourceResponse'
+                $ref: '#/components/schemas/BuildView'
         '422':
-          $ref: '#/components/responses/Problem'
+          description: 平台错误包装保留服务业务诊断
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
         '401':
-          $ref: '#/components/responses/Problem'
+          description: 平台错误包装保留服务业务诊断
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '403':
+          description: 平台错误包装保留服务业务诊断
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
         '404':
-          $ref: '#/components/responses/Problem'
+          description: 平台错误包装保留服务业务诊断
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
         '409':
-          $ref: '#/components/responses/Problem'
+          description: 平台错误包装保留服务业务诊断
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
         '410':
-          $ref: '#/components/responses/Problem'
-        '502':
-          $ref: '#/components/responses/Problem'
+          description: 平台错误包装保留服务业务诊断
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
         '503':
-          $ref: '#/components/responses/Problem'
-      description: 仅 service-proxy 模式启用。平台不导入资源、不发布版本；历史版本目录和新查询返回 410，已受理查询继续固定原版本。
-  /api/v2/semantic-projects/{projectId}/releases/{releaseId}/resources/{resourceId}/lineage:
+          description: 平台错误包装保留服务业务诊断
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+      security:
+      - bearerAuth: []
+  /api/v3/dbt/deployments:
     get:
-      summary: 读取资源血缘
-      operationId: handler_v2_projects__project_id__releases__release_id__resources__resource_id__lineage_get
+      summary: History
+      operationId: history_v3_deployments_get
       parameters:
-      - name: projectId
-        in: path
+      - name: repository
+        in: query
         required: true
         schema:
           type: string
-          title: Project Id
-      - name: releaseId
-        in: path
-        required: true
+          title: Repository
+      - name: environment
+        in: query
+        required: false
         schema:
-          type: string
-          format: uuid
-          title: Release Id
-      - name: resourceId
-        in: path
-        required: true
+          anyOf:
+          - $ref: '#/components/schemas/Environment'
+          - type: 'null'
+          title: Environment
+      - name: branchName
+        in: query
+        required: false
         schema:
-          type: string
-          title: Resource Id
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Branchname
+      - name: cursor
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Cursor
+      - name: limit
+        in: query
+        required: false
+        schema:
+          type: integer
+          maximum: 200
+          minimum: 1
+          default: 50
+          title: Limit
       responses:
         '200':
           description: Successful Response
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/V2LineageResponse'
+                $ref: '#/components/schemas/Page_DeploymentAttemptView_'
         '422':
-          $ref: '#/components/responses/Problem'
+          description: 平台错误包装保留服务业务诊断
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
         '401':
-          $ref: '#/components/responses/Problem'
+          description: 平台错误包装保留服务业务诊断
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '403':
+          description: 平台错误包装保留服务业务诊断
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
         '404':
-          $ref: '#/components/responses/Problem'
+          description: 平台错误包装保留服务业务诊断
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
         '409':
-          $ref: '#/components/responses/Problem'
+          description: 平台错误包装保留服务业务诊断
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
         '410':
-          $ref: '#/components/responses/Problem'
-        '502':
-          $ref: '#/components/responses/Problem'
+          description: 平台错误包装保留服务业务诊断
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
         '503':
-          $ref: '#/components/responses/Problem'
-      description: 仅 service-proxy 模式启用。平台不导入资源、不发布版本；历史版本目录和新查询返回 410，已受理查询继续固定原版本。
-  /api/v2/semantic-projects/{projectId}/releases/{releaseId}/resources/{resourceId}/source:
+          description: 平台错误包装保留服务业务诊断
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+      security:
+      - bearerAuth: []
+  /api/v3/dbt/deployments/current:
     get:
-      summary: 读取发布时源码
-      operationId: handler_v2_projects__project_id__releases__release_id__resources__resource_id__source_get
+      summary: Current
+      operationId: current_v3_deployments_current_get
       parameters:
-      - name: projectId
-        in: path
+      - name: repository
+        in: query
         required: true
         schema:
           type: string
-          title: Project Id
-      - name: releaseId
-        in: path
+          title: Repository
+      - name: environment
+        in: query
+        required: true
+        schema:
+          $ref: '#/components/schemas/Environment'
+      - name: branchName
+        in: query
         required: true
         schema:
           type: string
-          format: uuid
-          title: Release Id
-      - name: resourceId
-        in: path
-        required: true
-        schema:
-          type: string
-          title: Resource Id
+          title: Branchname
       responses:
         '200':
           description: Successful Response
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/V2SourceResponse'
+                $ref: '#/components/schemas/DeploymentTargetView'
         '422':
-          $ref: '#/components/responses/Problem'
-        '401':
-          $ref: '#/components/responses/Problem'
-        '404':
-          $ref: '#/components/responses/Problem'
-        '409':
-          $ref: '#/components/responses/Problem'
-        '410':
-          $ref: '#/components/responses/Problem'
-        '502':
-          $ref: '#/components/responses/Problem'
-        '503':
-          $ref: '#/components/responses/Problem'
-      description: 仅 service-proxy 模式启用。平台不导入资源、不发布版本；历史版本目录和新查询返回 410，已受理查询继续固定原版本。
-  /api/v2/semantic-projects/{projectId}/releases/{releaseId}/resources/{resourceId}/native-details:
-    get:
-      summary: 读取原生产物追溯
-      operationId: handler_v2_projects__project_id__releases__release_id__resources__resource_id__native_details_get
-      parameters:
-      - name: projectId
-        in: path
-        required: true
-        schema:
-          type: string
-          title: Project Id
-      - name: releaseId
-        in: path
-        required: true
-        schema:
-          type: string
-          format: uuid
-          title: Release Id
-      - name: resourceId
-        in: path
-        required: true
-        schema:
-          type: string
-          title: Resource Id
-      responses:
-        '200':
-          description: Successful Response
+          description: 平台错误包装保留服务业务诊断
           content:
-            application/json:
+            application/problem+json:
               schema:
-                $ref: '#/components/schemas/V2NativeDetailsResponse'
-        '422':
-          $ref: '#/components/responses/Problem'
+                $ref: '#/components/schemas/Problem'
         '401':
-          $ref: '#/components/responses/Problem'
+          description: 平台错误包装保留服务业务诊断
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '403':
+          description: 平台错误包装保留服务业务诊断
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
         '404':
-          $ref: '#/components/responses/Problem'
+          description: 平台错误包装保留服务业务诊断
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
         '409':
-          $ref: '#/components/responses/Problem'
+          description: 平台错误包装保留服务业务诊断
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
         '410':
-          $ref: '#/components/responses/Problem'
-        '502':
-          $ref: '#/components/responses/Problem'
+          description: 平台错误包装保留服务业务诊断
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
         '503':
-          $ref: '#/components/responses/Problem'
-      description: 仅 service-proxy 模式启用。平台不导入资源、不发布版本；历史版本目录和新查询返回 410，已受理查询继续固定原版本。
-  /api/v2/semantic-projects/{projectId}/query-options:
+          description: 平台错误包装保留服务业务诊断
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+      security:
+      - bearerAuth: []
+  /api/v3/dbt/builds/{buildId}/query-options:
     post:
-      summary: 获取固定版本可组合选项
-      operationId: options_v2_projects__project_id__query_options_post
+      summary: Options
+      operationId: options_v3_builds__build_id__query_options_post
       parameters:
-      - name: projectId
+      - name: buildId
         in: path
         required: true
         schema:
           type: string
-          title: Project Id
+          format: uuid
+          title: Build Id
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/V2QueryOptionsRequest'
-      responses:
-        '200':
-          description: Successful Response
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/V2QueryOptionsResponse'
-        '422':
-          $ref: '#/components/responses/Problem'
-        '401':
-          $ref: '#/components/responses/Problem'
-        '404':
-          $ref: '#/components/responses/Problem'
-        '409':
-          $ref: '#/components/responses/Problem'
-        '410':
-          $ref: '#/components/responses/Problem'
-        '502':
-          $ref: '#/components/responses/Problem'
-        '503':
-          $ref: '#/components/responses/Problem'
-      description: 仅 service-proxy 模式启用。平台不导入资源、不发布版本；历史版本目录和新查询返回 410，已受理查询继续固定原版本。
-  /api/v2/semantic-projects/{projectId}/queries:
-    post:
-      summary: 按资源身份受理查询
-      operationId: submit_v2_projects__project_id__queries_post
-      parameters:
-      - name: projectId
-        in: path
-        required: true
-        schema:
-          type: string
-          title: Project Id
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/V2PublishedQueryRequest'
+              $ref: '#/components/schemas/OptionsRequest'
       responses:
         '202':
           description: Successful Response
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/V2QueryReceipt'
+                $ref: '#/components/schemas/OptionsTaskView'
         '422':
-          $ref: '#/components/responses/Problem'
+          description: 平台错误包装保留服务业务诊断
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
         '401':
-          $ref: '#/components/responses/Problem'
+          description: 平台错误包装保留服务业务诊断
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '403':
+          description: 平台错误包装保留服务业务诊断
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
         '404':
-          $ref: '#/components/responses/Problem'
+          description: 平台错误包装保留服务业务诊断
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
         '409':
-          $ref: '#/components/responses/Problem'
+          description: 平台错误包装保留服务业务诊断
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
         '410':
-          $ref: '#/components/responses/Problem'
-        '502':
-          $ref: '#/components/responses/Problem'
+          description: 平台错误包装保留服务业务诊断
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
         '503':
-          $ref: '#/components/responses/Problem'
-      description: 仅 service-proxy 模式启用。平台不导入资源、不发布版本；历史版本目录和新查询返回 410，已受理查询继续固定原版本。
-  /api/v2/semantic-projects/{projectId}/queries/{queryId}:
+          description: 平台错误包装保留服务业务诊断
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+      security:
+      - bearerAuth: []
+  /api/v3/dbt/query-options/{optionsTaskId}:
     get:
-      summary: 读取已受理查询结果
-      operationId: query_v2_projects__project_id__queries__query_id__get
+      summary: Get Options
+      operationId: get_options_v3_query_options__options_task_id__get
       parameters:
-      - name: projectId
+      - name: optionsTaskId
         in: path
         required: true
         schema:
           type: string
-          title: Project Id
+          format: uuid
+          title: Options Task Id
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OptionsTaskView'
+        '422':
+          description: 平台错误包装保留服务业务诊断
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '401':
+          description: 平台错误包装保留服务业务诊断
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '403':
+          description: 平台错误包装保留服务业务诊断
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '404':
+          description: 平台错误包装保留服务业务诊断
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '409':
+          description: 平台错误包装保留服务业务诊断
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '410':
+          description: 平台错误包装保留服务业务诊断
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '503':
+          description: 平台错误包装保留服务业务诊断
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+      security:
+      - bearerAuth: []
+  /api/v3/dbt/builds/{buildId}/queries:
+    post:
+      summary: Submit
+      operationId: submit_v3_builds__build_id__queries_post
+      parameters:
+      - name: buildId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+          title: Build Id
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/QueryRequest'
+      responses:
+        '202':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/QueryView'
+        '422':
+          description: 平台错误包装保留服务业务诊断
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '401':
+          description: 平台错误包装保留服务业务诊断
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '403':
+          description: 平台错误包装保留服务业务诊断
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '404':
+          description: 平台错误包装保留服务业务诊断
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '409':
+          description: 平台错误包装保留服务业务诊断
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '410':
+          description: 平台错误包装保留服务业务诊断
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '503':
+          description: 平台错误包装保留服务业务诊断
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+      security:
+      - bearerAuth: []
+  /api/v3/dbt/queries/{queryId}/status:
+    get:
+      summary: Status
+      operationId: status_v3_queries__query_id__status_get
+      parameters:
       - name: queryId
         in: path
         required: true
@@ -800,260 +581,143 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/V2QueryResult'
+                $ref: '#/components/schemas/QueryView'
         '422':
-          $ref: '#/components/responses/Problem'
+          description: 平台错误包装保留服务业务诊断
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
         '401':
-          $ref: '#/components/responses/Problem'
+          description: 平台错误包装保留服务业务诊断
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '403':
+          description: 平台错误包装保留服务业务诊断
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
         '404':
-          $ref: '#/components/responses/Problem'
+          description: 平台错误包装保留服务业务诊断
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
         '409':
-          $ref: '#/components/responses/Problem'
+          description: 平台错误包装保留服务业务诊断
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
         '410':
-          $ref: '#/components/responses/Problem'
-        '502':
-          $ref: '#/components/responses/Problem'
+          description: 平台错误包装保留服务业务诊断
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
         '503':
-          $ref: '#/components/responses/Problem'
-      description: 仅 service-proxy 模式启用。平台不导入资源、不发布版本；历史版本目录和新查询返回 410，已受理查询继续固定原版本。
-  /api/v2/semantic-projects/{projectId}/branches:
-    get:
-      operationId: listPublishedBranches
-      summary: 读取服务固定分支上下文
-      parameters:
-      - &id001
-        name: projectId
-        in: path
-        required: true
-        schema:
-          type: string
-      responses:
-        '200':
-          description: 服务返回的分支资源
+          description: 平台错误包装保留服务业务诊断
           content:
-            application/json:
+            application/problem+json:
               schema:
-                type: array
-                items:
-                  $ref: '#/components/schemas/V2Branch'
-        '400': &id002
-          $ref: '#/components/responses/Problem'
-        '401': &id003
-          $ref: '#/components/responses/Problem'
-        '404': &id004
-          $ref: '#/components/responses/Problem'
-        '409': &id005
-          $ref: '#/components/responses/Problem'
-        '410': &id006
-          $ref: '#/components/responses/Problem'
-        '422': &id007
-          $ref: '#/components/responses/Problem'
-        '502': &id008
-          $ref: '#/components/responses/Problem'
-        '503': &id009
-          $ref: '#/components/responses/Problem'
-  /api/v2/semantic-projects/{projectId}/branches/{branchId}:
+                $ref: '#/components/schemas/Problem'
+      security:
+      - bearerAuth: []
+  /api/v3/dbt/queries/{queryId}/results:
     get:
-      operationId: getPublishedBranch
-      summary: 读取服务固定分支上下文
+      summary: Results
+      operationId: results_v3_queries__query_id__results_get
       parameters:
-      - *id001
-      - &id010
-        name: branchId
+      - name: queryId
         in: path
         required: true
         schema:
           type: string
           format: uuid
-      responses:
-        '200':
-          description: 服务返回的分支资源
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/V2Branch'
-        '400': *id002
-        '401': *id003
-        '404': *id004
-        '409': *id005
-        '410': *id006
-        '422': *id007
-        '502': *id008
-        '503': *id009
-  /api/v2/semantic-projects/{projectId}/branches/{branchId}/publication:
-    get:
-      summary: 读取服务活动发布指针
-      operationId: branch_publication_v2_projects__project_id__publication_get
-      parameters:
-      - name: projectId
-        in: path
-        required: true
+          title: Query Id
+      - name: offset
+        in: query
+        required: false
         schema:
-          type: string
-          title: Project Id
-      - name: branchId
-        in: path
-        required: true
+          type: integer
+          minimum: 0
+          default: 0
+          title: Offset
+      - name: limit
+        in: query
+        required: false
         schema:
-          type: string
-          format: uuid
+          type: integer
+          maximum: 200
+          minimum: 1
+          default: 100
+          title: Limit
       responses:
         '200':
           description: Successful Response
           content:
             application/json:
               schema:
-                allOf:
-                - $ref: '#/components/schemas/V2PublishedProject'
-                - type: object
-                  required:
-                  - branchId
-                  properties:
-                    branchId:
-                      type: string
-                      format: uuid
-                      description: 原请求固定的分支实例
+                $ref: '#/components/schemas/ResultPage'
         '422':
-          $ref: '#/components/responses/Problem'
-        '401':
-          $ref: '#/components/responses/Problem'
-        '404':
-          $ref: '#/components/responses/Problem'
-        '409':
-          $ref: '#/components/responses/Problem'
-        '410':
-          $ref: '#/components/responses/Problem'
-        '502':
-          $ref: '#/components/responses/Problem'
-        '503':
-          $ref: '#/components/responses/Problem'
-        '400': *id002
-      description: 固定 branchId；不触发构建、发布或本地资源导入。已受理查询保持原 releaseId。旧无分支路径始终读取生产。
-  /api/v2/semantic-projects/{projectId}/branches/{branchId}/releases:
-    get:
-      summary: 查看服务发布历史
-      operationId: branch_releases_v2_projects__project_id__releases_get
-      parameters:
-      - name: projectId
-        in: path
-        required: true
-        schema:
-          type: string
-          title: Project Id
-      - name: branchId
-        in: path
-        required: true
-        schema:
-          type: string
-          format: uuid
-      responses:
-        '200':
-          description: Successful Response
+          description: 平台错误包装保留服务业务诊断
           content:
-            application/json:
+            application/problem+json:
               schema:
-                type: array
-                items:
-                  allOf:
-                  - $ref: '#/components/schemas/V2PublicationDescriptor'
-                  - type: object
-                    required:
-                    - branchId
-                    properties:
-                      branchId:
-                        type: string
-                        format: uuid
-                        description: 原请求固定的分支实例
-        '422':
-          $ref: '#/components/responses/Problem'
+                $ref: '#/components/schemas/Problem'
         '401':
-          $ref: '#/components/responses/Problem'
-        '404':
-          $ref: '#/components/responses/Problem'
-        '409':
-          $ref: '#/components/responses/Problem'
-        '410':
-          $ref: '#/components/responses/Problem'
-        '502':
-          $ref: '#/components/responses/Problem'
-        '503':
-          $ref: '#/components/responses/Problem'
-        '400': *id002
-      description: 固定 branchId；不触发构建、发布或本地资源导入。已受理查询保持原 releaseId。旧无分支路径始终读取生产。
-  /api/v2/semantic-projects/{projectId}/branches/{branchId}/releases/{releaseId}:
-    get:
-      summary: 查看发布记录
-      operationId: branch_release_v2_projects__project_id__releases__release_id__get
-      parameters:
-      - name: projectId
-        in: path
-        required: true
-        schema:
-          type: string
-          title: Project Id
-      - name: releaseId
-        in: path
-        required: true
-        schema:
-          type: string
-          format: uuid
-          title: Release Id
-      - name: branchId
-        in: path
-        required: true
-        schema:
-          type: string
-          format: uuid
-      responses:
-        '200':
-          description: Successful Response
+          description: 平台错误包装保留服务业务诊断
           content:
-            application/json:
+            application/problem+json:
               schema:
-                allOf:
-                - $ref: '#/components/schemas/V2PublicationDescriptor'
-                - type: object
-                  required:
-                  - branchId
-                  properties:
-                    branchId:
-                      type: string
-                      format: uuid
-                      description: 原请求固定的分支实例
-        '422':
-          $ref: '#/components/responses/Problem'
-        '401':
-          $ref: '#/components/responses/Problem'
+                $ref: '#/components/schemas/Problem'
+        '403':
+          description: 平台错误包装保留服务业务诊断
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
         '404':
-          $ref: '#/components/responses/Problem'
+          description: 平台错误包装保留服务业务诊断
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
         '409':
-          $ref: '#/components/responses/Problem'
+          description: 平台错误包装保留服务业务诊断
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
         '410':
-          $ref: '#/components/responses/Problem'
-        '502':
-          $ref: '#/components/responses/Problem'
+          description: 平台错误包装保留服务业务诊断
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
         '503':
-          $ref: '#/components/responses/Problem'
-        '400': *id002
-      description: 固定 branchId；不触发构建、发布或本地资源导入。已受理查询保持原 releaseId。旧无分支路径始终读取生产。
-  /api/v2/semantic-projects/{projectId}/branches/{branchId}/releases/{releaseId}/catalog:
+          description: 平台错误包装保留服务业务诊断
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+      security:
+      - bearerAuth: []
+  /api/v3/dbt/builds/{buildId}/catalog:
     get:
-      summary: 读取固定发布版本的目录
-      operationId: branch_catalog_v2_projects__project_id__releases__release_id__catalog_get
+      summary: Catalog
+      operationId: catalog_v3_builds__build_id__catalog_get
       parameters:
-      - name: projectId
-        in: path
-        required: true
-        schema:
-          type: string
-          title: Project Id
-      - name: releaseId
+      - name: buildId
         in: path
         required: true
         schema:
           type: string
           format: uuid
-          title: Release Id
+          title: Build Id
       - name: q
         in: query
         required: false
@@ -1066,18 +730,18 @@ paths:
         required: false
         schema:
           anyOf:
-          - $ref: '#/components/schemas/V2ResourceKind'
+          - type: string
           - type: 'null'
           title: Kind
-      - name: page
+      - name: cursor
         in: query
         required: false
         schema:
-          type: integer
-          minimum: 1
-          default: 1
-          title: Page
-      - name: size
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Cursor
+      - name: limit
         in: query
         required: false
         schema:
@@ -1085,924 +749,1082 @@ paths:
           maximum: 200
           minimum: 1
           default: 50
-          title: Size
-      - name: branchId
-        in: path
-        required: true
-        schema:
-          type: string
-          format: uuid
+          title: Limit
       responses:
         '200':
           description: Successful Response
           content:
             application/json:
               schema:
-                allOf:
-                - $ref: '#/components/schemas/V2PublishedPage'
-                - type: object
-                  required:
-                  - branchId
-                  properties:
-                    branchId:
-                      type: string
-                      format: uuid
-                      description: 原请求固定的分支实例
+                $ref: '#/components/schemas/CatalogPage'
         '422':
-          $ref: '#/components/responses/Problem'
+          description: 平台错误包装保留服务业务诊断
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
         '401':
-          $ref: '#/components/responses/Problem'
+          description: 平台错误包装保留服务业务诊断
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '403':
+          description: 平台错误包装保留服务业务诊断
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
         '404':
-          $ref: '#/components/responses/Problem'
+          description: 平台错误包装保留服务业务诊断
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
         '409':
-          $ref: '#/components/responses/Problem'
+          description: 平台错误包装保留服务业务诊断
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
         '410':
-          $ref: '#/components/responses/Problem'
-        '502':
-          $ref: '#/components/responses/Problem'
+          description: 平台错误包装保留服务业务诊断
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
         '503':
-          $ref: '#/components/responses/Problem'
-        '400': *id002
-      description: 固定 branchId；不触发构建、发布或本地资源导入。已受理查询保持原 releaseId。旧无分支路径始终读取生产。
-  /api/v2/semantic-projects/{projectId}/branches/{branchId}/releases/{releaseId}/resources/{resourceId}:
+          description: 平台错误包装保留服务业务诊断
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+      security:
+      - bearerAuth: []
+  /api/v3/dbt/builds/{buildId}/resources/{resourceId}:
     get:
-      summary: 读取类型化资源
-      operationId: branch_resource_v2_projects__project_id__releases__release_id__resources__resource_id__get
+      summary: Resource
+      operationId: resource_v3_builds__build_id__resources__resource_id__get
       parameters:
-      - name: projectId
-        in: path
-        required: true
-        schema:
-          type: string
-          title: Project Id
-      - name: releaseId
+      - name: buildId
         in: path
         required: true
         schema:
           type: string
           format: uuid
-          title: Release Id
+          title: Build Id
       - name: resourceId
         in: path
         required: true
         schema:
           type: string
           title: Resource Id
-      - name: branchId
-        in: path
-        required: true
-        schema:
-          type: string
-          format: uuid
       responses:
         '200':
           description: Successful Response
           content:
             application/json:
               schema:
-                allOf:
-                - $ref: '#/components/schemas/V2ResourceResponse'
-                - type: object
-                  required:
-                  - branchId
-                  properties:
-                    branchId:
-                      type: string
-                      format: uuid
-                      description: 原请求固定的分支实例
+                $ref: '#/components/schemas/ResourceView'
         '422':
-          $ref: '#/components/responses/Problem'
+          description: 平台错误包装保留服务业务诊断
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
         '401':
-          $ref: '#/components/responses/Problem'
+          description: 平台错误包装保留服务业务诊断
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '403':
+          description: 平台错误包装保留服务业务诊断
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
         '404':
-          $ref: '#/components/responses/Problem'
+          description: 平台错误包装保留服务业务诊断
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
         '409':
-          $ref: '#/components/responses/Problem'
+          description: 平台错误包装保留服务业务诊断
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
         '410':
-          $ref: '#/components/responses/Problem'
-        '502':
-          $ref: '#/components/responses/Problem'
+          description: 平台错误包装保留服务业务诊断
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
         '503':
-          $ref: '#/components/responses/Problem'
-        '400': *id002
-      description: 固定 branchId；不触发构建、发布或本地资源导入。已受理查询保持原 releaseId。旧无分支路径始终读取生产。
-  /api/v2/semantic-projects/{projectId}/branches/{branchId}/releases/{releaseId}/resources/{resourceId}/lineage:
+          description: 平台错误包装保留服务业务诊断
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+      security:
+      - bearerAuth: []
+  /api/v3/dbt/builds/{buildId}/resources/{resourceId}/{view}:
     get:
-      summary: 读取资源血缘
-      operationId: branch_handler_v2_projects__project_id__releases__release_id__resources__resource_id__lineage_get
+      summary: Detail
+      operationId: detail_v3_builds__build_id__resources__resource_id___view__get
       parameters:
-      - name: projectId
-        in: path
-        required: true
-        schema:
-          type: string
-          title: Project Id
-      - name: releaseId
+      - name: buildId
         in: path
         required: true
         schema:
           type: string
           format: uuid
-          title: Release Id
+          title: Build Id
       - name: resourceId
         in: path
         required: true
         schema:
           type: string
           title: Resource Id
-      - name: branchId
+      - name: view
         in: path
         required: true
         schema:
           type: string
-          format: uuid
+          title: View
       responses:
         '200':
           description: Successful Response
           content:
             application/json:
               schema:
-                allOf:
-                - $ref: '#/components/schemas/V2LineageResponse'
-                - type: object
-                  required:
-                  - branchId
-                  properties:
-                    branchId:
-                      type: string
-                      format: uuid
-                      description: 原请求固定的分支实例
+                anyOf:
+                - $ref: '#/components/schemas/ResourceSourceView'
+                - $ref: '#/components/schemas/ResourceLineageView'
+                - $ref: '#/components/schemas/ResourceNativeView'
+                title: Response Detail V3 Builds  Build Id  Resources  Resource Id   View  Get
         '422':
-          $ref: '#/components/responses/Problem'
+          description: 平台错误包装保留服务业务诊断
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
         '401':
-          $ref: '#/components/responses/Problem'
+          description: 平台错误包装保留服务业务诊断
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '403':
+          description: 平台错误包装保留服务业务诊断
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
         '404':
-          $ref: '#/components/responses/Problem'
+          description: 平台错误包装保留服务业务诊断
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
         '409':
-          $ref: '#/components/responses/Problem'
+          description: 平台错误包装保留服务业务诊断
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
         '410':
-          $ref: '#/components/responses/Problem'
-        '502':
-          $ref: '#/components/responses/Problem'
+          description: 平台错误包装保留服务业务诊断
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
         '503':
-          $ref: '#/components/responses/Problem'
-        '400': *id002
-      description: 固定 branchId；不触发构建、发布或本地资源导入。已受理查询保持原 releaseId。旧无分支路径始终读取生产。
-  /api/v2/semantic-projects/{projectId}/branches/{branchId}/releases/{releaseId}/resources/{resourceId}/source:
+          description: 平台错误包装保留服务业务诊断
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+      security:
+      - bearerAuth: []
+  /api/v3/dbt/projects:
     get:
-      summary: 读取发布时源码
-      operationId: branch_handler_v2_projects__project_id__releases__release_id__resources__resource_id__source_get
+      summary: 读取 Agent 项目或真实分支观察
+      security:
+      - bearerAuth: []
       parameters:
-      - name: projectId
-        in: path
-        required: true
+      - name: cursor
+        in: query
         schema:
           type: string
-          title: Project Id
-      - name: releaseId
-        in: path
-        required: true
+      - name: limit
+        in: query
         schema:
-          type: string
-          format: uuid
-          title: Release Id
-      - name: resourceId
-        in: path
-        required: true
-        schema:
-          type: string
-          title: Resource Id
-      - name: branchId
-        in: path
-        required: true
-        schema:
-          type: string
-          format: uuid
+          type: integer
+          default: 50
+          minimum: 1
+          maximum: 200
       responses:
         '200':
-          description: Successful Response
+          description: 只读观察结果
           content:
             application/json:
               schema:
-                allOf:
-                - $ref: '#/components/schemas/V2SourceResponse'
-                - type: object
-                  required:
-                  - branchId
-                  properties:
-                    branchId:
-                      type: string
-                      format: uuid
-                      description: 原请求固定的分支实例
-        '422':
-          $ref: '#/components/responses/Problem'
-        '401':
-          $ref: '#/components/responses/Problem'
-        '404':
-          $ref: '#/components/responses/Problem'
-        '409':
-          $ref: '#/components/responses/Problem'
-        '410':
-          $ref: '#/components/responses/Problem'
-        '502':
-          $ref: '#/components/responses/Problem'
+                $ref: '#/components/schemas/ProjectPage'
         '503':
-          $ref: '#/components/responses/Problem'
-        '400': *id002
-      description: 固定 branchId；不触发构建、发布或本地资源导入。已受理查询保持原 releaseId。旧无分支路径始终读取生产。
-  /api/v2/semantic-projects/{projectId}/branches/{branchId}/releases/{releaseId}/resources/{resourceId}/native-details:
+          description: Agent 不可用且无已标注历史快照
+  /api/v3/dbt/projects/{agentProjectId}/branches:
     get:
-      summary: 读取原生产物追溯
-      operationId: branch_handler_v2_projects__project_id__releases__release_id__resources__resource_id__native_details_get
+      summary: 读取 Agent 项目或真实分支观察
+      security:
+      - bearerAuth: []
       parameters:
-      - name: projectId
+      - name: agentProjectId
         in: path
         required: true
         schema:
           type: string
-          title: Project Id
-      - name: releaseId
-        in: path
-        required: true
-        schema:
-          type: string
-          format: uuid
-          title: Release Id
-      - name: resourceId
-        in: path
-        required: true
-        schema:
-          type: string
-          title: Resource Id
-      - name: branchId
-        in: path
-        required: true
-        schema:
-          type: string
-          format: uuid
       responses:
         '200':
-          description: Successful Response
+          description: 只读观察结果
           content:
             application/json:
               schema:
-                allOf:
-                - $ref: '#/components/schemas/V2NativeDetailsResponse'
-                - type: object
-                  required:
-                  - branchId
-                  properties:
-                    branchId:
-                      type: string
-                      format: uuid
-                      description: 原请求固定的分支实例
-        '422':
-          $ref: '#/components/responses/Problem'
-        '401':
-          $ref: '#/components/responses/Problem'
-        '404':
-          $ref: '#/components/responses/Problem'
-        '409':
-          $ref: '#/components/responses/Problem'
-        '410':
-          $ref: '#/components/responses/Problem'
-        '502':
-          $ref: '#/components/responses/Problem'
+                $ref: '#/components/schemas/BranchList'
         '503':
-          $ref: '#/components/responses/Problem'
-        '400': *id002
-      description: 固定 branchId；不触发构建、发布或本地资源导入。已受理查询保持原 releaseId。旧无分支路径始终读取生产。
-  /api/v2/semantic-projects/{projectId}/branches/{branchId}/query-options:
-    post:
-      summary: 获取固定版本可组合选项
-      operationId: branch_options_v2_projects__project_id__query_options_post
-      parameters:
-      - name: projectId
-        in: path
-        required: true
-        schema:
-          type: string
-          title: Project Id
-      - name: branchId
-        in: path
-        required: true
-        schema:
-          type: string
-          format: uuid
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/V2QueryOptionsRequest'
-      responses:
-        '200':
-          description: Successful Response
-          content:
-            application/json:
-              schema:
-                allOf:
-                - $ref: '#/components/schemas/V2QueryOptionsResponse'
-                - type: object
-                  required:
-                  - branchId
-                  properties:
-                    branchId:
-                      type: string
-                      format: uuid
-                      description: 原请求固定的分支实例
-        '422':
-          $ref: '#/components/responses/Problem'
-        '401':
-          $ref: '#/components/responses/Problem'
-        '404':
-          $ref: '#/components/responses/Problem'
-        '409':
-          $ref: '#/components/responses/Problem'
-        '410':
-          $ref: '#/components/responses/Problem'
-        '502':
-          $ref: '#/components/responses/Problem'
-        '503':
-          $ref: '#/components/responses/Problem'
-        '400': *id002
-      description: 固定 branchId；不触发构建、发布或本地资源导入。已受理查询保持原 releaseId。旧无分支路径始终读取生产。
-  /api/v2/semantic-projects/{projectId}/branches/{branchId}/queries:
-    post:
-      summary: 按资源身份受理查询
-      operationId: branch_submit_v2_projects__project_id__queries_post
-      parameters:
-      - name: projectId
-        in: path
-        required: true
-        schema:
-          type: string
-          title: Project Id
-      - name: branchId
-        in: path
-        required: true
-        schema:
-          type: string
-          format: uuid
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/V2PublishedQueryRequest'
-      responses:
-        '202':
-          description: Successful Response
-          content:
-            application/json:
-              schema:
-                allOf:
-                - $ref: '#/components/schemas/V2QueryReceipt'
-                - type: object
-                  required:
-                  - branchId
-                  properties:
-                    branchId:
-                      type: string
-                      format: uuid
-                      description: 原请求固定的分支实例
-        '422':
-          $ref: '#/components/responses/Problem'
-        '401':
-          $ref: '#/components/responses/Problem'
-        '404':
-          $ref: '#/components/responses/Problem'
-        '409':
-          $ref: '#/components/responses/Problem'
-        '410':
-          $ref: '#/components/responses/Problem'
-        '502':
-          $ref: '#/components/responses/Problem'
-        '503':
-          $ref: '#/components/responses/Problem'
-        '400': *id002
-      description: 固定 branchId；不触发构建、发布或本地资源导入。已受理查询保持原 releaseId。旧无分支路径始终读取生产。
-  /api/v2/semantic-projects/{projectId}/branches/{branchId}/queries/{queryId}:
+          description: Agent 不可用且无已标注历史快照
+  /api/v3/dbt/contract:
     get:
-      summary: 读取已受理查询结果
-      operationId: branch_query_v2_projects__project_id__queries__query_id__get
-      parameters:
-      - name: projectId
-        in: path
-        required: true
-        schema:
-          type: string
-          title: Project Id
-      - name: queryId
-        in: path
-        required: true
-        schema:
-          type: string
-          format: uuid
-          title: Query Id
-      - name: branchId
-        in: path
-        required: true
-        schema:
-          type: string
-          format: uuid
+      summary: 当前 BFF 协议和契约
+      security: []
       responses:
         '200':
-          description: Successful Response
+          description: 协议元数据
           content:
             application/json:
               schema:
-                allOf:
-                - $ref: '#/components/schemas/V2QueryResult'
-                - type: object
-                  required:
-                  - branchId
-                  properties:
-                    branchId:
-                      type: string
-                      format: uuid
-                      description: 原请求固定的分支实例
-        '422':
-          $ref: '#/components/responses/Problem'
-        '401':
-          $ref: '#/components/responses/Problem'
-        '404':
-          $ref: '#/components/responses/Problem'
-        '409':
-          $ref: '#/components/responses/Problem'
-        '410':
-          $ref: '#/components/responses/Problem'
-        '502':
-          $ref: '#/components/responses/Problem'
-        '503':
-          $ref: '#/components/responses/Problem'
-        '400': *id002
-      description: 固定 branchId；不触发构建、发布或本地资源导入。已受理查询保持原 releaseId。旧无分支路径始终读取生产。
-  /api/v2/semantic-projects/{projectId}/branches/{branchId}/releases/{releaseId}/diff:
-    get:
-      operationId: getPublishedBranchDiff
-      summary: 读取服务固定分支上下文
-      parameters:
-      - *id001
-      - *id010
-      - name: releaseId
-        in: path
-        required: true
-        schema:
-          type: string
-          format: uuid
-      responses:
-        '200':
-          description: 服务返回的分支资源
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/V2BranchDiff'
-        '400': *id002
-        '401': *id003
-        '404': *id004
-        '409': *id005
-        '410': *id006
-        '422': *id007
-        '502': *id008
-        '503': *id009
+                type: object
+                required:
+                - protocolVersion
+                - paths
+                - components
+                properties:
+                  protocolVersion:
+                    const: build-deployment-v3
+                  paths:
+                    type: object
+                  components:
+                    type: object
 components:
-  securitySchemes:
-    bearerAuth: { type: http, scheme: bearer }
-    gitWebhookHmac:
-      type: apiKey
-      in: header
-      name: X-Git-Signature
-      description: 使用共享部署密钥签名原始请求体，格式 sha256=<HMAC-SHA256 十六进制摘要>
-  responses:
-    Problem:
-      description: Problem Details
-      content:
-        application/problem+json:
-          schema: { $ref: '#/components/schemas/Problem' }
   schemas:
-    V2Branch:
-      type: object
-      description: 由 dbt-service 登记的独立分支实例；同 ref 重建时 ID 变化。
-      required:
-      - projectId
-      - branchId
-      - gitRef
-      - mode
-      - status
-      - version
-      - baseCommitSha
-      - baseReleaseId
-      - observedHeadSha
-      - activeReleaseId
-      - latestReleaseId
-      - mergeRequestUrl
+    BindingMode:
+      type: string
+      enum:
+      - BUILT
+      - REUSED
+      - EXTERNAL
+      title: BindingMode
+    BuildStatus:
+      type: string
+      enum:
+      - QUEUED
+      - RUNNING
+      - SUCCEEDED
+      - FAILED
+      - CANCELLED
+      - OUTCOME_UNKNOWN
+      title: BuildStatus
+    BuildView:
       properties:
-        projectId:
-          type: string
-        branchId:
+        buildId:
           type: string
           format: uuid
-        gitRef:
+          title: Buildid
+          description: 一次构建身份，与提交 SHA 无关
+        repository:
           type: string
-        mode:
+          title: Repository
+          description: 规范仓库地址
+        branchName:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Branchname
+          description: 请求来源分支
+        requestedCommitSha:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Requestedcommitsha
+          description: 受理时显式指定的 SHA
+        commitSha:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Commitsha
+          description: 首次解析后固定的实际 SHA
+        environment:
+          $ref: '#/components/schemas/Environment'
+          description: 执行环境
+        executionBinding:
           type: string
-          enum:
-          - PRODUCTION
-          - PREVIEW
-        status:
+          title: Executionbinding
+          description: 执行配置引用
+        configVersion:
           type: string
-          enum:
-          - PROVISIONING
-          - ACTIVE
-          - DELETING
-          - DELETED
-          - FAILED
+          title: Configversion
+          description: 固定配置版本
+        toolchainVersion:
+          type: string
+          title: Toolchainversion
+          description: 固定工具链版本
+        buildStatus:
+          $ref: '#/components/schemas/BuildStatus'
+          description: 构建状态，不代表部署状态
+        phase:
+          type: string
+          title: Phase
+          description: 当前执行阶段
+        createdAt:
+          type: string
+          format: date-time
+          title: Createdat
+          description: 受理时间
+        updatedAt:
+          type: string
+          format: date-time
+          title: Updatedat
+          description: 最近事实更新时间
+        finishedAt:
+          anyOf:
+          - type: string
+            format: date-time
+          - type: 'null'
+          title: Finishedat
+          description: 终态时间
+        cancelRequested:
+          type: boolean
+          title: Cancelrequested
+          description: 是否已请求取消
+          default: false
+        catalogAvailable:
+          type: boolean
+          title: Catalogavailable
+          description: 完整封存目录是否可读
+          default: false
+        queryAvailable:
+          type: boolean
+          title: Queryavailable
+          description: 是否可受理新的查询
+          default: false
+        queryUnavailableReason:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Queryunavailablereason
+          description: 不可查询原因
+        error:
+          anyOf:
+          - $ref: '#/components/schemas/ErrorView'
+          - type: 'null'
+          description: 脱敏错误摘要
+        initialDeployment:
+          anyOf:
+          - additionalProperties: true
+            type: object
+          - type: 'null'
+          title: Initialdeployment
+          description: 受理时附带的部署意图
+      additionalProperties: false
+      type: object
+      required:
+      - buildId
+      - repository
+      - branchName
+      - requestedCommitSha
+      - commitSha
+      - environment
+      - executionBinding
+      - configVersion
+      - toolchainVersion
+      - buildStatus
+      - phase
+      - createdAt
+      - updatedAt
+      title: BuildView
+    CatalogPage:
+      properties:
+        items:
+          items:
+            oneOf:
+            - $ref: '#/components/schemas/MetricResource'
+            - $ref: '#/components/schemas/DimensionResource'
+            - $ref: '#/components/schemas/DatasetResource'
+            - $ref: '#/components/schemas/PhysicalResource'
+            discriminator:
+              propertyName: kind
+              mapping:
+                DIMENSION: '#/components/schemas/DimensionResource'
+                METRIC: '#/components/schemas/MetricResource'
+                SEMANTIC_MODEL: '#/components/schemas/DatasetResource'
+                TABLE: '#/components/schemas/PhysicalResource'
+                VIEW: '#/components/schemas/PhysicalResource'
+          type: array
+          title: Items
+          description: 本页有界结果
+        nextCursor:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Nextcursor
+          description: 绑定筛选条件的后续游标
+        buildId:
+          type: string
+          format: uuid
+          title: Buildid
+          description: 本页资源所属构建
+      additionalProperties: false
+      type: object
+      required:
+      - items
+      - buildId
+      title: CatalogPage
+    CatalogRelation:
+      properties:
+        upstreamResourceId:
+          type: string
+          title: Upstreamresourceid
+        downstreamResourceId:
+          type: string
+          title: Downstreamresourceid
+        kind:
+          type: string
+          title: Kind
+      additionalProperties: false
+      type: object
+      required:
+      - upstreamResourceId
+      - downstreamResourceId
+      - kind
+      title: CatalogRelation
+    DatasetAttributes:
+      properties:
+        modelResourceId:
+          type: string
+          title: Modelresourceid
+        dimensionIds:
+          items:
+            type: string
+          type: array
+          title: Dimensionids
+        entities:
+          items:
+            additionalProperties: true
+            type: object
+          type: array
+          title: Entities
+        measures:
+          items:
+            additionalProperties: true
+            type: object
+          type: array
+          title: Measures
+        defaultTimeDimension:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Defaulttimedimension
+      additionalProperties: false
+      type: object
+      required:
+      - modelResourceId
+      - dimensionIds
+      - entities
+      - measures
+      title: DatasetAttributes
+    DatasetResource:
+      properties:
+        resourceId:
+          type: string
+          title: Resourceid
+        nativeId:
+          type: string
+          title: Nativeid
+        name:
+          type: string
+          title: Name
+        displayName:
+          type: string
+          title: Displayname
+        description:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Description
+        sourcePath:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Sourcepath
+        capabilities:
+          items:
+            type: string
+          type: array
+          title: Capabilities
+        nativeDetails:
+          additionalProperties: true
+          type: object
+          title: Nativedetails
+        kind:
+          type: string
+          const: SEMANTIC_MODEL
+          title: Kind
+          default: SEMANTIC_MODEL
+        attributes:
+          $ref: '#/components/schemas/DatasetAttributes'
+      additionalProperties: false
+      type: object
+      required:
+      - resourceId
+      - nativeId
+      - name
+      - displayName
+      - capabilities
+      - nativeDetails
+      - attributes
+      title: DatasetResource
+    DeploymentAttemptView:
+      properties:
+        repository:
+          type: string
+          title: Repository
+          description: 规范仓库地址
+        environment:
+          $ref: '#/components/schemas/Environment'
+          description: 物理执行环境
+        branchName:
+          type: string
+          title: Branchname
+          description: 目标分支短名
+        generation:
+          type: integer
+          minimum: 1.0
+          title: Generation
+          description: 受理顺序，不按完成时间分配
+        buildId:
+          type: string
+          format: uuid
+          title: Buildid
+          description: 该意图请求的构建
+        deploymentStatus:
+          $ref: '#/components/schemas/DeploymentStatus'
+          description: 独立于构建的部署状态
+        reason:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Reason
+          description: 未部署或过期原因
+        createdAt:
+          type: string
+          format: date-time
+          title: Createdat
+          description: 意图受理时间
+        deployedAt:
+          anyOf:
+          - type: string
+            format: date-time
+          - type: 'null'
+          title: Deployedat
+          description: 实际切换时间
+      additionalProperties: false
+      type: object
+      required:
+      - repository
+      - environment
+      - branchName
+      - generation
+      - buildId
+      - deploymentStatus
+      - createdAt
+      title: DeploymentAttemptView
+    DeploymentStatus:
+      type: string
+      enum:
+      - WAITING_FOR_BUILD
+      - PENDING
+      - CHECKING
+      - DEPLOYED
+      - STALE
+      - FAILED
+      - CANCELLED
+      title: DeploymentStatus
+    DeploymentTargetView:
+      properties:
+        repository:
+          type: string
+          title: Repository
+          description: 规范仓库地址
+        environment:
+          $ref: '#/components/schemas/Environment'
+          description: 物理执行环境
+        branchName:
+          type: string
+          title: Branchname
+          description: 目标分支短名
         version:
           type: integer
-          minimum: 1
-        baseCommitSha:
-          type:
-          - string
-          - 'null'
-        baseReleaseId:
-          type:
-          - string
-          - 'null'
+          title: Version
+          description: 目标乐观锁版本
+          default: 0
+        desiredGeneration:
+          type: integer
+          title: Desiredgeneration
+          description: 最新受理意图序号
+          default: 0
+        activeBuildId:
+          anyOf:
+          - type: string
+            format: uuid
+          - type: 'null'
+          title: Activebuildid
+          description: 当前实际生效构建
+        activeCommitSha:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Activecommitsha
+          description: 当前实际生效提交
+        latestAttempt:
+          anyOf:
+          - $ref: '#/components/schemas/DeploymentAttemptView'
+          - type: 'null'
+          description: 最新部署意图
         observedHeadSha:
-          type:
-          - string
-          - 'null'
-        activeReleaseId:
-          type:
-          - string
-          - 'null'
-        latestReleaseId:
-          type:
-          - string
-          - 'null'
-        mergeRequestUrl:
-          type:
-          - string
-          - 'null'
-    V2BranchDiff:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Observedheadsha
+          description: 最近观察远端 head
+        headObservedAt:
+          anyOf:
+          - type: string
+            format: date-time
+          - type: 'null'
+          title: Headobservedat
+          description: 远端观察时间
+        sourceState:
+          type: string
+          title: Sourcestate
+          description: 远端观察结果，不替代部署终态
+          default: UNDEPLOYED
+      additionalProperties: false
       type: object
       required:
-      - branchId
-      - releaseId
-      - baseCommitSha
-      - targetCommitSha
-      - productionAdvanced
-      - resourceBaselineAvailable
-      - files
-      - resources
-      - truncated
+      - repository
+      - environment
+      - branchName
+      title: DeploymentTargetView
+    DimensionAttributes:
       properties:
-        branchId:
+        datasetId:
           type: string
-          format: uuid
-        releaseId:
+          title: Datasetid
+        dimensionType:
           type: string
-          format: uuid
-        baseCommitSha:
-          type:
-          - string
-          - 'null'
-        targetCommitSha:
+          title: Dimensiontype
+        expression:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Expression
+        timeGranularity:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Timegranularity
+      additionalProperties: false
+      type: object
+      required:
+      - datasetId
+      - dimensionType
+      title: DimensionAttributes
+    DimensionResource:
+      properties:
+        resourceId:
           type: string
-        productionAdvanced:
-          type: boolean
-        resourceBaselineAvailable:
-          type: boolean
-        truncated:
-          type: boolean
-        files:
-          type: array
+          title: Resourceid
+        nativeId:
+          type: string
+          title: Nativeid
+        name:
+          type: string
+          title: Name
+        displayName:
+          type: string
+          title: Displayname
+        description:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Description
+        sourcePath:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Sourcepath
+        capabilities:
           items:
-            type: object
-            required:
-            - path
-            - status
-            - diff
-            properties:
-              path:
-                type: string
-              status:
-                type: string
-              diff:
-                type: string
-        resources:
+            type: string
           type: array
-          items:
-            type: object
-            required:
-            - nativeId
-            - kind
-            - status
-            properties:
-              nativeId:
-                type: string
-              kind:
-                type: string
-              status:
-                type: string
-    DbtResourcePresentation:
-      type: object
-      required: [releaseId, resourceId, kind, title, sections, nativeDetails, queryable]
-      properties:
-        releaseId: { $ref: '#/components/schemas/Uuid' }
-        resourceId: { type: string }
-        kind: { type: string }
-        title: { type: string }
-        sections:
-          type: array
-          items:
-            type: object
-            required: [title, fields]
-            properties:
-              title: { type: string }
-              fields: { type: object, additionalProperties: true }
-        nativeDetails: { type: object, additionalProperties: true }
-        queryable: { type: boolean }
-    DbtSourceDocument:
-      type: object
-      required: [releaseId, buildSourceSha, sourcePath, content]
-      properties:
-        releaseId: { $ref: '#/components/schemas/Uuid' }
-        buildSourceSha: { type: string }
-        sourcePath: { type: string }
-        content: { type: string }
-    DbtTypedQuery:
-      type: object
-      additionalProperties: false
-      required: [releaseId, metrics]
-      properties:
-        releaseId: { $ref: '#/components/schemas/Uuid' }
-        metrics: { type: array, minItems: 1, items: { type: string } }
-        groupBy: { type: array, items: { type: string } }
-        filters:
-          type: array
-          items:
-            type: object
-            additionalProperties: false
-            required: [field, operator, value]
-            properties:
-              field: { type: string }
-              operator: { type: string }
-              value: {}
-        limit: { type: integer, minimum: 1, maximum: 10000 }
-        startTime: { type: string, format: date-time, description: 带时区的开始时刻；平台转换为 Asia/Shanghai 业务日历时间后交给引擎，并按查询时间粒度对齐。 }
-        endTime: { type: string, format: date-time, description: 带时区的结束时刻；平台转换为 Asia/Shanghai 业务日历时间后交给引擎。按天查询包含结束日期。 }
-        orderBy: { type: array, items: { type: string } }
-    DbtDimensionValuesRequest:
-      type: object
-      additionalProperties: false
-      required: [releaseId, metrics, dimension]
-      properties:
-        releaseId: { $ref: '#/components/schemas/Uuid' }
-        metrics: { type: array, minItems: 1, items: { type: string } }
-        dimension: { type: string }
-        filters: { $ref: '#/components/schemas/DbtTypedQuery/properties/filters' }
-        limit: { type: integer, minimum: 1, maximum: 10000 }
-    DbtQueryOptions:
-      type: object
-      required: [releaseId, metrics, dimensions, timeDimensions, allowedFilters]
-      properties:
-        releaseId: { $ref: '#/components/schemas/Uuid' }
-        metrics: { type: array, items: { type: object, properties: { name: { type: string } } } }
-        dimensions: { type: array, items: { type: object, properties: { token: { type: string }, name: { type: string }, type: { type: string } } } }
-        timeDimensions: { type: array, items: { type: object, properties: { token: { type: string }, granularity: { type: string } } } }
-        allowedFilters: { type: array, items: { type: string } }
-    DbtPreviewRequest:
-      type: object
-      additionalProperties: false
-      required: [releaseId]
-      properties:
-        releaseId: { $ref: '#/components/schemas/Uuid' }
-        limit: { type: integer, minimum: 1, maximum: 10000 }
-    DbtQuerySubmission:
-      type: object
-      required: [queryId, releaseId, status]
-      properties:
-        queryId: { $ref: '#/components/schemas/Uuid' }
-        releaseId: { $ref: '#/components/schemas/Uuid' }
-        status: { type: string, enum: [PENDING] }
-    DbtQueryStatus:
-      type: object
-      required: [queryId, releaseId, targetCommitSha, mode, status]
-      properties:
-        queryId: { $ref: '#/components/schemas/Uuid' }
-        releaseId: { $ref: '#/components/schemas/Uuid' }
-        targetCommitSha: { type: string }
-        mode: { type: string, enum: [QUERY, EXPLAIN, PREVIEW, DIMENSION_VALUES] }
-        status: { type: string, enum: [PENDING, RUNNING, COMPLETED, FAILED, CANCELLED] }
-        columns: { type: [array, 'null'], items: { type: object } }
-        rows: { type: [array, 'null'], items: { type: array } }
-        errorCode: { type: [string, 'null'] }
-        truncated: { type: [boolean, 'null'] }
-        durationMs: { type: [integer, 'null'], format: int64 }
-        sql:
-          type: [string, 'null']
-          description: EXPLAIN 模式完成后生成的 SQL；仅用于查看查询逻辑，不表示已经执行取数。其他模式或未完成时可为空。
-    DbtProjectSummary:
-      type: object
-      required: [projectId]
-      properties:
-        projectId: { type: string }
-        observedSha: { type: [string, 'null'] }
-        activeReleaseId: { anyOf: [{ $ref: '#/components/schemas/Uuid' }, { type: 'null' }] }
-        lastObservationStatus: { type: [string, 'null'] }
-        lastObservedAt: { type: [string, 'null'], format: date-time, description: 最近一次完成远端观测的时间，用于区别新刷新结果与历史状态 }
-    DbtReleaseSummary:
-      type: object
-      required: [releaseId, projectId, targetCommitSha, buildSourceSha, projectDigest, state, cleanupState, createdAt]
-      properties:
-        releaseId: { $ref: '#/components/schemas/Uuid' }
-        projectId: { type: string }
-        targetCommitSha: { type: string }
-        buildSourceSha: { type: string }
-        projectDigest: { type: string }
-        state: { type: string, enum: [PREPARING, BUILDING, VALIDATING, READY, PUBLISHED, FAILED, SUPERSEDED] }
-        cleanupState: { type: string, enum: [PENDING, CLEANING, CLEANED] }
-        schemaName: { type: [string, 'null'] }
-        errorCode: { type: [string, 'null'] }
-        createdAt: { type: string, format: date-time }
-        publishedAt: { type: [string, 'null'], format: date-time }
-    DbtCatalogPage:
-      type: object
-      required: [releaseId, page, size, total, resources]
-      properties:
-        releaseId: { $ref: '#/components/schemas/Uuid' }
-        page: { type: integer, minimum: 0 }
-        size: { type: integer, minimum: 1, maximum: 100 }
-        total: { type: integer, minimum: 0 }
-        resources: { type: array, items: { $ref: '#/components/schemas/DbtResource' } }
-    DbtResource:
-      type: object
-      required: [resourceId, nativeId, kind, name, definitionJson, queryable]
-      properties:
-        resourceId: { type: string }
-        nativeId: { type: string }
-        kind: { type: string }
-        name: { type: string }
-        description: { type: [string, 'null'] }
-        sourcePath: { type: [string, 'null'] }
-        definitionJson: { type: string, description: 原生定义 JSON 文本的只读投影 }
-        queryable: { type: boolean }
-    DbtLineage:
-      type: object
-      required: [releaseId, resourceId, dependencies]
-      properties:
-        releaseId: { $ref: '#/components/schemas/Uuid' }
-        resourceId: { type: string }
-        dependencies: { type: array, items: { $ref: '#/components/schemas/DbtDependency' } }
-    DbtDependency:
-      type: object
-      required: [upstreamResourceId, downstreamResourceId, kind]
-      properties:
-        upstreamResourceId: { type: string }
-        downstreamResourceId: { type: string }
-        kind: { type: string }
-    ForgejoPushEvent:
-      type: object
-      description: Forgejo 原生 Push 载荷；额外字段允许但不参与构建参数。
-      required: [ref, before, after, repository]
-      properties:
-        ref: { type: string, minLength: 1, description: 完整 Git 引用，仅 refs/heads/main 触发 }
-        before: { type: string, pattern: '^[0-9a-f]{40}$', description: 更新前的提交 SHA }
-        after: { type: string, pattern: '^[0-9a-f]{40}$', description: 更新后的提交 SHA，全零表示删除分支 }
-        repository:
+          title: Capabilities
+        nativeDetails:
+          additionalProperties: true
           type: object
-          required: [full_name]
-          properties:
-            full_name: { type: string, description: 部署配置中的 owner/repository 全名 }
-    GitSyncEvent:
-      type: object
+          title: Nativedetails
+        kind:
+          type: string
+          const: DIMENSION
+          title: Kind
+          default: DIMENSION
+        attributes:
+          $ref: '#/components/schemas/DimensionAttributes'
       additionalProperties: false
-      required: [protocolVersion, repositoryId, ref]
-      properties:
-        protocolVersion: { type: integer, const: 1 }
-        eventId: { type: [string, 'null'], description: 可选追踪标识；幂等由实际 Git SHA 和数据库检查点保证 }
-        repositoryId: { type: string, minLength: 1, description: 必须与部署配置相同 }
-        ref: { type: string, minLength: 1, example: refs/heads/main }
-        before: { type: [string, 'null'], description: 仅供事件追踪，不参与快照选择 }
-        after: { type: [string, 'null'], description: 仅供事件追踪，不参与快照选择 }
-    Uuid: { type: string, format: uuid }
-    AuthTokenRequest:
       type: object
-      required: [username, password]
+      required:
+      - resourceId
+      - nativeId
+      - name
+      - displayName
+      - capabilities
+      - nativeDetails
+      - attributes
+      title: DimensionResource
+    Environment:
+      type: string
+      enum:
+      - PREVIEW
+      - PRODUCTION
+      title: Environment
+    ErrorView:
       properties:
-        username: { type: string }
-        password: { type: string, format: password, writeOnly: true, maxLength: 1024 }
-    IdentitySummary:
+        code:
+          type: string
+          title: Code
+          description: 稳定错误码
+        message:
+          type: string
+          title: Message
+          description: 不含凭据或本地路径的诊断
+        retryable:
+          type: boolean
+          title: Retryable
+          description: 能否以同请求重试
+          default: false
+        phase:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Phase
+          description: 失败执行阶段
+        buildId:
+          anyOf:
+          - type: string
+            format: uuid
+          - type: 'null'
+          title: Buildid
+          description: 已有构建身份
+      additionalProperties: false
       type: object
-      required: [identityId, subject, displayName, authVersion]
-      properties:
-        identityId: { $ref: '#/components/schemas/Uuid' }
-        subject: { type: string }
-        displayName: { type: string }
-        authVersion: { type: integer, format: int64, minimum: 0 }
-    AuthTokenResponse:
-      type: object
-      required: [accessToken, tokenType, expiresIn, identity]
-      properties:
-        accessToken: { type: string, writeOnly: true }
-        tokenType: { type: string, enum: [Bearer] }
-        expiresIn: { type: integer, format: int64, example: 36000 }
-        identity: { $ref: '#/components/schemas/IdentitySummary' }
-    Problem:
-      {
-        type: object,
-        required: [type, title, status, detail],
-        properties:
-          {
-            type: { type: string, format: uri },
-            title: { type: string },
-            status: { type: integer },
-            detail: { type: string },
-          },
-      }
-
-    V2HTTPValidationError:
+      required:
+      - code
+      - message
+      title: ErrorView
+    HTTPValidationError:
       properties:
         detail:
           items:
-            $ref: '#/components/schemas/V2ValidationError'
+            $ref: '#/components/schemas/ValidationError'
           type: array
           title: Detail
       type: object
       title: HTTPValidationError
-    V2PublishedQueryRequest:
+    MetricAttributes:
       properties:
-        releaseId:
+        metricType:
           type: string
-          format: uuid
-          title: Releaseid
+          title: Metrictype
+        definitionSummary:
+          type: string
+          title: Definitionsummary
+        inputMetricIds:
+          items:
+            type: string
+          type: array
+          title: Inputmetricids
+        datasetIds:
+          items:
+            type: string
+          type: array
+          title: Datasetids
+        filters:
+          anyOf:
+          - additionalProperties: true
+            type: object
+          - type: 'null'
+          title: Filters
+        timeConfig:
+          additionalProperties: true
+          type: object
+          title: Timeconfig
+      additionalProperties: false
+      type: object
+      required:
+      - metricType
+      - definitionSummary
+      - inputMetricIds
+      - datasetIds
+      - timeConfig
+      title: MetricAttributes
+    MetricResource:
+      properties:
+        resourceId:
+          type: string
+          title: Resourceid
+        nativeId:
+          type: string
+          title: Nativeid
+        name:
+          type: string
+          title: Name
+        displayName:
+          type: string
+          title: Displayname
+        description:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Description
+        sourcePath:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Sourcepath
+        capabilities:
+          items:
+            type: string
+          type: array
+          title: Capabilities
+        nativeDetails:
+          additionalProperties: true
+          type: object
+          title: Nativedetails
+        kind:
+          type: string
+          const: METRIC
+          title: Kind
+          default: METRIC
+        attributes:
+          $ref: '#/components/schemas/MetricAttributes'
+      additionalProperties: false
+      type: object
+      required:
+      - resourceId
+      - nativeId
+      - name
+      - displayName
+      - capabilities
+      - nativeDetails
+      - attributes
+      title: MetricResource
+    OptionsRequest:
+      properties:
         idempotencyKey:
           type: string
           maxLength: 256
           minLength: 1
           title: Idempotencykey
-        mode:
-          $ref: '#/components/schemas/V2QueryMode'
+          description: 异步选项请求键
+        metricResourceIds:
+          items:
+            type: string
+          type: array
+          maxItems: 100
+          minItems: 1
+          title: Metricresourceids
+          description: 指标资源集合
+      additionalProperties: false
+      type: object
+      required:
+      - idempotencyKey
+      - metricResourceIds
+      title: OptionsRequest
+    OptionsTaskView:
+      properties:
+        optionsTaskId:
+          type: string
+          format: uuid
+          title: Optionstaskid
+          description: 持久选项任务身份
+        buildId:
+          type: string
+          format: uuid
+          title: Buildid
+          description: 固定构建身份
+        state:
+          $ref: '#/components/schemas/BuildStatus'
+          description: 异步执行状态
         metricResourceIds:
           items:
             type: string
           type: array
           title: Metricresourceids
-        groupBy:
-          items:
-            $ref: '#/components/schemas/V2SelectedDimension'
-          type: array
-          title: Groupby
-        filters:
-          items:
-            $ref: '#/components/schemas/V2SelectedFilter'
-          type: array
-          title: Filters
-        startTime:
-          description: 带时区的开始时刻；平台转换为 Asia/Shanghai 业务日历时间后交给引擎，并按查询时间粒度对齐。
+          description: 规范化指标集合
+        options:
           anyOf:
-          - type: string
-            format: date-time
+          - items:
+              additionalProperties: true
+              type: object
+            type: array
           - type: 'null'
-          title: Starttime
-        endTime:
-          description: 带时区的结束时刻；平台转换为 Asia/Shanghai 业务日历时间后交给引擎。按天查询包含结束日期。
+          title: Options
+          description: 成功后生成的合法选项
+        error:
           anyOf:
-          - type: string
-            format: date-time
+          - $ref: '#/components/schemas/ErrorView'
           - type: 'null'
-          title: Endtime
-        orderBy:
-          items:
-            $ref: '#/components/schemas/V2SelectedOrder'
-          type: array
-          title: Orderby
-        limit:
-          type: integer
-          maximum: 10000.0
-          minimum: 1.0
-          title: Limit
-          default: 1000
-        datasetResourceId:
-          anyOf:
-          - type: string
-          - type: 'null'
-          title: Datasetresourceid
-        dimensionOptionId:
-          anyOf:
-          - type: string
-          - type: 'null'
-          title: Dimensionoptionid
+          description: 稳定错误
       additionalProperties: false
       type: object
       required:
-      - releaseId
-      - idempotencyKey
-      - mode
-      title: PublishedQueryRequest
-    V2QueryMode:
+      - optionsTaskId
+      - buildId
+      - state
+      - metricResourceIds
+      title: OptionsTaskView
+    Page_BuildView_:
+      properties:
+        items:
+          items:
+            $ref: '#/components/schemas/BuildView'
+          type: array
+          title: Items
+          description: 本页有界结果
+        nextCursor:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Nextcursor
+          description: 绑定筛选条件的后续游标
+        source:
+          type:
+          - string
+          - 'null'
+          description: 历史投影来源
+        syncedAt:
+          type:
+          - string
+          - 'null'
+          description: 平台同步时间
+      additionalProperties: false
+      type: object
+      required:
+      - items
+      title: Page[BuildView]
+    Page_DeploymentAttemptView_:
+      properties:
+        items:
+          items:
+            $ref: '#/components/schemas/DeploymentAttemptView'
+          type: array
+          title: Items
+          description: 本页有界结果
+        nextCursor:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Nextcursor
+          description: 绑定筛选条件的后续游标
+      additionalProperties: false
+      type: object
+      required:
+      - items
+      title: Page[DeploymentAttemptView]
+    PhysicalAttributes:
+      properties:
+        origin:
+          $ref: '#/components/schemas/BindingMode'
+        relation:
+          $ref: '#/components/schemas/RelationName'
+        columns:
+          additionalProperties:
+            additionalProperties: true
+            type: object
+          type: object
+          title: Columns
+      additionalProperties: false
+      type: object
+      required:
+      - origin
+      - relation
+      - columns
+      title: PhysicalAttributes
+    PhysicalResource:
+      properties:
+        resourceId:
+          type: string
+          title: Resourceid
+        nativeId:
+          type: string
+          title: Nativeid
+        name:
+          type: string
+          title: Name
+        displayName:
+          type: string
+          title: Displayname
+        description:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Description
+        sourcePath:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Sourcepath
+        capabilities:
+          items:
+            type: string
+          type: array
+          title: Capabilities
+        nativeDetails:
+          additionalProperties: true
+          type: object
+          title: Nativedetails
+        kind:
+          type: string
+          enum:
+          - TABLE
+          - VIEW
+          title: Kind
+        attributes:
+          $ref: '#/components/schemas/PhysicalAttributes'
+      additionalProperties: false
+      type: object
+      required:
+      - resourceId
+      - nativeId
+      - name
+      - displayName
+      - capabilities
+      - nativeDetails
+      - kind
+      - attributes
+      title: PhysicalResource
+    QueryMode:
       type: string
       enum:
       - QUERY
@@ -2010,26 +1832,168 @@ components:
       - PREVIEW
       - DIMENSION_VALUES
       title: QueryMode
-      description: MetricFlow 平台查询模式。
-    V2QueryOptionsRequest:
+    QueryRequest:
       properties:
-        releaseId:
+        idempotencyKey:
           type: string
-          format: uuid
-          title: Releaseid
+          maxLength: 256
+          minLength: 1
+          title: Idempotencykey
+          description: 本次查询的幂等键
+        mode:
+          $ref: '#/components/schemas/QueryMode'
+          description: 受控的引擎查询模式
         metricResourceIds:
           items:
             type: string
           type: array
-          minItems: 1
+          maxItems: 100
           title: Metricresourceids
+          description: 指标资源集合
+        groupBy:
+          items:
+            $ref: '#/components/schemas/SelectedDimension'
+          type: array
+          maxItems: 100
+          title: Groupby
+          description: 有序分组
+        filters:
+          items:
+            $ref: '#/components/schemas/SelectedFilter'
+          type: array
+          maxItems: 100
+          title: Filters
+          description: 类型化过滤条件
+        startTime:
+          anyOf:
+          - type: string
+            format: date-time
+          - type: 'null'
+          title: Starttime
+          description: 起点，按构建业务时区解释
+        endTime:
+          anyOf:
+          - type: string
+            format: date-time
+          - type: 'null'
+          title: Endtime
+          description: 终点，按构建业务时区解释
+        orderBy:
+          items:
+            $ref: '#/components/schemas/SelectedOrder'
+          type: array
+          maxItems: 100
+          title: Orderby
+          description: 有序排序条件
+        limit:
+          type: integer
+          maximum: 10000.0
+          minimum: 1.0
+          title: Limit
+          description: 最多保存的结果行数
+          default: 1000
+        datasetResourceId:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Datasetresourceid
+          description: PREVIEW 的数据集身份
+        dimensionOptionId:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Dimensionoptionid
+          description: DIMENSION_VALUES 的维度选项
       additionalProperties: false
       type: object
       required:
-      - releaseId
-      - metricResourceIds
-      title: QueryOptionsRequest
-    V2ResourceKind:
+      - idempotencyKey
+      - mode
+      title: QueryRequest
+    QueryView:
+      properties:
+        queryId:
+          type: string
+          format: uuid
+          title: Queryid
+          description: 持久查询身份
+        buildId:
+          type: string
+          format: uuid
+          title: Buildid
+          description: 固定构建身份
+        state:
+          $ref: '#/components/schemas/BuildStatus'
+          description: 执行状态
+        mode:
+          $ref: '#/components/schemas/QueryMode'
+          description: 查询模式
+        commitSha:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Commitsha
+          description: 固定源码版本
+        businessTimezone:
+          type: string
+          title: Businesstimezone
+          description: 构建固定的业务时区
+        normalizedTimeRange:
+          additionalProperties:
+            anyOf:
+            - type: string
+            - type: 'null'
+          type: object
+          title: Normalizedtimerange
+          description: 归一化时间输入
+        boundaryPolicy:
+          type: string
+          title: Boundarypolicy
+          description: 引擎粒度边界策略
+          default: metricflow_granularity_alignment
+        resultAvailable:
+          type: boolean
+          title: Resultavailable
+          description: 结果字节是否可读
+          default: false
+        error:
+          anyOf:
+          - $ref: '#/components/schemas/ErrorView'
+          - type: 'null'
+          description: 稳定错误
+      additionalProperties: false
+      type: object
+      required:
+      - queryId
+      - buildId
+      - state
+      - mode
+      - commitSha
+      - businessTimezone
+      - normalizedTimeRange
+      title: QueryView
+    RelationName:
+      properties:
+        database:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Database
+        schema:
+          type: string
+          minLength: 1
+          title: Schema
+        identifier:
+          type: string
+          minLength: 1
+          title: Identifier
+      additionalProperties: false
+      type: object
+      required:
+      - schema
+      - identifier
+      title: RelationName
+    ResourceKind:
       type: string
       enum:
       - METRIC
@@ -2038,31 +2002,283 @@ components:
       - TABLE
       - VIEW
       title: ResourceKind
-    V2SelectedDimension:
+    ResourceLineageView:
+      properties:
+        buildId:
+          type: string
+          format: uuid
+          title: Buildid
+          description: 血缘所属构建
+        resourceId:
+          type: string
+          title: Resourceid
+          description: 资源身份
+        dependencies:
+          items:
+            $ref: '#/components/schemas/CatalogRelation'
+          type: array
+          title: Dependencies
+          description: 同一构建的上下游关系
+      additionalProperties: false
+      type: object
+      required:
+      - buildId
+      - resourceId
+      - dependencies
+      title: ResourceLineageView
+    ResourceNativeView:
+      properties:
+        buildId:
+          type: string
+          format: uuid
+          title: Buildid
+          description: 原生详情所属构建
+        resourceId:
+          type: string
+          title: Resourceid
+          description: 资源身份
+        nativeDetails:
+          additionalProperties: true
+          type: object
+          title: Nativedetails
+          description: 原生引擎定义
+      additionalProperties: false
+      type: object
+      required:
+      - buildId
+      - resourceId
+      - nativeDetails
+      title: ResourceNativeView
+    ResourceSourceView:
+      properties:
+        buildId:
+          type: string
+          format: uuid
+          title: Buildid
+          description: 源码所属构建
+        resourceId:
+          type: string
+          title: Resourceid
+          description: 资源身份
+        path:
+          type: string
+          title: Path
+          description: 工程内相对路径
+        content:
+          type: string
+          title: Content
+          description: 封存源码正文
+      additionalProperties: false
+      type: object
+      required:
+      - buildId
+      - resourceId
+      - path
+      - content
+      title: ResourceSourceView
+    ResourceView:
+      properties:
+        resourceId:
+          type: string
+          title: Resourceid
+        nativeId:
+          type: string
+          title: Nativeid
+        name:
+          type: string
+          title: Name
+        displayName:
+          type: string
+          title: Displayname
+        description:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Description
+        sourcePath:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Sourcepath
+        capabilities:
+          items:
+            type: string
+          type: array
+          title: Capabilities
+        nativeDetails:
+          additionalProperties: true
+          type: object
+          title: Nativedetails
+        buildId:
+          type: string
+          format: uuid
+          title: Buildid
+          description: 资源所属构建
+        kind:
+          $ref: '#/components/schemas/ResourceKind'
+          description: 原生资源种类
+        attributes:
+          anyOf:
+          - $ref: '#/components/schemas/MetricAttributes'
+          - $ref: '#/components/schemas/DimensionAttributes'
+          - $ref: '#/components/schemas/DatasetAttributes'
+          - $ref: '#/components/schemas/PhysicalAttributes'
+          title: Attributes
+          description: 保持封存类型的资源属性
+      additionalProperties: false
+      type: object
+      required:
+      - resourceId
+      - nativeId
+      - name
+      - displayName
+      - capabilities
+      - nativeDetails
+      - buildId
+      - kind
+      - attributes
+      title: ResourceView
+    ResultPage:
+      properties:
+        queryId:
+          type: string
+          format: uuid
+          title: Queryid
+          description: 持久查询身份
+        buildId:
+          type: string
+          format: uuid
+          title: Buildid
+          description: 固定构建身份
+        state:
+          $ref: '#/components/schemas/BuildStatus'
+          description: 执行状态
+        mode:
+          $ref: '#/components/schemas/QueryMode'
+          description: 查询模式
+        commitSha:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Commitsha
+          description: 固定源码版本
+        businessTimezone:
+          type: string
+          title: Businesstimezone
+          description: 构建固定的业务时区
+        normalizedTimeRange:
+          additionalProperties:
+            anyOf:
+            - type: string
+            - type: 'null'
+          type: object
+          title: Normalizedtimerange
+          description: 归一化时间输入
+        boundaryPolicy:
+          type: string
+          title: Boundarypolicy
+          description: 引擎粒度边界策略
+          default: metricflow_granularity_alignment
+        resultAvailable:
+          type: boolean
+          title: Resultavailable
+          description: 结果字节是否可读
+          default: false
+        error:
+          anyOf:
+          - $ref: '#/components/schemas/ErrorView'
+          - type: 'null'
+          description: 稳定错误
+        sql:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Sql
+          description: EXPLAIN 返回的完整编译 SQL
+        columns:
+          items:
+            additionalProperties: true
+            type: object
+          type: array
+          title: Columns
+          description: 结果列及精度类型
+        rows:
+          items:
+            items: {}
+            type: array
+          type: array
+          title: Rows
+          description: 有界结果正文
+        offset:
+          type: integer
+          title: Offset
+          description: 已保存结果中的偏移
+        returnedRows:
+          type: integer
+          title: Returnedrows
+          description: 本页行数
+        nextOffset:
+          anyOf:
+          - type: integer
+          - type: 'null'
+          title: Nextoffset
+          description: 下一页偏移
+        availableRows:
+          type: integer
+          title: Availablerows
+          description: 已保存行数，不代表源数据总数
+        resultTruncated:
+          type: boolean
+          title: Resulttruncated
+          description: 引擎结果是否截断
+      additionalProperties: false
+      type: object
+      required:
+      - queryId
+      - buildId
+      - state
+      - mode
+      - commitSha
+      - businessTimezone
+      - normalizedTimeRange
+      - columns
+      - rows
+      - offset
+      - returnedRows
+      - nextOffset
+      - availableRows
+      - resultTruncated
+      title: ResultPage
+    SelectedDimension:
       properties:
         optionId:
           type: string
           title: Optionid
+          description: 版本及指标集合固定的选项
         grain:
           anyOf:
           - type: string
           - type: 'null'
           title: Grain
+          description: 引擎支持的时间粒度
       additionalProperties: false
       type: object
       required:
       - optionId
       title: SelectedDimension
-    V2SelectedFilter:
+    SelectedFilter:
       properties:
         optionId:
           type: string
           title: Optionid
+          description: 过滤选项身份
         operator:
           type: string
           title: Operator
+          description: 选项允许的过滤操作
         value:
           title: Value
+          description: 保留 JSON 类型的过滤值
       additionalProperties: false
       type: object
       required:
@@ -2070,24 +2286,26 @@ components:
       - operator
       - value
       title: SelectedFilter
-    V2SelectedOrder:
+    SelectedOrder:
       properties:
         fieldId:
           type: string
           title: Fieldid
+          description: 已选择的指标或分组选项
         direction:
           type: string
           enum:
           - ASC
           - DESC
           title: Direction
+          description: 排序方向
       additionalProperties: false
       type: object
       required:
       - fieldId
       - direction
       title: SelectedOrder
-    V2ValidationError:
+    ValidationError:
       properties:
         loc:
           items:
@@ -2113,725 +2331,141 @@ components:
       - msg
       - type
       title: ValidationError
-    V2BindingMode:
-      enum:
-      - BUILT
-      - REUSED
-      - EXTERNAL
-      title: BindingMode
-      type: string
-    V2CatalogRelation:
-      additionalProperties: false
-      properties:
-        upstreamResourceId:
-          title: Upstreamresourceid
-          type: string
-        downstreamResourceId:
-          title: Downstreamresourceid
-          type: string
-        kind:
-          title: Kind
-          type: string
-      required:
-      - upstreamResourceId
-      - downstreamResourceId
-      - kind
-      title: CatalogRelation
+    AuthTokenRequest:
       type: object
-    V2DatasetAttributes:
-      additionalProperties: false
-      properties:
-        modelResourceId:
-          title: Modelresourceid
-          type: string
-        dimensionIds:
-          items:
-            type: string
-          title: Dimensionids
-          type: array
-        entities:
-          items:
-            additionalProperties: true
-            type: object
-          title: Entities
-          type: array
-        measures:
-          items:
-            additionalProperties: true
-            type: object
-          title: Measures
-          type: array
-        defaultTimeDimension:
-          anyOf:
-          - type: string
-          - type: 'null'
-          default: null
-          title: Defaulttimedimension
       required:
-      - modelResourceId
-      - dimensionIds
-      - entities
-      - measures
-      title: DatasetAttributes
+      - username
+      - password
+      properties:
+        username:
+          type: string
+        password:
+          type: string
+          format: password
+          writeOnly: true
+          maxLength: 1024
+    IdentitySummary:
       type: object
-    V2DatasetResource:
-      additionalProperties: false
-      properties:
-        resourceId:
-          title: Resourceid
-          type: string
-        nativeId:
-          title: Nativeid
-          type: string
-        name:
-          title: Name
-          type: string
-        displayName:
-          title: Displayname
-          type: string
-        description:
-          anyOf:
-          - type: string
-          - type: 'null'
-          default: null
-          title: Description
-        sourcePath:
-          anyOf:
-          - type: string
-          - type: 'null'
-          default: null
-          title: Sourcepath
-        capabilities:
-          items:
-            type: string
-          title: Capabilities
-          type: array
-        nativeDetails:
-          additionalProperties: true
-          title: Nativedetails
-          type: object
-        kind:
-          const: SEMANTIC_MODEL
-          default: SEMANTIC_MODEL
-          title: Kind
-          type: string
-        attributes:
-          $ref: '#/components/schemas/V2DatasetAttributes'
       required:
-      - resourceId
-      - nativeId
-      - name
+      - identityId
+      - subject
       - displayName
-      - capabilities
-      - nativeDetails
-      - attributes
-      title: DatasetResource
-      type: object
-    V2DimensionAttributes:
-      additionalProperties: false
+      - authVersion
       properties:
-        datasetId:
-          title: Datasetid
-          type: string
-        dimensionType:
-          title: Dimensiontype
-          type: string
-        expression:
-          anyOf:
-          - type: string
-          - type: 'null'
-          default: null
-          title: Expression
-        timeGranularity:
-          anyOf:
-          - type: string
-          - type: 'null'
-          default: null
-          title: Timegranularity
-      required:
-      - datasetId
-      - dimensionType
-      title: DimensionAttributes
-      type: object
-    V2DimensionResource:
-      additionalProperties: false
-      properties:
-        resourceId:
-          title: Resourceid
-          type: string
-        nativeId:
-          title: Nativeid
-          type: string
-        name:
-          title: Name
+        identityId:
+          $ref: '#/components/schemas/Uuid'
+        subject:
           type: string
         displayName:
-          title: Displayname
           type: string
-        description:
-          anyOf:
-          - type: string
-          - type: 'null'
-          default: null
-          title: Description
-        sourcePath:
-          anyOf:
-          - type: string
-          - type: 'null'
-          default: null
-          title: Sourcepath
-        capabilities:
-          items:
-            type: string
-          title: Capabilities
-          type: array
-        nativeDetails:
-          additionalProperties: true
-          title: Nativedetails
-          type: object
-        kind:
-          const: DIMENSION
-          default: DIMENSION
-          title: Kind
-          type: string
-        attributes:
-          $ref: '#/components/schemas/V2DimensionAttributes'
-      required:
-      - resourceId
-      - nativeId
-      - name
-      - displayName
-      - capabilities
-      - nativeDetails
-      - attributes
-      title: DimensionResource
+        authVersion:
+          type: integer
+          format: int64
+          minimum: 0
+    AuthTokenResponse:
       type: object
-    V2MetricAttributes:
-      additionalProperties: false
-      properties:
-        metricType:
-          title: Metrictype
-          type: string
-        definitionSummary:
-          title: Definitionsummary
-          type: string
-        inputMetricIds:
-          items:
-            type: string
-          title: Inputmetricids
-          type: array
-        datasetIds:
-          items:
-            type: string
-          title: Datasetids
-          type: array
-        filters:
-          anyOf:
-          - additionalProperties: true
-            type: object
-          - type: 'null'
-          default: null
-          title: Filters
-        timeConfig:
-          additionalProperties: true
-          title: Timeconfig
-          type: object
       required:
-      - metricType
-      - definitionSummary
-      - inputMetricIds
-      - datasetIds
-      - timeConfig
-      title: MetricAttributes
-      type: object
-    V2MetricResource:
-      additionalProperties: false
+      - accessToken
+      - tokenType
+      - expiresIn
+      - identity
       properties:
-        resourceId:
-          title: Resourceid
+        accessToken:
           type: string
-        nativeId:
-          title: Nativeid
+          writeOnly: true
+        tokenType:
           type: string
-        name:
-          title: Name
-          type: string
-        displayName:
-          title: Displayname
-          type: string
-        description:
-          anyOf:
-          - type: string
-          - type: 'null'
-          default: null
-          title: Description
-        sourcePath:
-          anyOf:
-          - type: string
-          - type: 'null'
-          default: null
-          title: Sourcepath
-        capabilities:
-          items:
-            type: string
-          title: Capabilities
-          type: array
-        nativeDetails:
-          additionalProperties: true
-          title: Nativedetails
-          type: object
-        kind:
-          const: METRIC
-          default: METRIC
-          title: Kind
-          type: string
-        attributes:
-          $ref: '#/components/schemas/V2MetricAttributes'
-      required:
-      - resourceId
-      - nativeId
-      - name
-      - displayName
-      - capabilities
-      - nativeDetails
-      - attributes
-      title: MetricResource
-      type: object
-    V2PhysicalAttributes:
-      additionalProperties: false
-      properties:
-        origin:
-          $ref: '#/components/schemas/V2BindingMode'
-        relation:
-          $ref: '#/components/schemas/V2RelationName'
-        columns:
-          additionalProperties:
-            additionalProperties: true
-            type: object
-          title: Columns
-          type: object
-      required:
-      - origin
-      - relation
-      - columns
-      title: PhysicalAttributes
-      type: object
-    V2PhysicalResource:
-      additionalProperties: false
-      properties:
-        resourceId:
-          title: Resourceid
-          type: string
-        nativeId:
-          title: Nativeid
-          type: string
-        name:
-          title: Name
-          type: string
-        displayName:
-          title: Displayname
-          type: string
-        description:
-          anyOf:
-          - type: string
-          - type: 'null'
-          default: null
-          title: Description
-        sourcePath:
-          anyOf:
-          - type: string
-          - type: 'null'
-          default: null
-          title: Sourcepath
-        capabilities:
-          items:
-            type: string
-          title: Capabilities
-          type: array
-        nativeDetails:
-          additionalProperties: true
-          title: Nativedetails
-          type: object
-        kind:
           enum:
-          - TABLE
-          - VIEW
-          title: Kind
-          type: string
-        attributes:
-          $ref: '#/components/schemas/V2PhysicalAttributes'
+          - Bearer
+        expiresIn:
+          type: integer
+          format: int64
+          example: 36000
+        identity:
+          $ref: '#/components/schemas/IdentitySummary'
+    Problem:
+      type: object
       required:
-      - resourceId
-      - nativeId
+      - type
+      - title
+      - status
+      - detail
+      properties:
+        type:
+          type: string
+          format: uri
+        title:
+          type: string
+        status:
+          type: integer
+        detail:
+          type: string
+    ProjectView:
+      type: object
+      required:
+      - projectId
       - name
-      - displayName
-      - capabilities
-      - nativeDetails
-      - kind
-      - attributes
-      title: PhysicalResource
-      type: object
-    V2RelationBinding:
-      additionalProperties: false
-      properties:
-        nativeId:
-          title: Nativeid
-          type: string
-        relation:
-          $ref: '#/components/schemas/V2RelationName'
-        creatorRunId:
-          anyOf:
-          - format: uuid
-            type: string
-          - type: 'null'
-          title: Creatorrunid
-        mode:
-          $ref: '#/components/schemas/V2BindingMode'
-        definitionDigest:
-          pattern: ^[a-f0-9]{64}$
-          title: Definitiondigest
-          type: string
-        verifiedAt:
-          format: date-time
-          title: Verifiedat
-          type: string
-      required:
-      - nativeId
-      - relation
-      - creatorRunId
-      - mode
-      - definitionDigest
-      - verifiedAt
-      title: RelationBinding
-      type: object
-    V2RelationName:
-      additionalProperties: false
-      properties:
-        database:
-          anyOf:
-          - type: string
-          - type: 'null'
-          default: null
-          title: Database
-        schema:
-          minLength: 1
-          title: Schema
-          type: string
-        identifier:
-          minLength: 1
-          title: Identifier
-          type: string
-      required:
-      - schema
-      - identifier
-      title: RelationName
-      type: object
-    V2PublishedCatalog:
-      additionalProperties: false
-      properties:
-        schemaVersion:
-          const: 1
-          default: 1
-          title: Schemaversion
-          type: integer
-        projectId:
-          title: Projectid
-          type: string
-        releaseId:
-          format: uuid
-          title: Releaseid
-          type: string
-        resources:
-          items:
-            discriminator:
-              mapping:
-                DIMENSION: '#/components/schemas/V2DimensionResource'
-                METRIC: '#/components/schemas/V2MetricResource'
-                SEMANTIC_MODEL: '#/components/schemas/V2DatasetResource'
-                TABLE: '#/components/schemas/V2PhysicalResource'
-                VIEW: '#/components/schemas/V2PhysicalResource'
-              propertyName: kind
-            oneOf:
-            - $ref: '#/components/schemas/V2MetricResource'
-            - $ref: '#/components/schemas/V2DimensionResource'
-            - $ref: '#/components/schemas/V2DatasetResource'
-            - $ref: '#/components/schemas/V2PhysicalResource'
-          title: Resources
-          type: array
-        relations:
-          items:
-            $ref: '#/components/schemas/V2CatalogRelation'
-          title: Relations
-          type: array
-        relationBindings:
-          items:
-            $ref: '#/components/schemas/V2RelationBinding'
-          title: Relationbindings
-          type: array
-      required:
-      - projectId
-      - releaseId
-      - resources
-      - relations
-      - relationBindings
-      title: PublishedCatalog
-      type: object
-    V2PublicationDescriptor:
-      type: object
-      required:
-      - projectId
-      - releaseId
-      - runId
-      - artifactSetId
-      - publicationSequence
-      - state
-      - buildMode
-      - catalogSchemaVersion
-      properties:
-        branchId:
-          type: string
-          format: uuid
-          description: 分支路由下必填的实例归属；旧生产协议可省略
-        gitRef:
-          type: string
-          description: 此版本固定的远端引用
-        validationSummary:
-          type: [object, 'null']
-          description: 服务过滤后的有界验证摘要，不包含凭据或原始 stderr
-          properties:
-            phase: { type: string }
-            truncated: { type: boolean }
-            checks:
-              type: array
-              items:
-                type: object
-                required: [name, status]
-                properties:
-                  name: { type: string }
-                  status: { type: string }
-                  message: { type: [string, 'null'] }
-        projectId:
-          type: string
-        releaseId:
-          type: string
-        runId:
-          type:
-          - string
-          - 'null'
-        artifactSetId:
-          type:
-          - string
-          - 'null'
-        sourceSha:
-          type: string
-        catalogDigest:
-          type:
-          - string
-          - 'null'
-        state:
-          type: string
-        buildMode:
-          type:
-          - string
-          - 'null'
-        publicationSequence:
-          type: integer
-        catalogSchemaVersion:
-          type: integer
-          const: 1
-        publishedAt:
-          type:
-          - string
-          - 'null'
-          format: date-time
-        errorCode:
-          type:
-          - string
-          - 'null'
-        createdAt:
-          type: string
-          format: date-time
-    V2PublishedProject:
-      type: object
-      required:
-      - projectId
-      - activePublication
+      - version
+      - developmentConfigured
       properties:
         projectId:
           type: string
-        activePublication:
-          anyOf:
-          - $ref: '#/components/schemas/V2PublicationDescriptor'
-          - type: 'null'
-    V2PublishedPage:
+        name:
+          type: string
+        version:
+          type: integer
+        developmentConfigured:
+          type: boolean
+        repository:
+          type:
+          - string
+          - 'null'
+    ProjectPage:
       type: object
       required:
-      - releaseId
-      - page
-      - size
-      - total
-      - resources
+      - items
       properties:
-        releaseId:
-          type: string
-          format: uuid
-        page:
-          type: integer
-          minimum: 1
-        size:
-          type: integer
-          minimum: 1
-          maximum: 200
-        total:
-          type: integer
-        resources:
-          items: &id004
-            discriminator:
-              mapping:
-                DIMENSION: '#/components/schemas/V2DimensionResource'
-                METRIC: '#/components/schemas/V2MetricResource'
-                SEMANTIC_MODEL: '#/components/schemas/V2DatasetResource'
-                TABLE: '#/components/schemas/V2PhysicalResource'
-                VIEW: '#/components/schemas/V2PhysicalResource'
-              propertyName: kind
-            oneOf:
-            - $ref: '#/components/schemas/V2MetricResource'
-            - $ref: '#/components/schemas/V2DimensionResource'
-            - $ref: '#/components/schemas/V2DatasetResource'
-            - $ref: '#/components/schemas/V2PhysicalResource'
-          title: Resources
+        items:
           type: array
-    V2QueryOptionsResponse:
+          items:
+            $ref: '#/components/schemas/ProjectView'
+        nextCursor:
+          type:
+          - string
+          - 'null'
+    BranchList:
       type: object
       required:
-      - releaseId
-      - metricResourceIds
-      - options
+      - items
+      - observedAt
+      - cached
+      - source
       properties:
-        releaseId: &id003
-          type: string
-          format: uuid
-        metricResourceIds: &id002
-          type: array
-          items: &id001
-            type: string
-        options:
+        items:
           type: array
           items:
             type: object
             required:
-            - optionId
-            - resourceId
-            - displayName
-            - granularities
-            - operators
+            - branchName
+            - headSha
             properties:
-              optionId: *id001
-              resourceId:
+              branchName:
+                type: string
+              headSha:
                 type:
                 - string
                 - 'null'
-              displayName: *id001
-              granularities: *id002
-              operators: *id002
-    V2QueryReceipt:
-      type: object
-      required:
-      - queryId
-      - projectId
-      - releaseId
-      - state
-      properties:
-        queryId: *id003
-        projectId: *id001
-        releaseId: *id003
-        state:
+        observedAt:
           type: string
-          const: QUEUED
-    V2QueryResult:
-      type: object
-      required:
-      - queryId
-      - projectId
-      - releaseId
-      - state
-      properties:
-        queryId: *id003
-        projectId: *id001
-        releaseId: *id003
-        state: *id001
-        mode:
-          $ref: '#/components/schemas/V2QueryMode'
-        targetCommitSha: *id001
-        errorCode:
-          type:
-          - string
-          - 'null'
-        sql:
-          type:
-          - string
-          - 'null'
-        truncated:
+          format: date-time
+        cached:
           type: boolean
-        durationMs:
-          type: integer
-        columns:
-          type: array
-          items:
-            type: object
-            required:
-            - name
-            - type
-            properties:
-              name: *id001
-              type: *id001
-        rows:
-          type: array
-          items:
-            type: array
-            items: {}
-    V2SourceResponse:
-      type: object
-      required:
-      - releaseId
-      - resourceId
-      - path
-      - content
-      properties:
-        releaseId: *id003
-        resourceId: *id001
-        path: *id001
-        content: *id001
-    V2NativeDetailsResponse:
-      type: object
-      required:
-      - releaseId
-      - resourceId
-      - nativeDetails
-      properties:
-        releaseId: *id003
-        resourceId: *id001
-        nativeDetails:
-          type: object
-          additionalProperties: true
-    V2LineageResponse:
-      type: object
-      required:
-      - releaseId
-      - resourceId
-      - dependencies
-      properties:
-        releaseId: *id003
-        resourceId: *id001
-        dependencies:
-          type: array
-          items:
-            $ref: '#/components/schemas/V2CatalogRelation'
-    V2ResourceResponse:
-      allOf:
-      - *id004
-      - type: object
-        required:
-        - releaseId
-        properties:
-          releaseId: *id003
+        source:
+          type: string
+          enum:
+          - AGENT
+          - AGENT_CACHE
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer

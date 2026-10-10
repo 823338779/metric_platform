@@ -18,7 +18,7 @@ it('separates branching dependencies into layers and opens the selected resource
   const { container } = render(
     <DbtLineageGraph
       lineage={{
-        releaseId: 'v1',
+        buildId: 'v1',
         resourceId: METRIC,
         dependencies: [
           edge(MODEL, SEMANTIC),
@@ -52,7 +52,7 @@ it('keeps cyclic and disconnected nodes selectable without collapsing them', () 
   render(
     <DbtLineageGraph
       lineage={{
-        releaseId: 'v1',
+        buildId: 'v1',
         resourceId: METRIC,
         dependencies: [
           edge(MODEL, SEMANTIC),
@@ -72,7 +72,7 @@ it('keeps cyclic and disconnected nodes selectable without collapsing them', () 
 it('shows an isolated resource even when it has no dependencies', () => {
   render(
     <DbtLineageGraph
-      lineage={{ releaseId: 'v1', resourceId: METRIC, dependencies: [] }}
+      lineage={{ buildId: 'v1', resourceId: METRIC, dependencies: [] }}
       onSelect={vi.fn()}
     />,
   );

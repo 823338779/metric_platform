@@ -4,7 +4,7 @@ import { resolveResourceDataType } from './resourceDataType';
 
 const presentation = (kind = 'DIMENSION', nativeDetails = {}): DbtResourcePresentation => ({
   resourceId: 'selected',
-  releaseId: 'release-1',
+  buildId: 'release-1',
   kind,
   title: '品牌',
   queryable: true,
@@ -12,7 +12,7 @@ const presentation = (kind = 'DIMENSION', nativeDetails = {}): DbtResourcePresen
   nativeDetails: { name: 'brand', type: 'categorical', ...nativeDetails },
 });
 const lineage = {
-  releaseId: 'release-1',
+  buildId: 'release-1',
   resourceId: 'selected',
   dependencies: [
     {
@@ -116,7 +116,7 @@ it('refuses metadata from a different release or mismatched resource', async () 
   const api = client();
   api.getDbtPresentation.mockResolvedValue({
     ...presentation('TABLE'),
-    releaseId: 'other',
+    buildId: 'other',
   } as never);
   await expect(
     resolveResourceDataType(presentation(), lineage, 'shop', api as never),

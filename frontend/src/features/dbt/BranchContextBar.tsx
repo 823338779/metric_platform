@@ -1,69 +1,68 @@
-import { Alert, Space, Tag } from 'antd';
-import type { BranchView } from '../../api/publishedCatalogApi';
+import { Alert, Tag } from 'antd';
+import type { BranchList, Environment } from '../../api/buildCatalogApi';
 
-/** 只改变 URL 选择；活动版本推进不会静默替换页面固定版本。 */
+const LABELS = {
+  branch: '项目分支',
+  choose: '请选择',
+  cached: '分支列表来自历史缓存，无法确认实时分支状态。',
+  agent: '在 Agent 中开发与交付',
+};
+/** 项目/分支来自 Agent；缓存状态和来源时间明确展示。 */
 export function BranchContextBar({
   branches,
-  branch,
-  availableSha,
+  repository,
+  branchName,
+  environment,
   onSelect,
+  projectId,
 }: {
-  branches: BranchView[];
-  branch: BranchView;
-  availableSha?: string;
-  onSelect(id: string): void;
+  branches: BranchList;
+  repository: string;
+  branchName: string;
+  environment: Environment;
+  onSelect: (name: string) => void;
+  projectId: string;
 }) {
-  // 链接来自服务受控地址，只允许普通 HTTP(S) 导航。
-  let mergeUrl: string | null = null;
+  let link: string | null = null;
   try {
-    if (
-      branch.mergeRequestUrl &&
-      ['https:', 'http:'].includes(new URL(branch.mergeRequestUrl).protocol)
-    )
-      mergeUrl = branch.mergeRequestUrl;
+    const base = import.meta.env.VITE_AGENT_URL;
+    if (base) {
+      const url = new URL(base);
+      if (url.protocol === 'https:' || url.protocol === 'http:') {
+        url.search = new URLSearchParams({ projectId, branchName }).toString();
+        link = url.toString();
+      }
+    }
   } catch {
-    /* 无效地址不展示 */
+    /* 非HTTP地址不导航。 */
   }
   return (
     <section aria-label="分支上下文">
-      <Space wrap>
-        <Tag color={branch.mode === 'PRODUCTION' ? 'green' : 'blue'}>
-          {branch.mode === 'PRODUCTION' ? '线上' : '开发预览'}
-        </Tag>
-        <label>
-          项目分支{' '}
-          <select
-            aria-label="项目分支"
-            value={branch.branchId}
-            onChange={(event) => onSelect(event.target.value)}
-          >
-            {!branches.some((item) => item.branchId === branch.branchId) && (
-              <option value={branch.branchId}>
-                {branch.gitRef} · {branch.status}
-              </option>
-            )}
-            {branches.map((item) => (
-              <option key={item.branchId} value={item.branchId} disabled={item.status !== 'ACTIVE'}>
-                {item.gitRef} · {item.mode === 'PRODUCTION' ? '线上' : '开发'}
-              </option>
-            ))}
-          </select>
-        </label>
-        {mergeUrl && (
-          <a href={mergeUrl} target="_blank" rel="noopener noreferrer">
-            查看合并请求
-          </a>
-        )}
-      </Space>
+      <Tag>{environment}</Tag>
+      <span>{repository}</span>
+      <label>
+        {LABELS.branch}
+        <select
+          aria-label={LABELS.branch}
+          value={branchName}
+          onChange={(event) => onSelect(event.target.value)}
+        >
+          <option value="">{LABELS.choose}</option>
+          {branches.items.map((item) => (
+            <option key={item.branchName} value={item.branchName}>
+              {item.branchName}
+            </option>
+          ))}
+        </select>
+      </label>
       <p>
-        可用提交：<code>{availableSha ?? '尚无可用预览'}</code> · 最新提交：
-        <code>{branch.observedHeadSha ?? '尚未观测'}</code>
+        {branches.source} · {branches.observedAt}
       </p>
-      {branch.status !== 'ACTIVE' && (
-        <Alert
-          type="warning"
-          title={`原分支不可用：${branch.status}，同名新分支不会替代此链接。`}
-        />
+      {branches.cached && <Alert type="warning" title={LABELS.cached} />}{' '}
+      {link && (
+        <a href={link} target="_blank" rel="noopener noreferrer">
+          {LABELS.agent}
+        </a>
       )}
     </section>
   );

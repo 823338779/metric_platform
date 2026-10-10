@@ -1,4 +1,5 @@
 import { expect, test } from '@playwright/test';
+import { buildFixture, BUILD_A } from './build-fixture';
 
 // 浏览器位于洛杉矶时，查询仍必须按项目确认的北京时间解释输入。
 test.use({ timezoneId: 'America/Los_Angeles' });
@@ -40,59 +41,23 @@ const options = [
 test('builds an analysis with direct choices, fixed identities and no setup dropdowns', async ({
   page,
 }) => {
-  let submitted: Record<string, unknown> | undefined;
-  await page.addInitScript(
-    (user) =>
-      sessionStorage.setItem(
-        'metric-platform.auth-session',
-        JSON.stringify({
-          accessToken: 'fixture-token',
-          tokenType: 'Bearer',
-          expiresIn: 36000,
-          identity: user,
-        }),
-      ),
-    identity,
-  );
-  await page.route('**/api/v1/auth/me', (route) => route.fulfill({ json: identity }));
-  await page.route('**/api/v2/semantic-projects/**', async (route) => {
-    const path = new URL(route.request().url()).pathname;
-    if (path.endsWith('/catalog'))
-      return route.fulfill({
-        json: { releaseId: RELEASE, page: 1, size: 50, total: metrics.length, resources: metrics },
-      });
-    if (path.endsWith('/query-options'))
-      return route.fulfill({ json: { releaseId: RELEASE, options } });
-    if (path.endsWith('/queries')) {
-      submitted = route.request().postDataJSON();
-      return route.fulfill({
-        status: 202,
-        json: { releaseId: RELEASE, queryId: 'Q-demo', state: 'QUEUED' },
-      });
-    }
-    if (path.endsWith('/queries/Q-demo'))
-      return route.fulfill({
-        json: {
-          releaseId: RELEASE,
-          queryId: 'Q-demo',
-          state: 'READY',
-          columns: [
-            { name: 'ordered_at', type: 'DATE' },
-            { name: 'brand', type: 'TEXT' },
-            { name: 'gross_amount', type: 'DECIMAL' },
-          ],
-          rows: [
-            ['2026-09-01', 'North', '12580.50'],
-            ['2026-09-02', 'North', '14325.20'],
-            ['2026-09-03', 'North', '11980.00'],
-            ['2026-09-04', 'North', '16820.75'],
-          ],
-        },
-      });
-    return route.fulfill({ status: 404, json: { status: 404 } });
+  const fixture = await buildFixture(page, {
+    resources: metrics,
+    options,
+    result: () => ({
+      columns: [
+        { name: 'ordered_at', type: 'DATE' },
+        { name: 'brand', type: 'TEXT' },
+        { name: 'gross_amount', type: 'DECIMAL' },
+      ],
+      rows: [
+        ['2026-09-01', 'North', '12580.50'],
+        ['2026-09-02', 'North', '14325.20'],
+      ],
+    }),
   });
   await page.setViewportSize({ width: 1440, height: 1050 });
-  await page.goto(`/dbt/projects/ecommerce_metrics/query?releaseId=${RELEASE}`);
+  await page.goto(`/dbt/builds/${BUILD_A}/query`);
   await page.getByRole('checkbox', { name: '销售总额' }).click();
   await page.getByRole('textbox', { name: '搜索指标' }).fill('订单');
   await page.getByRole('checkbox', { name: '订单数量' }).click();
@@ -133,8 +98,7 @@ test('builds an analysis with direct choices, fixed identities and no setup drop
   await expect(page.getByRole('region', { name: '查询设置' }).getByRole('combobox')).toHaveCount(0);
   await page.getByRole('button', { name: '查询', exact: true }).click();
   await expect(page.getByRole('cell', { name: '12580.50', exact: true })).toBeVisible();
-  expect(submitted).toMatchObject({
-    releaseId: RELEASE,
+  expect(fixture.requests.find((item) => item.body?.mode)?.body).toMatchObject({
     metricResourceIds: ['metric-total'],
     groupBy: [{ optionId: 'opaque-brand' }, { optionId: 'opaque-time', grain: 'day' }],
     filters: [{ optionId: 'opaque-brand', operator: 'IN', value: ['North', 'South'] }],
@@ -152,7 +116,7 @@ test('builds an analysis with direct choices, fixed identities and no setup drop
       .toBe(true);
     await page.screenshot({
       animations: 'disabled',
-      path: `../.impeccable/review/query-studio-${width}.png`,
+      path: test.info().outputPath(`query-studio-${width}.png`),
       fullPage: true,
     });
   }

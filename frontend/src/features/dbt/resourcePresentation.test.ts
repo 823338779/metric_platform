@@ -10,7 +10,7 @@ const brokenNode = {
   bigDecimal: false,
 };
 const presentation = {
-  releaseId: 'release-1',
+  buildId: 'release-1',
   resourceId: 'brand',
   kind: 'DIMENSION',
   title: 'brand',

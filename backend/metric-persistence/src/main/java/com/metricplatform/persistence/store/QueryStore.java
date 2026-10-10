@@ -3,20 +3,23 @@ package com.metricplatform.persistence.store;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
-import com.metricplatform.persistence.entity.SemanticQueryEntity;
 import com.metricplatform.persistence.entity.SemanticProjectEntity;
+import com.metricplatform.persistence.entity.SemanticQueryEntity;
 import com.metricplatform.persistence.service.SemanticProjectService;
 import com.metricplatform.persistence.service.SemanticQueryService;
 import com.metricplatform.query.QueryRepository;
 import com.metricplatform.query.ReleaseGoneException;
+
+import lombok.RequiredArgsConstructor;
+
+import org.springframework.stereotype.Repository;
+import org.springframework.transaction.annotation.Transactional;
+
 import java.time.OffsetDateTime;
 import java.util.List;
 import java.util.Map;
 import java.util.NoSuchElementException;
 import java.util.UUID;
-import lombok.RequiredArgsConstructor;
-import org.springframework.stereotype.Repository;
-import org.springframework.transaction.annotation.Transactional;
 
 /** 查询引用与清理认领共用 release 行锁，普通持久化使用 MyBatis Plus。 */
 @Repository
@@ -84,7 +87,8 @@ public class QueryStore implements QueryRepository {
                 row.getRuntimeQueryId(),
                 row.getMode(),
                 row.getStatus(),
-                row.getErrorCode());
+                row.getErrorCode(),
+                row.getBuildId());
     }
 
     @Transactional

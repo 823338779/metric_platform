@@ -12,7 +12,9 @@ public interface QueryRepository {
             UUID runtimeQueryId,
             String mode,
             String status,
-            String errorCode) {}
+            String errorCode,
+            /** 稳定迁移报告确认的新构建关联，旧记录允许为空。 */
+            UUID buildId) {}
 
     record PendingQuery(String projectId, UUID queryId) {}
 

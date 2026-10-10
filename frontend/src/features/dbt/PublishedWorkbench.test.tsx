@@ -13,19 +13,26 @@ it.each([false, true])(
       complete = resolve;
     });
     const api = {
-      publication: refreshFails
-        ? vi.fn().mockRejectedValue(new Error('offline'))
-        : vi.fn().mockResolvedValue({ activePublication: { releaseId: 'A' } }),
-      catalog: vi.fn().mockResolvedValue({
-        releaseId: 'A',
-        total: 1,
-        resources: [{ resourceId: 'M', kind: 'METRIC', displayName: '指标 M' }],
+      build: vi.fn().mockResolvedValue({
+        buildId: 'A',
+        repository: 'repo',
+        branchName: 'feature/a',
+        environment: 'PREVIEW',
+        queryAvailable: true,
       }),
-      options: vi.fn().mockResolvedValue({ releaseId: 'A', options: [] }),
+      current: refreshFails
+        ? vi.fn().mockRejectedValue(new Error('offline'))
+        : vi.fn().mockResolvedValue({ activeBuildId: 'A' }),
+      catalog: vi.fn().mockResolvedValue({
+        buildId: 'A',
+        nextCursor: null,
+        items: [{ resourceId: 'M', kind: 'METRIC', displayName: '指标 M' }],
+      }),
+      options: vi.fn().mockResolvedValue({ buildId: 'A', state: 'SUCCEEDED', options: [] }),
       submit: vi.fn().mockReturnValue(pending),
     };
     render(
-      <MemoryRouter initialEntries={['/dbt/projects/p/query?releaseId=A']}>
+      <MemoryRouter initialEntries={['/dbt/projects/p/query?buildId=A']}>
         <Routes>
           <Route
             path="/dbt/projects/:projectId/query"
@@ -42,9 +49,9 @@ it.each([false, true])(
     );
     fireEvent.click(screen.getByRole('button', { name: '查询' }));
     fireEvent.click(screen.getByRole('button', { name: '刷新已发布版本' }));
-    await waitFor(() => expect(api.publication).toHaveBeenCalledOnce());
+    await waitFor(() => expect(api.current).toHaveBeenCalled());
     await act(async () => {
-      complete({ queryId: 'Q', releaseId: 'A', state: 'READY', columns: [], rows: [] });
+      complete({ queryId: 'Q', buildId: 'A', state: 'SUCCEEDED', columns: [], rows: [] });
     });
     await screen.findByText('查询 Q · 版本 A');
     await waitFor(() =>
@@ -57,13 +64,19 @@ it.each([false, true])(
 
 it('queries with platform identities and refreshes without requesting publication', async () => {
   const api = {
-    publication: vi
-      .fn()
-      .mockResolvedValue({ projectId: 'p', activePublication: { releaseId: 'A' } }),
+    build: vi.fn().mockResolvedValue({
+      buildId: 'A',
+      repository: 'repo',
+      branchName: 'feature/a',
+      environment: 'PREVIEW',
+      queryAvailable: true,
+    }),
+    current: vi.fn().mockResolvedValue({ activeBuildId: 'A' }),
+    publication: vi.fn().mockResolvedValue({ projectId: 'p', activePublication: { buildId: 'A' } }),
     catalog: vi.fn().mockResolvedValue({
-      releaseId: 'A',
-      total: 1,
-      resources: [
+      buildId: 'A',
+      nextCursor: null,
+      items: [
         {
           resourceId: 'metric.p.revenue',
           kind: 'METRIC',
@@ -76,7 +89,8 @@ it('queries with platform identities and refreshes without requesting publicatio
       ],
     }),
     options: vi.fn().mockResolvedValue({
-      releaseId: 'A',
+      state: 'SUCCEEDED',
+      buildId: 'A',
       options: [
         {
           optionId: 'opaque-region',
@@ -89,13 +103,13 @@ it('queries with platform identities and refreshes without requesting publicatio
     }),
     submit: vi
       .fn()
-      .mockResolvedValue({ queryId: 'Q', releaseId: 'A', state: 'READY', columns: [], rows: [] }),
+      .mockResolvedValue({ queryId: 'Q', buildId: 'A', state: 'SUCCEEDED', columns: [], rows: [] }),
     query: vi
       .fn()
-      .mockResolvedValue({ queryId: 'Q', releaseId: 'A', state: 'READY', columns: [], rows: [] }),
+      .mockResolvedValue({ queryId: 'Q', buildId: 'A', state: 'SUCCEEDED', columns: [], rows: [] }),
   };
   render(
-    <MemoryRouter initialEntries={['/dbt/projects/p/query?releaseId=A']}>
+    <MemoryRouter initialEntries={['/dbt/projects/p/query?buildId=A']}>
       <Routes>
         <Route
           path="/dbt/projects/:projectId/query"
@@ -113,9 +127,8 @@ it('queries with platform identities and refreshes without requesting publicatio
   fireEvent.click(screen.getByRole('button', { name: '查询' }));
   await waitFor(() =>
     expect(api.submit).toHaveBeenCalledWith(
-      'p',
+      'A',
       expect.objectContaining({
-        releaseId: 'A',
         metricResourceIds: ['metric.p.revenue'],
         groupBy: [{ optionId: 'opaque-region' }],
         idempotencyKey: expect.any(String),

@@ -14,14 +14,14 @@ it('ignores late source metadata after switching to another resource', async () 
       }),
     ),
     getDbtPresentation: vi.fn().mockResolvedValue({
-      releaseId: 'release',
+      buildId: 'release',
       resourceId: 'model',
       kind: 'TABLE',
       sections: [{ title: '物理关系', fields: { columns: { brand: { type: 'VARCHAR' } } } }],
     }),
   };
   const presentation: DbtResourcePresentation = {
-    releaseId: 'release',
+    buildId: 'release',
     resourceId: 'brand',
     kind: 'DIMENSION',
     title: 'brand',
@@ -30,7 +30,7 @@ it('ignores late source metadata after switching to another resource', async () 
     nativeDetails: { name: 'brand' },
   };
   const lineage = {
-    releaseId: 'release',
+    buildId: 'release',
     resourceId: 'brand',
     dependencies: [
       { upstreamResourceId: 'semantic', downstreamResourceId: 'brand', kind: 'SEMANTIC_DIMENSION' },

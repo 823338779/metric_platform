@@ -1,104 +1,45 @@
 import { expect, test } from '@playwright/test';
-
-test('uses published resource identities and keeps a replaced query readable', async ({ page }) => {
-  const identity = {
-    identityId: 'admin',
-    subject: 'admin',
-    displayName: 'Administrator',
-    authVersion: 1,
-  };
-  await page.addInitScript((user) => {
-    sessionStorage.setItem(
-      'metric-platform.auth-session',
-      JSON.stringify({
-        accessToken: 'test-token',
-        tokenType: 'Bearer',
-        expiresIn: 36000,
-        identity: user,
-      }),
-    );
-  }, identity);
-  await page.route('**/api/v1/auth/me', (route) => route.fulfill({ json: identity }));
-  let active = 'A';
-  let submitted: Record<string, unknown> | undefined;
-  await page.route('**/api/v2/semantic-projects/**', async (route) => {
-    const url = new URL(route.request().url());
-    if (url.pathname.endsWith('/publication'))
-      return route.fulfill({ json: { projectId: 'p', activePublication: { releaseId: active } } });
-    if (url.pathname.endsWith('/catalog')) {
-      if (!url.pathname.includes(`/releases/${active}/`))
-        return route.fulfill({ status: 410, json: { status: 410 } });
-      return route.fulfill({
-        json: {
-          releaseId: active,
-          page: 1,
-          size: 50,
-          total: 1,
-          resources: [
-            {
-              resourceId: 'metric.p.revenue',
-              nativeId: 'metric.p.revenue',
-              kind: 'METRIC',
-              name: 'revenue',
-              displayName: `销售额 ${active}`,
-              capabilities: ['QUERY'],
-              attributes: {},
-              nativeDetails: {},
-            },
-          ],
-        },
-      });
-    }
-    if (url.pathname.endsWith('/query-options'))
-      return route.fulfill({
-        json: {
-          releaseId: active,
-          metricResourceIds: ['metric.p.revenue'],
-          options: [
-            {
-              optionId: 'opaque-region',
-              resourceId: null,
-              displayName: '地区',
-              granularities: [],
-              operators: ['='],
-            },
-          ],
-        },
-      });
-    if (url.pathname.endsWith('/queries')) {
-      submitted = route.request().postDataJSON();
-      active = 'B';
-      return route.fulfill({
-        status: 202,
-        json: { projectId: 'p', releaseId: 'A', queryId: 'Q', state: 'QUEUED' },
-      });
-    }
-    if (url.pathname.endsWith('/queries/Q'))
-      return route.fulfill({
-        json: {
-          projectId: 'p',
-          releaseId: 'A',
-          queryId: 'Q',
-          state: 'READY',
-          columns: [{ name: '销售额', type: 'DECIMAL' }],
-          rows: [['31.00']],
-        },
-      });
-    return route.fulfill({ status: 404, json: { status: 404 } });
+import { buildFixture, BUILD_A, BUILD_B } from './build-fixture';
+test('历史查询始终固定原构建，新部署只在显式刷新后切换并清空选择', async ({ page }) => {
+  const fixture = await buildFixture(page, {
+    resources: (id) => [
+      {
+        resourceId: 'metric',
+        kind: 'METRIC',
+        name: 'revenue',
+        displayName: id === BUILD_A ? '销售额 A' : '销售额 B',
+      },
+    ],
+    options: [
+      {
+        optionId: 'opaque-region',
+        resourceId: null,
+        displayName: '地区',
+        granularities: [],
+        operators: ['='],
+      },
+    ],
   });
-  await page.goto('/dbt/projects/p/query?releaseId=A');
+  await page.goto(`/dbt/builds/${BUILD_A}/query`);
   await page.getByRole('checkbox', { name: '销售额 A' }).click();
-  await page.getByRole('group', { name: '分组维度' }).getByRole('button', { name: '地区' }).click();
+  await page
+    .getByRole('group', { name: '分组维度', exact: true })
+    .getByRole('button', { name: '地区', exact: true })
+    .click();
+  fixture.advance();
   await page.getByRole('button', { name: '查询', exact: true }).click();
-  await expect(page.getByRole('cell', { name: '31.00' })).toBeVisible();
-  expect(submitted).toMatchObject({
-    releaseId: 'A',
-    metricResourceIds: ['metric.p.revenue'],
+  await expect(page.getByRole('cell', { name: '62.00' })).toBeVisible();
+  const request = fixture.requests.find((item) => item.body?.mode);
+  expect(request?.path).toContain(`/builds/${BUILD_A}/queries`);
+  expect(request?.body).toMatchObject({
+    metricResourceIds: ['metric'],
     groupBy: [{ optionId: 'opaque-region' }],
-    idempotencyKey: expect.any(String),
   });
+  expect(request?.body).not.toHaveProperty('buildId');
+  await expect(page.getByText(/有效部署已更新/)).toBeVisible({ timeout: 8000 });
+  await expect(page).toHaveURL(new RegExp(BUILD_A));
   await page.getByRole('button', { name: '刷新已发布版本' }).click();
-  await expect(page).toHaveURL(/releaseId=B/);
-  await expect(page.getByRole('checkbox', { name: '销售额 B' })).toBeAttached();
+  await expect(page).toHaveURL(new RegExp(BUILD_B));
+  await expect(page.getByRole('checkbox', { name: '销售额 B' })).not.toBeChecked();
   await expect(page.getByRole('button', { name: '查询', exact: true })).toBeDisabled();
 });
