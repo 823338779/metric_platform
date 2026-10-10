@@ -1,0 +1,280 @@
+/* 标签保留完整名称，编辑与移除分为独立的键盘操作目标。 */
+.query-tags {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  min-width: 0;
+}
+.query-tag {
+  display: inline-flex;
+  align-items: center;
+  max-width: 100%;
+  min-height: 36px;
+  border: 1px solid #d5d9df;
+  border-radius: 4px;
+  background: white;
+  color: #233247;
+}
+.query-tag button,
+.query-add {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 36px;
+  padding: 7px 10px;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-size: 13px;
+  cursor: pointer;
+}
+.query-tag > button,
+.query-tag-name {
+  min-width: 0;
+}
+.query-tag button > span:not(.anticon),
+.query-tag-name {
+  overflow-wrap: anywhere;
+  text-align: left;
+}
+.query-tag-name {
+  padding: 7px 10px;
+  font-size: 13px;
+}
+.query-tag .query-tag-remove {
+  flex: none;
+  width: 30px;
+  padding: 6px;
+  color: #667085;
+}
+.query-tag:hover {
+  border-color: #8e98a8;
+}
+.query-tag button:hover,
+.query-add:hover:not(:disabled) {
+  background: #f3f5f8;
+}
+.query-add {
+  border: 1px solid #d5d9df;
+  border-radius: 4px;
+  color: #344054;
+}
+.query-add:disabled,
+.query-tag button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+.query-selection {
+  min-width: 0;
+}
+.query-selection > .query-picker {
+  margin-top: 8px;
+  border: 1px solid #e0e6ef;
+  border-radius: 4px;
+}
+.query-picker {
+  width: 360px;
+  max-width: calc(100vw - 56px);
+  color: #233247;
+}
+.query-picker-search {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 10px;
+  padding: 8px;
+  border: 1px solid #b7c4d7;
+  border-radius: 4px;
+  color: #5b6b82;
+}
+.query-picker-search input {
+  flex: 1;
+  width: 100%;
+  min-width: 0;
+  border: 0;
+  outline: none;
+  font: inherit;
+  font-size: 13px;
+  color: #233247;
+  background: transparent;
+}
+.query-picker-search input::placeholder {
+  color: #66758b;
+}
+.query-picker-search:focus-within {
+  outline: 2px solid #315bc3;
+  outline-offset: 2px;
+}
+.query-picker-list {
+  max-height: 250px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+  scrollbar-color: #b7c4d7 transparent;
+}
+.query-selection > .query-picker .query-picker-list {
+  max-height: 144px;
+}
+.query-picker-list button {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 10px;
+  min-height: 40px;
+  border: 0;
+  border-top: 1px solid #edf0f5;
+  background: white;
+  color: inherit;
+  text-align: left;
+  font: inherit;
+  font-size: 13px;
+  cursor: pointer;
+}
+.query-picker-list button:hover,
+.query-picker-list button[aria-pressed='true'] {
+  background: #f3f5f8;
+}
+.query-choice-name {
+  min-width: 0;
+  flex: 1;
+  overflow-wrap: anywhere;
+}
+.query-data-type {
+  max-width: 45%;
+  color: #5b6b82;
+  font-size: 11px;
+  overflow-wrap: anywhere;
+  text-align: right;
+}
+.query-picker-list p {
+  margin: 12px;
+  font-size: 13px;
+  color: #5b6b82;
+}
+.query-picker button:focus-visible,
+.query-tag button:focus-visible,
+.query-add:focus-visible {
+  outline: 2px solid #315bc3;
+  outline-offset: -2px;
+}
+
+/* 查询配置使用轻分隔线，主操作固定在标题栏，与下方结果共享内容宽度。 */
+.query-workbench .analysis-heading {
+  padding: 12px 24px;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+.query-workbench .analysis-heading h1 {
+  font-size: 19px;
+}
+.query-workbench .analysis-heading > .query-toolbar-actions {
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.query-workbench .query-toolbar-actions .ant-btn-primary {
+  background: #23272f;
+  border-color: #23272f;
+}
+.query-workbench .query-toolbar-actions .ant-btn-primary:hover:not(:disabled) {
+  background: #424955;
+  border-color: #424955;
+}
+.query-context {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px 24px;
+  padding: 10px 24px;
+  border-bottom: 1px solid #e0e6ef;
+  font-size: 12px;
+  color: #5b6b82;
+  background: white;
+}
+.query-context p {
+  margin: 0;
+  overflow-wrap: anywhere;
+  min-width: 0;
+}
+.query-context .ant-alert {
+  width: 100%;
+}
+.query-workbench .analysis-studio {
+  grid-template-columns: 220px minmax(0, 1fr);
+}
+.query-workbench .analysis-library {
+  padding: 18px 12px;
+}
+.query-workbench .analysis-metric-item {
+  padding: 10px 8px;
+}
+.query-workbench .analysis-canvas {
+  background: white;
+  padding: 0 24px 32px;
+}
+.query-workbench .analysis-builder {
+  border: 0;
+  border-radius: 0;
+}
+.query-workbench .analysis-builder-row {
+  display: block;
+  padding: 14px 0;
+  border-bottom: 1px dashed #d5d9df;
+}
+.query-workbench .analysis-builder-row h3 {
+  margin: 0 0 9px;
+  color: #233247;
+  font-size: 13px;
+  font-weight: 600;
+}
+.query-workbench .analysis-runbar {
+  padding: 14px 0;
+  background: white;
+  border: 0;
+}
+.query-workbench .analysis-filter-controls {
+  flex-direction: row;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.query-workbench .analysis-filter-controls > .ant-input {
+  width: 260px;
+  max-width: 100%;
+}
+.query-workbench .analysis-date-inputs {
+  margin-top: 8px;
+}
+.query-workbench .analysis-result {
+  margin-top: 6px;
+  border-top: 1px solid #e0e6ef;
+  padding-top: 18px;
+}
+.query-workbench .analysis-result h2 {
+  font-size: 16px;
+}
+@media (max-width: 760px) {
+  .query-workbench .analysis-studio {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .query-workbench .analysis-heading,
+  .query-context {
+    padding: 12px 16px;
+  }
+  .query-workbench .analysis-canvas {
+    padding: 0 16px 24px;
+  }
+  .query-workbench .query-toolbar-actions {
+    width: 100%;
+  }
+  .query-workbench .query-toolbar-actions .ant-btn-primary {
+    margin-left: auto;
+  }
+  .query-picker {
+    max-width: calc(100vw - 56px);
+  }
+}

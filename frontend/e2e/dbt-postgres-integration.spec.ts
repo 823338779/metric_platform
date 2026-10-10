@@ -49,10 +49,9 @@ test('真实 PostgreSQL 固定构建目录、维度值和月粒度查询', async
     .getByRole('group', { name: '分组维度', exact: true })
     .getByRole('button', { name: timeOption.displayName, exact: true })
     .click();
-  await page
-    .getByRole('group', { name: `${timeOption.displayName}时间粒度`, exact: true })
-    .getByRole('button', { name: '月', exact: true })
-    .click();
+  const grain = page.getByRole('button', { name: /时间粒度/ });
+  await grain.click();
+  await page.getByRole('menuitem', { name: '月', exact: true }).click();
   // 每次按新 queryId 观察结果，不能把前次 COMPLETED 当作本次成功。
   const execute = async (mode: string, label: string) => {
     const acceptedResponse = page.waitForResponse(

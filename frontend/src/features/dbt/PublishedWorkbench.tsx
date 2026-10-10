@@ -1,13 +1,8 @@
 import { Alert, Button, Empty, Input } from 'antd';
-import { PlayCircleOutlined, CodeOutlined, FilterOutlined } from '@ant-design/icons';
-import {
-  AnalysisEmpty,
-  GRAIN_LABELS,
-  ChoiceChips,
-  MetricLibrary,
-  SelectedMetrics,
-  TimeRange,
-} from './AnalysisControls';
+import { PlayCircleOutlined, CodeOutlined } from '@ant-design/icons';
+import { AnalysisEmpty, ChoiceChips, MetricLibrary, TimeRange } from './AnalysisControls';
+import { QuerySelection, ASCENDING, type QueryDirection } from './QuerySelection';
+import { useQueryDimensionTypes } from './useQueryDimensionTypes';
 import { DbtQueryResults } from './DbtQueryResults';
 import { publishedResult } from './publishedResourceAdapter';
 import { businessTimeToIso } from './businessTime';
@@ -72,8 +67,9 @@ function FixedPublishedWorkbench({ api }: { api: BuildCatalogApi }) {
   const [start, setStart] = useState(EMPTY);
   const [end, setEnd] = useState(EMPTY);
   const [limit, setLimit] = useState(1000);
-  const [sortField, setSortField] = useState(EMPTY);
-  const [sortDirection, setSortDirection] = useState<'ASC' | 'DESC'>('ASC');
+  const [sortFields, setSortFields] = useState<string[]>([]);
+  const [sortDirections, setSortDirections] = useState<Record<string, QueryDirection>>({});
+  const dimensionTypes = useQueryDimensionTypes(api, projectId, buildId, options);
   const generation = useRef(0);
   const submissionGeneration = useRef(0);
   const [pollAttempt, setPollAttempt] = useState(0);
@@ -183,8 +179,8 @@ function FixedPublishedWorkbench({ api }: { api: BuildCatalogApi }) {
   }, [api, projectId, buildId, initialMetric, refresh]);
 
   useEffect(() => {
-    if (!selected.includes(sortField) && !groups.includes(sortField)) setSortField(EMPTY);
-  }, [selected, groups, sortField]);
+    setSortFields((fields) => fields.filter((id) => selected.includes(id) || groups.includes(id)));
+  }, [selected, groups]);
 
   useEffect(() => {
     let active = true;
@@ -305,7 +301,10 @@ function FixedPublishedWorkbench({ api }: { api: BuildCatalogApi }) {
                   },
                 ]
               : [],
-            orderBy: sortField ? [{ fieldId: sortField, direction: sortDirection }] : [],
+            orderBy: sortFields.map((fieldId) => ({
+              fieldId,
+              direction: sortDirections[fieldId] ?? ASCENDING,
+            })),
             ...(start ? { startTime: businessTimeToIso(start) } : {}),
             ...(end ? { endTime: businessTimeToIso(end) } : {}),
           }),
@@ -376,10 +375,12 @@ function FixedPublishedWorkbench({ api }: { api: BuildCatalogApi }) {
   const dimensionChoices = options.map((item) => ({
     value: item.optionId,
     label: item.displayName,
+    dataType: item.resourceId ? dimensionTypes[item.resourceId] : undefined,
+    granularities: item.granularities,
   }));
   const changeMetrics = (value: string[]) => setSelected(value);
   return (
-    <section className="analysis-page">
+    <section className="analysis-page query-workbench">
       <header className="analysis-heading">
         <div>
           <Link to={`/dbt/builds/${encodeURIComponent(buildId)}/catalog?${params}`}>
@@ -387,11 +388,36 @@ function FixedPublishedWorkbench({ api }: { api: BuildCatalogApi }) {
           </Link>
           <h1>分析探索</h1>
         </div>
-        <Button loading={loading} onClick={() => void latest()}>
-          刷新已发布版本
-        </Button>
+        <div className="query-toolbar-actions">
+          <Button loading={loading} onClick={() => void latest()}>
+            刷新已发布版本
+          </Button>
+          <Button
+            disabled={!identity?.queryAvailable || !optionsReady || groups.length !== 1 || busy}
+            onClick={() => void submit(DIMENSION_VALUES)}
+          >
+            维度值
+          </Button>
+          <Button
+            icon={<CodeOutlined />}
+            disabled={!identity?.queryAvailable || !optionsReady || busy}
+            onClick={() => void submit(EXPLAIN)}
+          >
+            查看 SQL
+          </Button>
+          <Button
+            type="primary"
+            icon={<PlayCircleOutlined />}
+            aria-label="查询"
+            disabled={!identity?.queryAvailable || !optionsReady || busy}
+            loading={busy}
+            onClick={() => void submit(QUERY)}
+          >
+            运行查询
+          </Button>
+        </div>
       </header>
-      <section aria-label="查询上下文">
+      <section className="query-context" aria-label="查询上下文">
         <p>
           仓库：{identity?.repository} · 分支：{identity?.branchName} · 环境：
           {identity?.environment}
@@ -420,28 +446,26 @@ function FixedPublishedWorkbench({ api }: { api: BuildCatalogApi }) {
         />
         <main className="analysis-canvas">
           <section className="analysis-builder" aria-label="查询设置">
-            <header>
-              <h2>这次想了解什么？</h2>
-              <span>按需分组，逐步缩小范围</span>
-            </header>
             <div className="analysis-builder-row">
               <h3>分析指标</h3>
-              <SelectedMetrics
+              <QuerySelection
+                label="指标"
+                showTypes={false}
+                suggestWhenEmpty={false}
                 options={metricChoices}
                 selected={selected}
                 onChange={changeMetrics}
               />
             </div>
             <div className="analysis-builder-row">
-              <div>
-                <h3>分组维度</h3>
-                <small>可直接多选</small>
-              </div>
-              <ChoiceChips
+              <h3>分组维度</h3>
+              <QuerySelection
                 label="分组维度"
                 options={dimensionChoices}
                 selected={groups}
                 onChange={setGroups}
+                grains={grains}
+                onGrainChange={(id, grain) => setGrains((current) => ({ ...current, [id]: grain }))}
                 disabled={!optionsReady}
                 emptyText={
                   selected.length
@@ -452,30 +476,6 @@ function FixedPublishedWorkbench({ api }: { api: BuildCatalogApi }) {
                 }
               />
             </div>
-            {options
-              .filter(
-                (option) => groups.includes(option.optionId) && option.granularities.length > 0,
-              )
-              .map((option) => (
-                <div className="analysis-builder-row" key={option.optionId}>
-                  <h3>{option.displayName}粒度</h3>
-                  <ChoiceChips
-                    label={`${option.displayName}时间粒度`}
-                    single
-                    options={option.granularities.map((grain) => ({
-                      value: grain,
-                      label: GRAIN_LABELS[grain] ?? grain,
-                    }))}
-                    selected={grains[option.optionId] ? [grains[option.optionId]] : []}
-                    onChange={(values) =>
-                      setGrains((current) => ({
-                        ...current,
-                        [option.optionId]: values[0] ?? EMPTY,
-                      }))
-                    }
-                  />
-                </div>
-              ))}
             <div className="analysis-builder-row">
               <h3>时间范围</h3>
               <TimeRange
@@ -487,84 +487,69 @@ function FixedPublishedWorkbench({ api }: { api: BuildCatalogApi }) {
                 }}
               />
             </div>
-            <details className="analysis-advanced">
-              <summary>
-                <FilterOutlined /> 筛选与排序
-                <span>{filterOption || sortField ? '已配置' : '按需添加'}</span>
-              </summary>
-              <div className="analysis-builder-row">
-                <h3>筛选维度</h3>
-                <div className="analysis-filter-controls">
-                  <ChoiceChips
-                    label="筛选维度"
-                    single
-                    options={options
-                      .filter((option) => option.operators.length > 0)
-                      .map((option) => ({ value: option.optionId, label: option.displayName }))}
-                    selected={filterOption ? [filterOption] : []}
-                    onChange={(values) => {
-                      setFilterOption(values[0] ?? EMPTY);
-                      setOperator(
-                        options.find((option) => option.optionId === values[0])?.operators[0] ??
-                          '=',
-                      );
-                      setFilterValue(EMPTY);
-                    }}
-                  />
-                  {filterOption && (
-                    <>
-                      <ChoiceChips
-                        label="操作符"
-                        single
-                        options={(
-                          options.find((option) => option.optionId === filterOption)?.operators ??
-                          []
-                        ).map((value) => ({ value, label: value }))}
-                        selected={[operator]}
-                        onChange={(values) => {
-                          if (values[0]) setOperator(values[0]);
-                        }}
-                      />
-                      <Input
-                        aria-label="筛选值"
-                        value={filterValue}
-                        onChange={(event) => setFilterValue(event.target.value)}
-                        placeholder={operator === 'IN' ? '多个值用逗号分隔' : '输入筛选值'}
-                      />
-                    </>
+            <div className="analysis-builder-row">
+              <h3>筛选维度</h3>
+              <div className="analysis-filter-controls">
+                <QuerySelection
+                  label="筛选维度"
+                  single
+                  suggestWhenEmpty={false}
+                  disabled={!optionsReady}
+                  options={dimensionChoices.filter(
+                    (choice) =>
+                      options.find((option) => option.optionId === choice.value)?.operators.length,
                   )}
-                </div>
-              </div>
-              <div className="analysis-builder-row">
-                <h3>排序字段</h3>
-                <div className="analysis-filter-controls">
-                  <ChoiceChips
-                    label="排序字段"
-                    single
-                    options={[
-                      ...metricChoices.filter((item) => selected.includes(item.value)),
-                      ...dimensionChoices.filter((item) => groups.includes(item.value)),
-                    ]}
-                    selected={sortField ? [sortField] : []}
-                    onChange={(values) => setSortField(values[0] ?? EMPTY)}
-                  />
-                  {sortField && (
+                  selected={filterOption ? [filterOption] : []}
+                  onChange={(values) => {
+                    setFilterOption(values[0] ?? EMPTY);
+                    setOperator(
+                      options.find((option) => option.optionId === values[0])?.operators[0] ?? '=',
+                    );
+                    setFilterValue(EMPTY);
+                  }}
+                />
+                {filterOption && (
+                  <>
                     <ChoiceChips
-                      label="排序方向"
+                      label="操作符"
                       single
-                      options={[
-                        { value: 'ASC', label: '升序' },
-                        { value: 'DESC', label: '降序' },
-                      ]}
-                      selected={[sortDirection]}
+                      options={(
+                        options.find((option) => option.optionId === filterOption)?.operators ?? []
+                      ).map((value) => ({ value, label: value }))}
+                      selected={[operator]}
                       onChange={(values) => {
-                        if (values[0]) setSortDirection(values[0] as 'ASC' | 'DESC');
+                        if (values[0]) setOperator(values[0]);
                       }}
                     />
-                  )}
-                </div>
+                    <Input
+                      aria-label="筛选值"
+                      value={filterValue}
+                      onChange={(event) => setFilterValue(event.target.value)}
+                      placeholder={operator === 'IN' ? '多个值用逗号分隔' : '输入筛选值'}
+                    />
+                  </>
+                )}
               </div>
-            </details>
+            </div>
+            <div className="analysis-builder-row">
+              <h3>排序字段</h3>
+              <QuerySelection
+                label="排序字段"
+                showTypes={false}
+                suggestWhenEmpty={false}
+                options={[
+                  ...metricChoices.filter((item) => selected.includes(item.value)),
+                  ...dimensionChoices.filter((item) => groups.includes(item.value)),
+                ]}
+                selected={sortFields}
+                onChange={setSortFields}
+                directions={sortDirections}
+                onDirectionChange={(id, direction) =>
+                  setSortDirections((current) => ({ ...current, [id]: direction }))
+                }
+                disabled={!optionsReady}
+              />
+            </div>
             <footer className="analysis-runbar">
               <label>
                 最多返回{' '}
@@ -578,33 +563,6 @@ function FixedPublishedWorkbench({ api }: { api: BuildCatalogApi }) {
                 />{' '}
                 行
               </label>
-              <div>
-                <Button
-                  disabled={
-                    !identity?.queryAvailable || !optionsReady || groups.length !== 1 || busy
-                  }
-                  onClick={() => void submit(DIMENSION_VALUES)}
-                >
-                  维度值
-                </Button>
-                <Button
-                  icon={<CodeOutlined />}
-                  disabled={!identity?.queryAvailable || !optionsReady || busy}
-                  onClick={() => void submit(EXPLAIN)}
-                >
-                  查看 SQL
-                </Button>
-                <Button
-                  type="primary"
-                  icon={<PlayCircleOutlined />}
-                  aria-label="查询"
-                  disabled={!identity?.queryAvailable || !optionsReady || busy}
-                  loading={busy}
-                  onClick={() => void submit(QUERY)}
-                >
-                  运行查询
-                </Button>
-              </div>
             </footer>
           </section>
           <section className="analysis-result" aria-label="查询结果" aria-live="polite">

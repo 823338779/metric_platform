@@ -68,21 +68,20 @@ test('builds an analysis with direct choices, fixed identities and no setup drop
     .getByRole('group', { name: '分组维度' })
     .getByRole('button', { name: '品牌', exact: true })
     .click();
+  await page.getByRole('button', { name: '添加分组维度' }).click();
   await page
-    .getByRole('group', { name: '分组维度' })
+    .getByRole('region', { name: '选择分组维度' })
     .getByRole('button', { name: '下单时间', exact: true })
     .click();
-  await page
-    .getByRole('group', { name: '下单时间时间粒度' })
-    .getByRole('button', { name: '日', exact: true })
-    .click();
+  await page.getByRole('button', { name: '下单时间时间粒度' }).click();
+  await page.getByRole('menuitem', { name: '日', exact: true }).click();
   await page.getByRole('button', { name: '近 7 天', exact: true }).click();
   await expect(page.getByLabel('开始时间', { exact: true })).not.toHaveValue('');
   await page.getByLabel('开始时间', { exact: true }).fill('2026-09-01T00:00');
   await page.getByLabel('结束时间', { exact: true }).fill('2026-09-30T23:59');
-  await page.getByText('筛选与排序', { exact: false }).click();
+  await page.getByRole('button', { name: '添加筛选维度' }).click();
   await page
-    .getByRole('group', { name: '筛选维度' })
+    .getByRole('region', { name: '选择筛选维度' })
     .getByRole('button', { name: '品牌', exact: true })
     .click();
   await page
@@ -90,11 +89,12 @@ test('builds an analysis with direct choices, fixed identities and no setup drop
     .getByRole('button', { name: 'IN', exact: true })
     .click();
   await page.getByLabel('筛选值').fill('North,South');
+  await page.getByRole('button', { name: '添加排序字段' }).click();
   await page
-    .getByRole('group', { name: '排序字段' })
+    .getByRole('region', { name: '选择排序字段' })
     .getByRole('button', { name: '销售总额' })
     .click();
-  await page.getByRole('group', { name: '排序方向' }).getByRole('button', { name: '降序' }).click();
+  await page.getByRole('button', { name: '销售总额排序方向：升序' }).click();
   await expect(page.getByRole('region', { name: '查询设置' }).getByRole('combobox')).toHaveCount(0);
   await page.getByRole('button', { name: '查询', exact: true }).click();
   await expect(page.getByRole('cell', { name: '12580.50', exact: true })).toBeVisible();
@@ -107,7 +107,6 @@ test('builds an analysis with direct choices, fixed identities and no setup drop
     startTime: '2026-08-31T16:00:00.000Z',
     endTime: '2026-09-30T15:59:00.000Z',
   });
-  await page.getByText('筛选与排序', { exact: false }).click();
   await page.evaluate(() => window.scrollTo(0, 0));
   for (const width of [1440, 1264, 390]) {
     await page.setViewportSize({ width, height: 1050 });
