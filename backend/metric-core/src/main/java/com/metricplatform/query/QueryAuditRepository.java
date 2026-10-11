@@ -2,7 +2,7 @@ package com.metricplatform.query;
 
 import java.util.UUID;
 
-/** 保留平台身份与服务查询的归因关联。 */
+/** 保留平台身份与同步执行的本地审计关联。 */
 public interface QueryAuditRepository {
-    void record(UUID queryId, UUID buildId, UUID userId, String idempotencyKey);
+    void record(UUID executionId, UUID buildId, UUID userId);
 }

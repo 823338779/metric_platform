@@ -89,7 +89,6 @@ export type PublishedOption = {
 };
 /** buildId 只在 URL 中，数值筛选值与时间字符串不在调用方转换精度。 */
 export type PublishedQuery = {
-  idempotencyKey: string;
   mode: 'QUERY' | 'EXPLAIN' | 'PREVIEW' | 'DIMENSION_VALUES';
   metricResourceIds: string[];
   groupBy?: { optionId: string; grain?: string }[];
@@ -101,39 +100,25 @@ export type PublishedQuery = {
   datasetResourceId?: string;
   dimensionOptionId?: string;
 };
-export type OptionsTask = {
-  optionsTaskId: string;
+export type AvailableDimensionsView = {
   buildId: string;
-  state: string;
   metricResourceIds: string[];
-  options: PublishedOption[];
-  error: ServiceError | null;
+  dimensions: PublishedOption[];
 };
 export type PublishedResult = {
-  queryId: string;
   buildId: string;
-  state: string;
   mode?: PublishedQuery['mode'];
   commitSha?: string;
   businessTimezone?: string;
   normalizedTimeRange?: Record<string, string>;
   boundaryPolicy?: string;
-  resultAvailable?: boolean;
-  error?: ServiceError | null;
   columns?: { name: string; type: string }[];
   rows?: unknown[][];
   sql?: string;
-  offset?: number;
-  returnedRows?: number;
-  nextOffset?: number | null;
-  availableRows?: number;
   resultTruncated?: boolean;
-  durationMs?: number;
 };
 const ROOT = '/api/v3/dbt';
 const POST = 'POST';
-// 结果传输的单页上限与查询请求的总行数限制相互独立。
-const RESULT_PAGE_SIZE = 200;
 const segment = encodeURIComponent;
 /** 唯一 v3 传输层，不含构建/部署写入或任何旧协议探测。 */
 export function createBuildCatalogApi(fetcher?: Fetcher) {
@@ -153,9 +138,12 @@ export function createBuildCatalogApi(fetcher?: Fetcher) {
       ),
     branches: (projectId: string) =>
       request<BranchList>(`/projects/${segment(projectId)}/branches`),
-    builds: (
-      filter: { repository?: string; branchName?: string; cursor?: string; limit?: number } = {},
-    ) => request<BuildPage>(`/builds?${query({ limit: 50, ...filter })}`),
+    builds: (filter: {
+      repository: string;
+      branchName?: string;
+      cursor?: string;
+      limit?: number;
+    }) => request<BuildPage>(`/builds?${query({ limit: 50, ...filter })}`),
     build: (id: string) => request<BuildView>(build(id)),
     current: (key: DeploymentKey) =>
       request<DeploymentTarget>(`/deployments/current?${query(key)}`),
@@ -174,20 +162,16 @@ export function createBuildCatalogApi(fetcher?: Fetcher) {
       request<PublishedResource & { buildId: string }>(resource(id, rid)),
     detail: (id: string, rid: string, view: 'lineage' | 'source' | 'native-details') =>
       request<Record<string, unknown>>(`${resource(id, rid)}/${view}`),
-    options: (id: string, input: { idempotencyKey: string; metricResourceIds: string[] }) =>
-      request<OptionsTask>(`${build(id)}/query-options`, {
+    availableDimensions: (id: string, input: { metricResourceIds: string[] }) =>
+      request<AvailableDimensionsView>(`${build(id)}/available-dimensions`, {
         method: POST,
         body: JSON.stringify(input),
       }),
-    getOptions: (id: string) => request<OptionsTask>(`/query-options/${segment(id)}`),
     submit: (id: string, input: PublishedQuery) =>
       request<PublishedResult>(`${build(id)}/queries`, {
         method: POST,
         body: JSON.stringify(input),
       }),
-    query: (id: string) => request<PublishedResult>(`/queries/${segment(id)}/status`),
-    results: (id: string, offset = 0, limit = RESULT_PAGE_SIZE) =>
-      request<PublishedResult>(`/queries/${segment(id)}/results?${query({ offset, limit })}`),
   };
 }
 export const buildCatalogApi = createBuildCatalogApi();

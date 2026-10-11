@@ -6,7 +6,7 @@ import {
   PlayCircleOutlined,
   FunctionOutlined,
 } from '@ant-design/icons';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { ApiProblem } from '../../api/httpClient';
 import { metricPlatformApi, type MetricPlatformApi } from '../../api/metricPlatformApi';
 import type {
@@ -27,19 +27,13 @@ import './resource-workspace.css';
 
 type DetailApi = Pick<
   MetricPlatformApi,
-  | 'getDbtPresentation'
-  | 'getDbtResource'
-  | 'getDbtSource'
-  | 'getDbtLineage'
-  | 'previewDbtDataset'
-  | 'getDbtQuery'
+  'getDbtPresentation' | 'getDbtResource' | 'getDbtSource' | 'getDbtLineage' | 'previewDbtDataset'
 >;
 
 const physicalKinds = new Set(['TABLE', 'VIEW', 'MODEL']);
 const DETAIL = 'detail';
 const LINEAGE = 'lineage';
 const SOURCE = 'source';
-const OUTCOME_UNKNOWN = 'OUTCOME_UNKNOWN';
 const COPY = {
   title: '资源详情',
   detail: '概览',
@@ -81,7 +75,9 @@ export function DbtResourceDetail({
   const [source, setSource] = useState<DbtSourceDocument>();
   const [lineage, setLineage] = useState<DbtLineage>();
   const [preview, setPreview] = useState<DbtQueryStatus>();
-  const [previewQueryId, setPreviewQueryId] = useState('');
+  /** 预览请求代数；切换资源后丢弃旧响应。 */
+  const previewGeneration = useRef(0);
+  const [previewBusy, setPreviewBusy] = useState(false);
   const [error, setError] = useState('');
   const [tab, setTab] = useState(DETAIL);
   const [lineageError, setLineageError] = useState('');
@@ -93,8 +89,9 @@ export function DbtResourceDetail({
     setResolvedType(undefined);
     setSource(undefined);
     setLineage(undefined);
+    previewGeneration.current++;
+    setPreviewBusy(false);
     setPreview(undefined);
-    setPreviewQueryId('');
     setError('');
     setLineageError('');
     setSourceError('');
@@ -133,6 +130,7 @@ export function DbtResourceDetail({
       });
     return () => {
       active = false;
+      previewGeneration.current++;
     };
   }, [api, projectId, buildId, resourceId, retry]);
 
@@ -155,46 +153,23 @@ export function DbtResourceDetail({
       active = false;
     };
   }, [api, projectId, buildId, resourceId, tab, retry]);
-  useEffect(() => {
-    if (!previewQueryId) return;
-    let active = true;
-    let timer: number | undefined;
-    // 每次轮询独立捕获错误，并在资源切换或卸载时停止后续请求。
-    const poll = async () => {
-      try {
-        const result = await api.getDbtQuery(projectId, previewQueryId);
-        if (!active) return;
-        if (result.buildId !== buildId) {
-          setError('预览版本与请求不一致');
-          return;
-        }
-        setPreview(result);
-        if (result.status === 'PENDING' || result.status === 'RUNNING')
-          timer = window.setTimeout(() => void poll(), 1000);
-      } catch {
-        if (active) setError('预览读取失败');
-      }
-    };
-    void poll();
-    return () => {
-      active = false;
-      window.clearTimeout(timer);
-    };
-  }, [api, projectId, buildId, previewQueryId]);
+
   const loadPreview = async () => {
+    const generation = previewGeneration.current;
+    setPreviewBusy(true);
     try {
       setPreview(undefined);
       const submitted = await api.previewDbtDataset(projectId, resourceId, buildId, 20);
+      if (generation !== previewGeneration.current) return;
       if (submitted.buildId !== buildId) {
         setError('预览版本与请求不一致');
         return;
       }
-      if (submitted.status === OUTCOME_UNKNOWN) {
-        setPreviewQueryId('');
-        setPreview(submitted);
-      } else setPreviewQueryId(submitted.queryId);
+      setPreview(submitted);
     } catch {
-      setError('预览读取失败');
+      if (generation === previewGeneration.current) setError('预览读取失败');
+    } finally {
+      if (generation === previewGeneration.current) setPreviewBusy(false);
     }
   };
   return (
@@ -323,7 +298,11 @@ export function DbtResourceDetail({
                     <pre>{JSON.stringify(presentation.nativeDetails, null, 2)}</pre>
                   </details>
                   {presentation.queryable && physicalKinds.has(presentation.kind) && (
-                    <Button disabled={!queryAvailable} onClick={() => void loadPreview()}>
+                    <Button
+                      loading={previewBusy}
+                      disabled={!queryAvailable || previewBusy}
+                      onClick={() => void loadPreview()}
+                    >
                       {COPY.preview}
                     </Button>
                   )}

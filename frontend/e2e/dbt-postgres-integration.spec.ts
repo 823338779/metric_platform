@@ -1,6 +1,5 @@
-import { expect, test, type Response } from '@playwright/test';
+import { expect, test } from '@playwright/test';
 
-const SUCCESS = 'SUCCEEDED';
 const QUERY = 'QUERY';
 const DIMENSION_VALUES = 'DIMENSION_VALUES';
 const MONTH = 'month';
@@ -31,17 +30,17 @@ test('真实 PostgreSQL 固定构建目录、维度值和月粒度查询', async
   await page.getByRole('tab', { name: 'YAML 源码' }).click();
   await expect(page.getByRole('region', { name: 'YAML 源码内容' })).toContainText('revenue');
   // 使用服务实际返回的 opaque optionId 和显示名选择月粒度，避免猜测维度名称。
-  const optionsResponse = page.waitForResponse(
+  const availableDimensionsResponse = page.waitForResponse(
     async (response) =>
-      response.url().includes('/query-options') &&
+      response.url().includes('/available-dimensions') &&
       response.ok() &&
-      (await response.json()).state === SUCCESS,
+      Array.isArray((await response.json()).dimensions),
     { timeout: RESULT_TIMEOUT },
   );
   await page.getByRole('button', { name: '开始分析' }).click();
-  const options = await (await optionsResponse).json();
-  expect(options.buildId).toBe(buildId);
-  const timeOption = options.options.find((option: { granularities: string[] }) =>
+  const availableDimensions = await (await availableDimensionsResponse).json();
+  expect(availableDimensions.buildId).toBe(buildId);
+  const timeOption = availableDimensions.dimensions.find((option: { granularities: string[] }) =>
     option.granularities.includes(MONTH),
   );
   expect(timeOption).toBeTruthy();
@@ -52,49 +51,30 @@ test('真实 PostgreSQL 固定构建目录、维度值和月粒度查询', async
   const grain = page.getByRole('button', { name: /时间粒度/ });
   await grain.click();
   await page.getByRole('menuitem', { name: '月', exact: true }).click();
-  // 每次按新 queryId 观察结果，不能把前次 COMPLETED 当作本次成功。
+  // 每次按本次 POST 响应观察结果，不能把前次 COMPLETED 当作本次成功。
   const execute = async (mode: string, label: string) => {
     const acceptedResponse = page.waitForResponse(
       (response) =>
         response.request().method() === 'POST' &&
         new URL(response.url()).pathname === `/api/v3/dbt/builds/${buildId}/queries` &&
         response.request().postDataJSON().mode === mode,
+      { timeout: RESULT_TIMEOUT },
     );
-    const resultResponses: Response[] = [];
-    const observe = (response: Response) => {
-      if (/\/api\/v3\/dbt\/queries\/[^/]+\/results$/.test(new URL(response.url()).pathname))
-        resultResponses.push(response);
-    };
-    page.on('response', observe);
-    try {
-      await page.getByRole('button', { name: label, exact: true }).click();
-      const response = await acceptedResponse;
-      expect(response.ok()).toBe(true);
-      const accepted = await response.json();
-      expect(accepted.buildId).toBe(buildId);
-      const request = response.request().postDataJSON();
-      expect(request.groupBy).toEqual([{ optionId: timeOption.optionId, grain: MONTH }]);
-      if (mode === DIMENSION_VALUES) expect(request.dimensionOptionId).toBe(timeOption.optionId);
-      const resultPath = `/api/v3/dbt/queries/${accepted.queryId}/results`;
-      await expect
-        .poll(() => resultResponses.some((item) => new URL(item.url()).pathname === resultPath), {
-          timeout: RESULT_TIMEOUT,
-        })
-        .toBe(true);
-      const resultResponse = resultResponses.find(
-        (item) => new URL(item.url()).pathname === resultPath,
-      )!;
-      expect(resultResponse.ok()).toBe(true);
-      const result = await resultResponse.json();
-      expect(result.buildId).toBe(buildId);
-      expect(result.queryId).toBe(accepted.queryId);
-      expect(result.returnedRows).toBeGreaterThan(0);
-      expect(result.rows.length).toBeGreaterThan(0);
-      await expect(page.getByText(/COMPLETED/)).toBeVisible();
-      return result;
-    } finally {
-      page.off('response', observe);
-    }
+    await page.getByRole('button', { name: label, exact: true }).click();
+    const response = await acceptedResponse;
+    expect(response.status()).toBe(200);
+    const result = await response.json();
+    expect(result.mode).toBe(mode);
+    expect(result).not.toHaveProperty('queryId');
+    expect(result).not.toHaveProperty('state');
+    expect(result.buildId).toBe(buildId);
+    const request = response.request().postDataJSON();
+    expect(request.groupBy).toEqual([{ optionId: timeOption.optionId, grain: MONTH }]);
+    if (mode === DIMENSION_VALUES) expect(request.dimensionOptionId).toBe(timeOption.optionId);
+    expect(request).not.toHaveProperty('idempotencyKey');
+    expect(result.rows.length).toBeGreaterThan(0);
+    await expect(page.getByText(/COMPLETED/)).toBeVisible();
+    return result;
   };
   const result = await execute(QUERY, '查询');
   const metricIndex = result.columns.findIndex(
@@ -110,7 +90,7 @@ test('真实 PostgreSQL 固定构建目录、维度值和月粒度查询', async
   await expect(page.getByRole('cell', { name: '10.25', exact: true })).toBeVisible();
   await expect(page.getByRole('cell', { name: '20.75', exact: true })).toBeVisible();
   const dimensions = await execute(DIMENSION_VALUES, '维度值');
-  expect(dimensions.queryId).not.toBe(result.queryId);
+  expect(dimensions.mode).toBe(DIMENSION_VALUES);
   expect(dimensions.rows.flat().some((value: unknown) => String(value).startsWith('2024-01'))).toBe(
     true,
   );

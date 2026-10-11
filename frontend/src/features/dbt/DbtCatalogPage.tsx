@@ -173,11 +173,7 @@ export function DbtCatalogPage({
     [catalog, located],
   );
   const detailReady =
-    api.getDbtPresentation &&
-    api.getDbtSource &&
-    api.getDbtLineage &&
-    api.previewDbtDataset &&
-    api.getDbtQuery;
+    api.getDbtPresentation && api.getDbtSource && api.getDbtLineage && api.previewDbtDataset;
   return (
     <div className="catalog-page">
       {error && <Alert type="error" title={error} />}

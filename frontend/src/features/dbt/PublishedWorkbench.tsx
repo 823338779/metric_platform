@@ -24,10 +24,6 @@ const QUERY = 'QUERY';
 const EXPLAIN = 'EXPLAIN';
 const PREVIEW = 'PREVIEW';
 const DIMENSION_VALUES = 'DIMENSION_VALUES';
-const READY = 'SUCCEEDED';
-const FAILED = 'FAILED';
-const OUTCOME_UNKNOWN = 'OUTCOME_UNKNOWN';
-const LOAD_MORE = '加载更多结果';
 
 const errorText = (error: unknown) =>
   error instanceof ApiProblem
@@ -55,8 +51,8 @@ function FixedPublishedWorkbench({ api }: { api: BuildCatalogApi }) {
   const [selected, setSelected] = useState<string[]>([]);
   const [groups, setGroups] = useState<string[]>([]);
   const [grains, setGrains] = useState<Record<string, string>>({});
-  const [options, setOptions] = useState<PublishedOption[]>([]);
-  const [optionsReady, setOptionsReady] = useState(false);
+  const [availableDimensions, setAvailableDimensions] = useState<PublishedOption[]>([]);
+  const [availableDimensionsReady, setAvailableDimensionsReady] = useState(false);
   const [error, setError] = useState(EMPTY);
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<PublishedResult | null>(null);
@@ -69,11 +65,9 @@ function FixedPublishedWorkbench({ api }: { api: BuildCatalogApi }) {
   const [limit, setLimit] = useState(1000);
   const [sortFields, setSortFields] = useState<string[]>([]);
   const [sortDirections, setSortDirections] = useState<Record<string, QueryDirection>>({});
-  const dimensionTypes = useQueryDimensionTypes(api, projectId, buildId, options);
+  const dimensionTypes = useQueryDimensionTypes(api, projectId, buildId, availableDimensions);
   const generation = useRef(0);
   const submissionGeneration = useRef(0);
-  const [pollAttempt, setPollAttempt] = useState(0);
-  const submission = useRef<{ signature: string; body: PublishedQuery } | null>(null);
   const [refresh, setRefresh] = useState(0);
 
   useEffect(() => {
@@ -111,10 +105,9 @@ function FixedPublishedWorkbench({ api }: { api: BuildCatalogApi }) {
     setResult(null);
     setMetrics([]);
     setSelected(initialMetric ? [initialMetric] : []);
-    setOptions([]);
-    setOptionsReady(false);
+    setAvailableDimensions([]);
+    setAvailableDimensionsReady(false);
     setBusy(false);
-    submission.current = null;
     return () => {
       submissionGeneration.current++;
     };
@@ -184,84 +177,30 @@ function FixedPublishedWorkbench({ api }: { api: BuildCatalogApi }) {
 
   useEffect(() => {
     let active = true;
-    setOptionsReady(false);
-    setOptions([]);
+    setAvailableDimensionsReady(false);
+    setAvailableDimensions([]);
     setGroups([]);
     setGrains({});
     setFilterOption(EMPTY);
     if (!selected.length || !buildId) return;
-    let timer: ReturnType<typeof setTimeout> | undefined;
     const ids = [...new Set(selected)].sort();
-    async function observe(value: Awaited<ReturnType<BuildCatalogApi['options']>>) {
+    // 选项响应已经完成，切换选择后忽略旧响应。
+    function observe(value: Awaited<ReturnType<BuildCatalogApi['availableDimensions']>>) {
       if (!active) return;
       if (value.buildId !== buildId) throw new Error('选项版本不匹配');
-      if (value.state === READY) {
-        setOptions(value.options);
-        setOptionsReady(true);
-        return;
-      }
-      if (
-        value.state === FAILED ||
-        value.state === 'CANCELLED' ||
-        value.state === 'OUTCOME_UNKNOWN'
-      )
-        throw new Error(value.error?.message ?? '查询选项生成失败');
-      timer = setTimeout(() => {
-        void api
-          .getOptions(value.optionsTaskId)
-          .then(observe)
-          .catch((failure) => {
-            if (active) setError(errorText(failure));
-          });
-      }, 1000);
+      setAvailableDimensions(value.dimensions);
+      setAvailableDimensionsReady(true);
     }
     void api
-      .options(buildId, { idempotencyKey: crypto.randomUUID(), metricResourceIds: ids })
+      .availableDimensions(buildId, { metricResourceIds: ids })
       .then(observe)
       .catch((failure) => {
         if (active) setError(errorText(failure));
       });
     return () => {
       active = false;
-      if (timer) clearTimeout(timer);
     };
   }, [api, buildId, selected]);
-  useEffect(() => {
-    if (
-      !result ||
-      result.state === READY ||
-      result.state === FAILED ||
-      result.state === OUTCOME_UNKNOWN ||
-      result.state === 'CANCELLED'
-    )
-      return;
-    let active = true;
-    const timer = setTimeout(() => {
-      api
-        .query(result.queryId)
-        .then(async (value) => {
-          if (active) {
-            if (value.buildId !== result.buildId || value.queryId !== result.queryId)
-              throw new Error('查询身份不匹配');
-            if (value.state === READY && value.resultAvailable)
-              value = await api.results(value.queryId);
-            if (value.buildId !== result.buildId || value.queryId !== result.queryId)
-              throw new Error('查询结果身份不匹配');
-            if (active) setResult(value);
-          }
-        })
-        .catch((failure) => {
-          if (active) {
-            setError(errorText(failure));
-            setPollAttempt((value) => value + 1);
-          }
-        });
-    }, 1000);
-    return () => {
-      active = false;
-      clearTimeout(timer);
-    };
-  }, [api, projectId, result, pollAttempt]);
 
   async function submit(mode: PublishedQuery['mode'], resourceId?: string) {
     const turn = submissionGeneration.current;
@@ -310,58 +249,23 @@ function FixedPublishedWorkbench({ api }: { api: BuildCatalogApi }) {
           }),
       ...(mode === DIMENSION_VALUES ? { dimensionOptionId: groups[0] } : {}),
     };
-    const signature = JSON.stringify(selection);
-    if (submission.current?.signature !== signature)
-      submission.current = {
-        signature,
-        body: { ...selection, idempotencyKey: crypto.randomUUID() },
-      };
     try {
-      const accepted = await api.submit(buildId, submission.current.body);
+      const accepted = await api.submit(buildId, selection);
       if (accepted.buildId !== buildId) throw new Error('查询版本不匹配');
       if (turn === submissionGeneration.current) {
-        const value =
-          accepted.state === READY && accepted.resultAvailable
-            ? await api.results(accepted.queryId)
-            : accepted;
-        if (value.buildId !== buildId || value.queryId !== accepted.queryId)
-          throw new Error('查询结果身份不匹配');
-        if (turn !== submissionGeneration.current) return;
-        setResult(value);
+        // 同步响应携带完整有界结果，不存在后续分页。
+        setResult(accepted);
         setSubmittedMode(mode);
         setSubmittedMetrics(
           metrics
             .filter((item) => selected.includes(item.resourceId))
             .map((item) => item.name ?? item.displayName),
         );
-        submission.current = null;
       }
     } catch (failure) {
-      if (turn === submissionGeneration.current) setError(errorText(failure));
-    } finally {
-      if (turn === submissionGeneration.current) setBusy(false);
-    }
-  }
-
-  // 结果翻页沿用原查询身份；晚到的页面不能混入后续查询。
-  async function loadMoreResults() {
-    if (!result || result.nextOffset == null) return;
-    const offset = result.nextOffset;
-    const original = result;
-    const turn = submissionGeneration.current;
-    setBusy(true);
-    try {
-      const page = await api.results(original.queryId, offset);
-      if (page.queryId !== original.queryId || page.buildId !== original.buildId)
-        throw new Error('查询结果身份不匹配');
-      if (turn === submissionGeneration.current)
-        setResult((current) =>
-          current?.queryId === original.queryId
-            ? { ...current, ...page, rows: [...(current.rows ?? []), ...(page.rows ?? [])] }
-            : current,
-        );
-    } catch (failure) {
-      if (turn === submissionGeneration.current) setError(errorText(failure));
+      if (turn === submissionGeneration.current) {
+        setError(errorText(failure));
+      }
     } finally {
       if (turn === submissionGeneration.current) setBusy(false);
     }
@@ -372,7 +276,7 @@ function FixedPublishedWorkbench({ api }: { api: BuildCatalogApi }) {
     label: item.displayName || item.name,
     description: item.description,
   }));
-  const dimensionChoices = options.map((item) => ({
+  const dimensionChoices = availableDimensions.map((item) => ({
     value: item.optionId,
     label: item.displayName,
     dataType: item.resourceId ? dimensionTypes[item.resourceId] : undefined,
@@ -393,14 +297,16 @@ function FixedPublishedWorkbench({ api }: { api: BuildCatalogApi }) {
             刷新已发布版本
           </Button>
           <Button
-            disabled={!identity?.queryAvailable || !optionsReady || groups.length !== 1 || busy}
+            disabled={
+              !identity?.queryAvailable || !availableDimensionsReady || groups.length !== 1 || busy
+            }
             onClick={() => void submit(DIMENSION_VALUES)}
           >
             维度值
           </Button>
           <Button
             icon={<CodeOutlined />}
-            disabled={!identity?.queryAvailable || !optionsReady || busy}
+            disabled={!identity?.queryAvailable || !availableDimensionsReady || busy}
             onClick={() => void submit(EXPLAIN)}
           >
             查看 SQL
@@ -409,7 +315,7 @@ function FixedPublishedWorkbench({ api }: { api: BuildCatalogApi }) {
             type="primary"
             icon={<PlayCircleOutlined />}
             aria-label="查询"
-            disabled={!identity?.queryAvailable || !optionsReady || busy}
+            disabled={!identity?.queryAvailable || !availableDimensionsReady || busy}
             loading={busy}
             onClick={() => void submit(QUERY)}
           >
@@ -466,10 +372,10 @@ function FixedPublishedWorkbench({ api }: { api: BuildCatalogApi }) {
                 onChange={setGroups}
                 grains={grains}
                 onGrainChange={(id, grain) => setGrains((current) => ({ ...current, [id]: grain }))}
-                disabled={!optionsReady}
+                disabled={!availableDimensionsReady}
                 emptyText={
                   selected.length
-                    ? optionsReady
+                    ? availableDimensionsReady
                       ? '当前指标没有可用分组，查询将显示汇总值'
                       : '正在读取共同维度…'
                     : '先选择指标，再选择可用维度'
@@ -494,16 +400,18 @@ function FixedPublishedWorkbench({ api }: { api: BuildCatalogApi }) {
                   label="筛选维度"
                   single
                   suggestWhenEmpty={false}
-                  disabled={!optionsReady}
+                  disabled={!availableDimensionsReady}
                   options={dimensionChoices.filter(
                     (choice) =>
-                      options.find((option) => option.optionId === choice.value)?.operators.length,
+                      availableDimensions.find((option) => option.optionId === choice.value)
+                        ?.operators.length,
                   )}
                   selected={filterOption ? [filterOption] : []}
                   onChange={(values) => {
                     setFilterOption(values[0] ?? EMPTY);
                     setOperator(
-                      options.find((option) => option.optionId === values[0])?.operators[0] ?? '=',
+                      availableDimensions.find((option) => option.optionId === values[0])
+                        ?.operators[0] ?? '=',
                     );
                     setFilterValue(EMPTY);
                   }}
@@ -514,7 +422,8 @@ function FixedPublishedWorkbench({ api }: { api: BuildCatalogApi }) {
                       label="操作符"
                       single
                       options={(
-                        options.find((option) => option.optionId === filterOption)?.operators ?? []
+                        availableDimensions.find((option) => option.optionId === filterOption)
+                          ?.operators ?? []
                       ).map((value) => ({ value, label: value }))}
                       selected={[operator]}
                       onChange={(values) => {
@@ -547,7 +456,7 @@ function FixedPublishedWorkbench({ api }: { api: BuildCatalogApi }) {
                 onDirectionChange={(id, direction) =>
                   setSortDirections((current) => ({ ...current, [id]: direction }))
                 }
-                disabled={!optionsReady}
+                disabled={!availableDimensionsReady}
               />
             </div>
             <footer className="analysis-runbar">
@@ -568,24 +477,18 @@ function FixedPublishedWorkbench({ api }: { api: BuildCatalogApi }) {
           <section className="analysis-result" aria-label="查询结果" aria-live="polite">
             <header>
               <h2>查询结果</h2>
-              <span>{result ? `查询 ${result.queryId} · 版本 ${result.buildId}` : '等待运行'}</span>
+              <span>{result ? `版本 ${result.buildId}` : '等待运行'}</span>
             </header>
             {result ? (
               <>
                 <p className="resource-muted">修改条件后，运行查询以刷新结果。</p>
-                {result.state === READY && !result.columns?.length && !result.sql ? (
+                {!result.columns?.length && !result.sql ? (
                   <Empty image={null} description="查询完成，没有返回数据列" />
                 ) : (
                   <DbtQueryResults
-                    key={result.queryId}
                     result={publishedResult(result, submittedMode)}
                     metricNames={submittedMetrics}
                   />
-                )}
-                {result.nextOffset != null && (
-                  <Button loading={busy} disabled={busy} onClick={() => void loadMoreResults()}>
-                    {LOAD_MORE}
-                  </Button>
                 )}
               </>
             ) : busy ? (

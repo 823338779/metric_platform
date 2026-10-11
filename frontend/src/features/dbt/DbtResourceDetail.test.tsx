@@ -1,7 +1,6 @@
 import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, beforeAll, expect, it, vi } from 'vitest';
 import { DbtResourceDetail } from './DbtResourceDetail';
-import { publishedResourceAdapter } from './publishedResourceAdapter';
 
 beforeAll(() => {
   globalThis.ResizeObserver = class {
@@ -244,12 +243,9 @@ it('locates the metric definition instead of a same-name measure earlier in the 
   expect(lines.findIndex((line) => line.classList.contains('source-definition'))).toBe(5);
 });
 
-it('reports a later preview poll failure and stops after leaving detail', async () => {
+it('reports synchronous preview failure without polling', async () => {
   const client = api('TABLE');
-  client.previewDbtDataset.mockResolvedValue({ queryId: 'q', buildId: 'release-1' });
-  client.getDbtQuery
-    .mockResolvedValueOnce({ queryId: 'q', buildId: 'release-1', status: 'RUNNING' })
-    .mockRejectedValueOnce(new Error('network'));
+  client.previewDbtDataset.mockRejectedValueOnce(new Error('network'));
   const view = render(
     <DbtResourceDetail
       projectId="demo"
@@ -262,7 +258,7 @@ it('reports a later preview poll failure and stops after leaving detail', async 
   await screen.findByText('TABLE title');
   fireEvent.click(screen.getByRole('button', { name: '预览数据' }));
   expect(await screen.findByText('预览读取失败', {}, { timeout: 3000 })).toBeTruthy();
-  const calls = client.getDbtQuery.mock.calls.length;
+  const calls = 0;
   view.unmount();
   await new Promise((resolve) => setTimeout(resolve, 1100));
   expect(client.getDbtQuery).toHaveBeenCalledTimes(calls);
@@ -287,23 +283,16 @@ it('历史目录可见但物理查询不可用时禁止预览', async () => {
   expect(screen.getByRole('heading', { name: 'TABLE title' })).toBeTruthy();
 });
 
-it('PREVIEW未知结果保留终态和诊断并停止后续轮询', async () => {
+it('PREVIEW同步返回数据且不读取查询状态', async () => {
   const client = api('TABLE');
-  const gateway = {
-    query: vi.fn().mockResolvedValue({
-      queryId: '55555555-5555-4555-8555-555555555555',
-      buildId: 'release-1',
-      state: 'OUTCOME_UNKNOWN',
-      error: { code: 'PREVIEW_OUTCOME_UNKNOWN', message: 'worker lost', retryable: false },
-    }),
-  };
-  const adapter = publishedResourceAdapter(gateway as never);
   client.previewDbtDataset.mockResolvedValue({
     queryId: '55555555-5555-4555-8555-555555555555',
     buildId: 'release-1',
-    status: 'PENDING',
+    status: 'SUCCEEDED',
+    mode: 'PREVIEW',
+    columns: [{ name: 'value', type: 'STRING' }],
+    rows: [['sync-preview-value']],
   });
-  client.getDbtQuery.mockImplementation(adapter.getDbtQuery);
   render(
     <DbtResourceDetail
       projectId="demo"
@@ -314,10 +303,8 @@ it('PREVIEW未知结果保留终态和诊断并停止后续轮询', async () => 
     />,
   );
   fireEvent.click(await screen.findByRole('button', { name: '预览数据' }));
-  await screen.findByText(/执行结果未知（OUTCOME_UNKNOWN）/);
-  await screen.findByText(/worker lost/);
-  await new Promise((resolve) => setTimeout(resolve, 1200));
-  expect(gateway.query).toHaveBeenCalledTimes(1);
+  await screen.findByText('sync-preview-value');
+  expect(client.getDbtQuery).not.toHaveBeenCalled();
 });
 
 it('PREVIEW受理即返回未知终态时不再请求状态', async () => {

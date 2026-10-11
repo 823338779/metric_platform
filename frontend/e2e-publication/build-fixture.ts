@@ -3,7 +3,6 @@ import type { Page } from '@playwright/test';
 export const BUILD_A = '11111111-1111-4111-8111-111111111111';
 export const BUILD_B = '22222222-2222-4222-8222-222222222222';
 export const BUILD_MAIN = '33333333-3333-4333-8333-333333333333';
-const OPTIONS_ID = '44444444-4444-4444-8444-444444444444';
 const IDENTITY = {
   identityId: 'fixture',
   subject: 'fixture',
@@ -11,7 +10,7 @@ const IDENTITY = {
   authVersion: 1,
 };
 type Json = Record<string, any>;
-/** 唯一 v3 fixture：保留独立构建、异步选项/查询和分页身份，未知路由明确失败。 */
+/** 唯一 v3 fixture：保留独立构建、同步选项/查询和构建分页身份，未知路由明确失败。 */
 export async function buildFixture(
   page: Page,
   config: {
@@ -39,11 +38,8 @@ export async function buildFixture(
   );
   await page.route('**/api/v1/auth/me', (route) => route.fulfill({ json: IDENTITY }));
   const requests: { path: string; body?: Json }[] = [];
-  const queries = new Map<string, Json>();
   let lost = false;
   let active = BUILD_A;
-  let serial = 0;
-  let optionBuild = BUILD_A;
   const build = (id: string) => ({
     buildId: id,
     repository: 'repo/a',
@@ -142,59 +138,34 @@ export async function buildFixture(
         },
       });
     }
-    if (path.endsWith('/query-options')) {
-      optionBuild = id;
+    if (path.endsWith('/available-dimensions')) {
       return route.fulfill({
-        status: 202,
+        status: 200,
         json: {
-          optionsTaskId: OPTIONS_ID,
           buildId: id,
-          state: 'QUEUED',
-          options: [],
+          dimensions: config.options ?? [],
           metricResourceIds: body.metricResourceIds,
         },
       });
     }
-    if (path.includes('/query-options/'))
-      return route.fulfill({
-        json: {
-          optionsTaskId: OPTIONS_ID,
-          buildId: optionBuild,
-          state: 'SUCCEEDED',
-          options: config.options ?? [],
-        },
-      });
     if (path.endsWith('/queries')) {
-      if (!queries.has(body.idempotencyKey)) {
-        serial++;
-        queries.set(body.idempotencyKey, {
-          queryId: `55555555-5555-4555-8555-${String(serial).padStart(12, '0')}`,
-          buildId: id,
-          state: 'SUCCEEDED',
-          mode: body.mode,
-          resultAvailable: true,
-          columns: [{ name: '销售额', type: 'DECIMAL' }],
-          rows: [[id === BUILD_B ? '31.00' : '62.00']],
-          nextOffset: null,
-          ...config.result?.(body, id),
-        });
-      }
+      if ('idempotencyKey' in body || 'offset' in body)
+        return route.fulfill({ status: 422, json: { code: 'INVALID_REQUEST' } });
       if (lost) {
         lost = false;
         return route.abort('failed');
       }
-      const value = queries.get(body.idempotencyKey)!;
       return route.fulfill({
-        status: 202,
-        json: { queryId: value.queryId, buildId: value.buildId, state: 'QUEUED' },
+        status: 200,
+        json: {
+          buildId: id,
+          mode: body.mode,
+          columns: [{ name: '销售额', type: 'DECIMAL' }],
+          rows: [[id === BUILD_B ? '31.00' : '62.00']],
+          resultTruncated: false,
+          ...config.result?.(body, id),
+        },
       });
-    }
-    if (/\/queries\/[^/]+\/(status|results)$/.test(path)) {
-      const q = path.split('/').at(-2);
-      const value = [...queries.values()].find((value) => value.queryId === q);
-      return value
-        ? route.fulfill({ json: value })
-        : route.fulfill({ status: 404, json: { code: 'QUERY_NOT_FOUND' } });
     }
     const rid = path.match(/\/resources\/([^/]+)/)?.[1];
     if (rid) {
@@ -225,7 +196,6 @@ export async function buildFixture(
   });
   return {
     requests,
-    queries,
     loseNextReceipt: () => {
       lost = true;
     },

@@ -28,11 +28,8 @@ class OpenApiContractTest {
                         "/api/v3/dbt/builds/{buildId}/catalog",
                         "/api/v3/dbt/builds/{buildId}/resources/{resourceId}",
                         "/api/v3/dbt/builds/{buildId}/resources/{resourceId}/{view}",
-                        "/api/v3/dbt/builds/{buildId}/query-options",
-                        "/api/v3/dbt/query-options/{optionsTaskId}",
+                        "/api/v3/dbt/builds/{buildId}/available-dimensions",
                         "/api/v3/dbt/builds/{buildId}/queries",
-                        "/api/v3/dbt/queries/{queryId}/status",
-                        "/api/v3/dbt/queries/{queryId}/results",
                         "/api/v3/dbt/contract"))
             assertThat(api.path("paths").has(path)).as(path).isTrue();
         api.path("paths")

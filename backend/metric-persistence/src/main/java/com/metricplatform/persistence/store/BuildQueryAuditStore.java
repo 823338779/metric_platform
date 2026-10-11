@@ -7,12 +7,12 @@ import org.springframework.stereotype.Repository;
 
 import java.util.UUID;
 
-/** 服务查询受理后保存身份归因，重试不会改写原用户。 */
+/** 同步查询完成后保存本地执行归因，不生成服务查询身份。 */
 @Repository
 public class BuildQueryAuditStore implements QueryAuditRepository {
     private static final String INSERT =
-            "insert into build_query_audit(query_id,build_id,user_id,idempotency_key)"
-                + " values(?,?,?,?) on conflict(query_id) do nothing";
+            "insert into query_execution_audit(execution_id,build_id,user_id)"
+                + " values(?,?,?)";
     /** 平台数据库的参数化 SQL 访问。 */
     private final JdbcTemplate jdbc;
 
@@ -20,7 +20,7 @@ public class BuildQueryAuditStore implements QueryAuditRepository {
         this.jdbc = jdbc;
     }
 
-    public void record(UUID query, UUID build, UUID user, String key) {
-        jdbc.update(INSERT, query, build, user, key);
+    public void record(UUID execution, UUID build, UUID user) {
+        jdbc.update(INSERT, execution, build, user);
     }
 }

@@ -4,10 +4,6 @@ import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.metricplatform.catalog.BuildContracts.*;
 import com.metricplatform.catalog.BuildGateway;
-
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.stereotype.Component;
-
 import java.io.IOException;
 import java.net.URI;
 import java.net.URLEncoder;
@@ -15,6 +11,8 @@ import java.net.http.*;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.util.*;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.stereotype.Component;
 
 /** 唯一 v3 HTTP 适配；不持有部署指针，不重解释构建的业务时区。 */
 @Component
@@ -22,8 +20,8 @@ public class HttpBuildGateway implements BuildGateway {
     private static final String ROOT = "/v3",
             BUILDS = ROOT + "/builds",
             DEPLOYMENTS = ROOT + "/deployments",
-            QUERIES = ROOT + "/queries",
-            OPTIONS = ROOT + "/query-options";
+            QUERY = ROOT + "/query",
+            AVAILABLE_DIMENSIONS = QUERY + "/available-dimensions";
     private static final String GET = "GET",
             POST = "POST",
             SLASH = "/",
@@ -39,7 +37,7 @@ public class HttpBuildGateway implements BuildGateway {
             LIMIT = "limit",
             Q = "q",
             KIND = "kind",
-            OFFSET = "offset",
+            BUILD_ID = "build_id",
             DETAIL = "detail",
             ERROR = "error",
             CODE = "code",
@@ -58,6 +56,9 @@ public class HttpBuildGateway implements BuildGateway {
     /** 每次请求的最大等待时间。 */
     private final Duration timeout;
 
+    /** 同步可用维度与查询的有界等待时间。 */
+    private final Duration queryTimeout;
+
     /** 服务访问凭据，不来自浏览器。 */
     private final String token;
 
@@ -72,14 +73,29 @@ public class HttpBuildGateway implements BuildGateway {
 
     @Autowired
     public HttpBuildGateway(DbtRuntimeProperties properties) {
-        this(properties.getBaseUri(), properties.getTimeout(), properties.getServiceToken());
+        this(
+                properties.getBaseUri(),
+                properties.getTimeout(),
+                properties.getQueryTimeout(),
+                properties.getServiceToken());
     }
 
     public HttpBuildGateway(URI uri, Duration timeout, String token) {
+        this(uri, timeout, timeout, token);
+    }
+
+    public HttpBuildGateway(URI uri, Duration timeout, Duration queryTimeout, String token) {
         if (uri == null || !Set.of("http", "https").contains(uri.getScheme()))
             throw new IllegalArgumentException("运行服务地址无效");
         this.baseUri = uri;
+        if (timeout == null
+                || timeout.isZero()
+                || timeout.isNegative()
+                || queryTimeout == null
+                || queryTimeout.isZero()
+                || queryTimeout.isNegative()) throw new IllegalArgumentException("运行服务超时必须为正数");
         this.timeout = timeout;
+        this.queryTimeout = queryTimeout;
         this.token = token;
         this.http =
                 HttpClient.newBuilder()
@@ -182,49 +198,27 @@ public class HttpBuildGateway implements BuildGateway {
                         ResourceView.class));
     }
 
-    public OptionsTaskView options(UUID id, OptionsRequest request) {
-        return scoped(
-                id,
-                call(POST, BUILDS + SLASH + id + "/query-options", request, OptionsTaskView.class));
-    }
-
-    public OptionsTaskView getOptions(UUID id) {
-        var result = call(GET, OPTIONS + SLASH + id, null, OptionsTaskView.class);
-        if (!id.equals(result.optionsTaskId())) throw invalid();
-        return result;
-    }
-
-    public QueryView query(UUID id, QueryRequest request) {
-        return scoped(id, call(POST, BUILDS + SLASH + id + "/queries", request, QueryView.class));
-    }
-
-    public QueryView queryStatus(UUID id) {
-        var result = call(GET, QUERIES + SLASH + id + "/status", null, QueryView.class);
-        if (!id.equals(result.queryId())) throw invalid();
-        return result;
-    }
-
-    public ResultPage queryResults(UUID id, int offset, int limit) {
+    public AvailableDimensionsView availableDimensions(
+            UUID id, AvailableDimensionsRequest request) {
         var result =
-                call(
-                        GET,
-                        QUERIES
-                                + SLASH
-                                + id
-                                + "/results"
-                                + parameters(OFFSET, offset, LIMIT, limit),
-                        null,
-                        ResultPage.class);
-        if (!id.equals(result.queryId())) throw invalid();
+                scoped(
+                        id,
+                        call(
+                                POST,
+                                AVAILABLE_DIMENSIONS + parameters(BUILD_ID, id),
+                                request,
+                                AvailableDimensionsView.class));
+        if (result.dimensions() == null || result.metricResourceIds() == null) throw invalid();
         return result;
     }
 
-    public ChangePage changes(String cursor, int limit) {
-        return call(
-                GET,
-                ROOT + "/changes" + parameters(CURSOR, cursor, LIMIT, limit),
-                null,
-                ChangePage.class);
+    public ResultPage query(UUID id, QueryRequest request) {
+        var result =
+                scoped(id, call(POST, QUERY + parameters(BUILD_ID, id), request, ResultPage.class));
+        // 同步服务返回完整结果，不再持久化查询身份或分页状态。
+        if (result.mode() == null || result.columns() == null || result.rows() == null)
+            throw invalid();
+        return result;
     }
 
     private static String encode(String value) {
@@ -242,7 +236,7 @@ public class HttpBuildGateway implements BuildGateway {
         try {
             var request =
                     HttpRequest.newBuilder(baseUri.resolve(path))
-                            .timeout(timeout)
+                            .timeout(POST.equals(method) ? queryTimeout : timeout)
                             .header(CONTENT_TYPE, JSON);
             if (token != null && !token.isBlank()) request.header(AUTHORIZATION, BEARER + token);
             request.method(
@@ -281,7 +275,7 @@ public class HttpBuildGateway implements BuildGateway {
                     throw new Failure(
                             response.statusCode(), mapper.treeToValue(node, ErrorView.class));
                 }
-                if (POST.equals(method) && response.statusCode() != 202) throw invalid();
+                if (POST.equals(method) && response.statusCode() != 200) throw invalid();
                 T result = mapper.readValue(bytes, type);
                 if (result == null) throw invalid();
                 return result;
@@ -303,8 +297,8 @@ public class HttpBuildGateway implements BuildGateway {
                     case BuildView v -> v.buildId();
                     case CatalogPage v -> v.buildId();
                     case ResourceView v -> v.buildId();
-                    case OptionsTaskView v -> v.buildId();
-                    case QueryView v -> v.buildId();
+                    case AvailableDimensionsView v -> v.buildId();
+                    case ResultPage v -> v.buildId();
                     default -> null;
                 };
         if (!id.equals(actual)) throw invalid();

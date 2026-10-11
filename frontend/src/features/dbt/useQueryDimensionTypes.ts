@@ -10,7 +10,7 @@ export function useQueryDimensionTypes(
   api: BuildCatalogApi,
   projectId: string,
   buildId: string,
-  options: PublishedOption[],
+  availableDimensions: PublishedOption[],
 ) {
   const [types, setTypes] = useState<Record<string, string>>({});
   useEffect(() => {
@@ -18,7 +18,9 @@ export function useQueryDimensionTypes(
     setTypes({});
     const adapter = publishedResourceAdapter(api);
     const ids = [
-      ...new Set(options.flatMap((option) => (option.resourceId ? [option.resourceId] : []))),
+      ...new Set(
+        availableDimensions.flatMap((option) => (option.resourceId ? [option.resourceId] : [])),
+      ),
     ];
     void Promise.all(
       ids.map(async (id) => {
@@ -40,6 +42,6 @@ export function useQueryDimensionTypes(
     return () => {
       active = false;
     };
-  }, [api, projectId, buildId, options]);
+  }, [api, projectId, buildId, availableDimensions]);
   return types;
 }

@@ -1,3 +1,4 @@
+import { ApiProblem } from '../../api/httpClient';
 import { describe, expect, it, vi } from 'vitest';
 import { publishedResourceAdapter, publishedResult } from './publishedResourceAdapter';
 import { resolveResourceDataType } from './resourceDataType';
@@ -18,34 +19,21 @@ const BASE = {
 };
 
 describe('published presentation contract', () => {
-  it('预览响应丢失且活动版本推进后仍以原键恢复，独立适配器不共享请求', async () => {
-    const accepted = new Map<string, unknown>();
-    let advanced = false;
-    const submit = vi.fn(async (_project, body) => {
-      if (accepted.has(body.idempotencyKey)) return accepted.get(body.idempotencyKey);
-      if (advanced) throw new Error('410 superseded');
-      accepted.set(body.idempotencyKey, {
-        buildId: RELEASE,
-        queryId: 'original',
-        state: 'QUEUED',
-      });
-      throw new Error('receipt lost');
-    });
-    const api = { submit } as unknown as BuildCatalogApi;
-    const adapter = publishedResourceAdapter(api);
+  it('预览响应丢失后重新执行仍固定原构建，且不发送幂等键', async () => {
+    const submit = vi
+      .fn()
+      .mockRejectedValueOnce(new Error('response lost'))
+      .mockResolvedValue({ buildId: RELEASE, mode: 'PREVIEW', rows: [['value']], columns: [] });
+    const adapter = publishedResourceAdapter({ submit } as unknown as BuildCatalogApi);
     await expect(adapter.previewDbtDataset(PROJECT, 'dataset', RELEASE, 10)).rejects.toThrow(
       'lost',
     );
-    advanced = true;
-    expect((await adapter.previewDbtDataset(PROJECT, 'dataset', RELEASE, 10)).queryId).toBe(
-      'original',
-    );
-    expect(submit.mock.calls[1][1]).toEqual(submit.mock.calls[0][1]);
-    expect(accepted.size).toBe(1);
-    await expect(
-      publishedResourceAdapter(api).previewDbtDataset(PROJECT, 'dataset', RELEASE, 10),
-    ).rejects.toThrow('410');
-    expect(submit.mock.calls[2][1].idempotencyKey).not.toBe(submit.mock.calls[0][1].idempotencyKey);
+    const result = await adapter.previewDbtDataset(PROJECT, 'dataset', RELEASE, 10);
+    expect(result.status).toBe('COMPLETED');
+    expect(result.queryId).toBeUndefined();
+    expect(submit.mock.calls[1]).toEqual(submit.mock.calls[0]);
+    expect(submit.mock.calls[1][1]).not.toHaveProperty('idempotencyKey');
+    expect(submit.mock.calls[1][0]).toBe(RELEASE);
   });
 
   it('follows platform identities for a directly mapped column without calling a native ID', async () => {
@@ -101,16 +89,69 @@ describe('published presentation contract', () => {
     await expect(adapter.getDbtLineage(PROJECT, 'x', RELEASE)).rejects.toThrow('身份');
   });
 
-  it('keeps raw result values and maps query states without changing query identity', () => {
+  it('keeps raw values and presents completed results without inventing query identity', () => {
     const result = publishedResult({
-      queryId: 'q',
       buildId: RELEASE,
-      state: 'SUCCEEDED',
       rows: [['9007199254740993.01']],
       columns: [{ name: 'amount', type: 'DECIMAL' }],
     });
     expect(result.status).toBe('COMPLETED');
-    expect(result.queryId).toBe('q');
+    expect(result.queryId).toBeUndefined();
     expect(result.rows).toEqual([['9007199254740993.01']]);
   });
+});
+
+it.each(['COMMAND_FAILED', 'INVALID_QUERY', 'RESULT_INVALID', 'RESULT_TOO_LARGE'])(
+  '预览明确终态失败 %s 后下一次调用保持固定构建且不携带幂等键',
+  async (code) => {
+    const submit = vi
+      .fn()
+      .mockRejectedValueOnce(
+        new ApiProblem({
+          status: 503,
+          title: 'Failure',
+          detail: 'failed',
+          code,
+          retryable: false,
+          buildId: RELEASE,
+        }),
+      )
+      .mockResolvedValue({ buildId: RELEASE, queryId: 'new-query', state: 'SUCCEEDED' });
+    const adapter = publishedResourceAdapter({ submit } as unknown as BuildCatalogApi);
+    await expect(adapter.previewDbtDataset(PROJECT, 'dataset', RELEASE, 10)).rejects.toThrow(
+      'failed',
+    );
+    await adapter.previewDbtDataset(PROJECT, 'dataset', RELEASE, 10);
+    expect(submit.mock.calls[1][1]).not.toHaveProperty('idempotencyKey');
+    expect(submit.mock.calls[1]).toEqual(submit.mock.calls[0]);
+  },
+);
+it.each([
+  'COMMAND_TIMEOUT',
+  'TASK_TIMEOUT',
+  'EXECUTION_OUTCOME_UNKNOWN',
+  'WORKER_FAILED',
+  'LEASE_LOST',
+  'IDEMPOTENCY_CONFLICT',
+  'RESULT_NOT_READY',
+])('预览不确定或冲突响应 %s 手动再次执行仍保留相同输入', async (code) => {
+  const submit = vi
+    .fn()
+    .mockRejectedValueOnce(
+      new ApiProblem({
+        status: 503,
+        title: 'Failure',
+        detail: 'uncertain',
+        code,
+        retryable: false,
+        buildId: RELEASE,
+      }),
+    )
+    .mockResolvedValue({ buildId: RELEASE, queryId: 'original-query', state: 'SUCCEEDED' });
+  const adapter = publishedResourceAdapter({ submit } as unknown as BuildCatalogApi);
+  await expect(adapter.previewDbtDataset(PROJECT, 'dataset', RELEASE, 10)).rejects.toThrow(
+    'uncertain',
+  );
+  await adapter.previewDbtDataset(PROJECT, 'dataset', RELEASE, 10);
+  expect(submit.mock.calls[1][1]).toEqual(submit.mock.calls[0][1]);
 });

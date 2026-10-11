@@ -2,7 +2,6 @@ import type {
   BuildCatalogApi,
   PublishedResource,
   PublishedResult,
-  PublishedQuery,
 } from '../../api/buildCatalogApi';
 import type {
   DbtLineage,
@@ -17,31 +16,23 @@ const QUERY = 'QUERY';
 const PREVIEW = 'PREVIEW';
 const SEMANTIC_MODEL = 'SEMANTIC_MODEL';
 const MISMATCH = '资源或版本身份与请求不一致';
-const STATES: Record<string, DbtQueryStatus['status']> = {
-  QUEUED: 'PENDING',
-  RUNNING: 'RUNNING',
-  SUCCEEDED: 'COMPLETED',
-  FAILED: 'FAILED',
-  CANCELLED: 'CANCELLED',
-  OUTCOME_UNKNOWN: 'OUTCOME_UNKNOWN',
-};
+const COMPLETED = 'COMPLETED';
 
 export function publishedResult(
   result: PublishedResult,
   mode = result.mode ?? QUERY,
 ): DbtQueryStatus {
   return {
-    queryId: result.queryId,
     buildId: result.buildId,
     targetCommitSha: result.commitSha ?? '',
     mode,
-    status: STATES[result.state] ?? 'PENDING',
+    status: COMPLETED,
     columns: result.columns ?? null,
     rows: result.rows ?? null,
-    errorCode: result.error?.code ?? null,
-    errorMessage: result.error?.message ?? null,
+    errorCode: null,
+    errorMessage: null,
     truncated: result.resultTruncated ?? null,
-    durationMs: result.durationMs ?? null,
+    durationMs: null,
     sql: result.sql,
   };
 }
@@ -61,8 +52,6 @@ export function publishedTreeResource(resource: PublishedResource): DbtResource 
 
 /** 仅适配展示契约；所有读取和执行仍走 v3，资源与查询身份不转换为名称。 */
 export function publishedResourceAdapter(api: BuildCatalogApi) {
-  // 适配器生命周期绑定分支/版本；未知受理结果保留原请求，不能重试生成新任务。
-  const pendingPreviews = new Map<string, PublishedQuery>();
   const cursors = new Map<string, (string | undefined)[]>();
   const resource = async (project: string, id: string, buildId: string) => {
     const value = await api.resource(buildId, id);
@@ -172,25 +161,13 @@ export function publishedResourceAdapter(api: BuildCatalogApi) {
       };
     },
     async previewDbtDataset(project: string, id: string, buildId: string, limit: number) {
-      const signature = JSON.stringify([project, id, buildId, limit]);
-      const body = pendingPreviews.get(signature) ?? {
-        idempotencyKey: crypto.randomUUID(),
+      const value = await api.submit(buildId, {
         mode: PREVIEW,
         datasetResourceId: id,
         metricResourceIds: [],
         limit,
-      };
-      pendingPreviews.set(signature, body);
-      const value = await api.submit(buildId, body);
+      });
       if (value.buildId !== buildId) throw new Error(MISMATCH);
-      pendingPreviews.delete(signature);
-      return publishedResult(value, PREVIEW);
-    },
-    async getDbtQuery(project: string, query: string) {
-      const status = await api.query(query);
-      const value =
-        status.state === 'SUCCEEDED' && status.resultAvailable ? await api.results(query) : status;
-      if (value.queryId !== query || value.buildId !== status.buildId) throw new Error(MISMATCH);
       return publishedResult(value, PREVIEW);
     },
   };

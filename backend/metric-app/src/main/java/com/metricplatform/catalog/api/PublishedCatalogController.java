@@ -7,7 +7,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
-/** 固定构建的目录及异步选项门面，不提供发布动作。 */
+/** 固定构建的目录及同步可用维度门面，不提供发布动作。 */
 @RestController
 @RequiredArgsConstructor
 @RequestMapping(PublishedCatalogController.ROOT)
@@ -17,11 +17,10 @@ public class PublishedCatalogController {
             RESOURCE = BUILD + "/resources/{resourceId}";
     private static final String CATALOG = "/catalog",
             RESOURCE_VIEW = "/{view:source|lineage|native-details}",
-            OPTIONS = "/query-options",
-            OPTIONS_TASK = OPTIONS + "/{optionsTaskId}",
+            AVAILABLE_DIMENSIONS = "/available-dimensions",
             EMPTY = "";
 
-    /** 服务权威的固定构建目录与选项接口。 */
+    /** 服务权威的固定构建目录与可用维度接口。 */
     private final BuildGateway gateway;
 
     @GetMapping(BUILD + CATALOG)
@@ -47,17 +46,14 @@ public class PublishedCatalogController {
         return gateway.resource(buildId, resourceId, view);
     }
 
-    @PostMapping(BUILD + OPTIONS)
-    public ResponseEntity<OptionsTaskView> options(
+    @PostMapping(BUILD + AVAILABLE_DIMENSIONS)
+    public ResponseEntity<AvailableDimensionsView> availableDimensions(
             @PathVariable UUID buildId, @RequestBody String request) {
-        return ResponseEntity.accepted()
+        return ResponseEntity.ok()
                 .body(
-                        gateway.options(
-                                buildId, BuildRequestParser.parse(request, OptionsRequest.class)));
-    }
-
-    @GetMapping(OPTIONS_TASK)
-    public OptionsTaskView options(@PathVariable UUID optionsTaskId) {
-        return gateway.getOptions(optionsTaskId);
+                        gateway.availableDimensions(
+                                buildId,
+                                BuildRequestParser.parse(
+                                        request, AvailableDimensionsRequest.class)));
     }
 }

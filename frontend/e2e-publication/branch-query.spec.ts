@@ -1,6 +1,6 @@
 import { expect, test } from '@playwright/test';
 import { buildFixture, BUILD_A, BUILD_B } from './build-fixture';
-test('不同分支结果独立，丢失受理响应后原键恢复相同查询', async ({ page }) => {
+test('不同分支结果独立，丢失响应后固定原构建重新执行', async ({ page }) => {
   const fixture = await buildFixture(page);
   await page.goto(`/dbt/builds/${BUILD_A}/query`);
   await page.getByRole('checkbox', { name: '销售额 a' }).click();
@@ -12,7 +12,7 @@ test('不同分支结果独立，丢失受理响应后原键恢复相同查询',
   await expect(page.getByRole('cell', { name: '62.00' })).toBeVisible();
   const posts = fixture.requests.filter((item) => item.path.endsWith('/queries'));
   expect(posts[0].body).toEqual(posts[1].body);
-  expect(fixture.queries.size).toBe(1);
+  expect(posts[1].body).not.toHaveProperty('idempotencyKey');
   await page.goto(`/dbt/builds/${BUILD_B}/query`);
   await page.getByRole('checkbox', { name: '销售额 b' }).click();
   await page.getByRole('button', { name: '查询', exact: true }).click();

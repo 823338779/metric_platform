@@ -21,4 +21,7 @@ public class DbtRuntimeProperties {
 
     /** 单次服务请求的最长等待时间。 */
     private Duration timeout = Duration.ofSeconds(30);
+
+    /** 同步选项和查询的等待上限，覆盖服务执行时限与结果传输。 */
+    private Duration queryTimeout = Duration.ofSeconds(1860);
 }

@@ -46,12 +46,12 @@ paths:
   /api/v3/dbt/builds:
     get:
       summary: 读取平台本地构建历史
-      description: repository 和 branchName 均为可选筛选；省略仓库时浏览全部本地历史。游标绑定原筛选条件，并按不可变首次变化序号分页。
+      description: repository 为必填规范仓库地址，branchName 为可选筛选；直接读取 dbt-service 的构建历史，游标绑定相同仓库及筛选。
       operationId: history_v3_builds_get
       parameters:
       - name: repository
         in: query
-        required: false
+        required: true
         schema:
           type: string
           title: Repository
@@ -362,10 +362,10 @@ paths:
                 $ref: '#/components/schemas/Problem'
       security:
       - bearerAuth: []
-  /api/v3/dbt/builds/{buildId}/query-options:
+  /api/v3/dbt/builds/{buildId}/available-dimensions:
     post:
-      summary: Options
-      operationId: options_v3_builds__build_id__query_options_post
+      summary: 可用维度
+      operationId: available_dimensions_v3_builds__build_id__available_dimensions_post
       parameters:
       - name: buildId
         in: path
@@ -379,77 +379,14 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/OptionsRequest'
-      responses:
-        '202':
-          description: Successful Response
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/OptionsTaskView'
-        '422':
-          description: 平台错误包装保留服务业务诊断
-          content:
-            application/problem+json:
-              schema:
-                $ref: '#/components/schemas/Problem'
-        '401':
-          description: 平台错误包装保留服务业务诊断
-          content:
-            application/problem+json:
-              schema:
-                $ref: '#/components/schemas/Problem'
-        '403':
-          description: 平台错误包装保留服务业务诊断
-          content:
-            application/problem+json:
-              schema:
-                $ref: '#/components/schemas/Problem'
-        '404':
-          description: 平台错误包装保留服务业务诊断
-          content:
-            application/problem+json:
-              schema:
-                $ref: '#/components/schemas/Problem'
-        '409':
-          description: 平台错误包装保留服务业务诊断
-          content:
-            application/problem+json:
-              schema:
-                $ref: '#/components/schemas/Problem'
-        '410':
-          description: 平台错误包装保留服务业务诊断
-          content:
-            application/problem+json:
-              schema:
-                $ref: '#/components/schemas/Problem'
-        '503':
-          description: 平台错误包装保留服务业务诊断
-          content:
-            application/problem+json:
-              schema:
-                $ref: '#/components/schemas/Problem'
-      security:
-      - bearerAuth: []
-  /api/v3/dbt/query-options/{optionsTaskId}:
-    get:
-      summary: Get Options
-      operationId: get_options_v3_query_options__options_task_id__get
-      parameters:
-      - name: optionsTaskId
-        in: path
-        required: true
-        schema:
-          type: string
-          format: uuid
-          title: Options Task Id
+              $ref: '#/components/schemas/AvailableDimensionsRequest'
       responses:
         '200':
           description: Successful Response
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/OptionsTaskView'
+                $ref: '#/components/schemas/AvailableDimensionsView'
         '422':
           description: 平台错误包装保留服务业务诊断
           content:
@@ -513,149 +450,6 @@ paths:
             schema:
               $ref: '#/components/schemas/QueryRequest'
       responses:
-        '202':
-          description: Successful Response
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/QueryView'
-        '422':
-          description: 平台错误包装保留服务业务诊断
-          content:
-            application/problem+json:
-              schema:
-                $ref: '#/components/schemas/Problem'
-        '401':
-          description: 平台错误包装保留服务业务诊断
-          content:
-            application/problem+json:
-              schema:
-                $ref: '#/components/schemas/Problem'
-        '403':
-          description: 平台错误包装保留服务业务诊断
-          content:
-            application/problem+json:
-              schema:
-                $ref: '#/components/schemas/Problem'
-        '404':
-          description: 平台错误包装保留服务业务诊断
-          content:
-            application/problem+json:
-              schema:
-                $ref: '#/components/schemas/Problem'
-        '409':
-          description: 平台错误包装保留服务业务诊断
-          content:
-            application/problem+json:
-              schema:
-                $ref: '#/components/schemas/Problem'
-        '410':
-          description: 平台错误包装保留服务业务诊断
-          content:
-            application/problem+json:
-              schema:
-                $ref: '#/components/schemas/Problem'
-        '503':
-          description: 平台错误包装保留服务业务诊断
-          content:
-            application/problem+json:
-              schema:
-                $ref: '#/components/schemas/Problem'
-      security:
-      - bearerAuth: []
-  /api/v3/dbt/queries/{queryId}/status:
-    get:
-      summary: Status
-      operationId: status_v3_queries__query_id__status_get
-      parameters:
-      - name: queryId
-        in: path
-        required: true
-        schema:
-          type: string
-          format: uuid
-          title: Query Id
-      responses:
-        '200':
-          description: Successful Response
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/QueryView'
-        '422':
-          description: 平台错误包装保留服务业务诊断
-          content:
-            application/problem+json:
-              schema:
-                $ref: '#/components/schemas/Problem'
-        '401':
-          description: 平台错误包装保留服务业务诊断
-          content:
-            application/problem+json:
-              schema:
-                $ref: '#/components/schemas/Problem'
-        '403':
-          description: 平台错误包装保留服务业务诊断
-          content:
-            application/problem+json:
-              schema:
-                $ref: '#/components/schemas/Problem'
-        '404':
-          description: 平台错误包装保留服务业务诊断
-          content:
-            application/problem+json:
-              schema:
-                $ref: '#/components/schemas/Problem'
-        '409':
-          description: 平台错误包装保留服务业务诊断
-          content:
-            application/problem+json:
-              schema:
-                $ref: '#/components/schemas/Problem'
-        '410':
-          description: 平台错误包装保留服务业务诊断
-          content:
-            application/problem+json:
-              schema:
-                $ref: '#/components/schemas/Problem'
-        '503':
-          description: 平台错误包装保留服务业务诊断
-          content:
-            application/problem+json:
-              schema:
-                $ref: '#/components/schemas/Problem'
-      security:
-      - bearerAuth: []
-  /api/v3/dbt/queries/{queryId}/results:
-    get:
-      summary: Results
-      operationId: results_v3_queries__query_id__results_get
-      parameters:
-      - name: queryId
-        in: path
-        required: true
-        schema:
-          type: string
-          format: uuid
-          title: Query Id
-      - name: offset
-        in: query
-        required: false
-        schema:
-          type: integer
-          minimum: 0
-          default: 0
-          title: Offset
-      - name: limit
-        in: query
-        required: false
-        schema:
-          type: integer
-          maximum: 200
-          minimum: 1
-          default: 100
-          title: Limit
-      responses:
         '200':
           description: Successful Response
           content:
@@ -706,6 +500,7 @@ paths:
                 $ref: '#/components/schemas/Problem'
       security:
       - bearerAuth: []
+
   /api/v3/dbt/builds/{buildId}/catalog:
     get:
       summary: Catalog
@@ -1639,71 +1434,44 @@ components:
       - nativeDetails
       - attributes
       title: MetricResource
-    OptionsRequest:
+    AvailableDimensionsRequest:
       properties:
-        idempotencyKey:
-          type: string
-          maxLength: 256
-          minLength: 1
-          title: Idempotencykey
-          description: 异步选项请求键
         metricResourceIds:
           items:
             type: string
           type: array
           maxItems: 100
           minItems: 1
-          title: Metricresourceids
           description: 指标资源集合
       additionalProperties: false
       type: object
       required:
-      - idempotencyKey
       - metricResourceIds
-      title: OptionsRequest
-    OptionsTaskView:
+      title: AvailableDimensionsRequest
+    AvailableDimensionsView:
       properties:
-        optionsTaskId:
-          type: string
-          format: uuid
-          title: Optionstaskid
-          description: 持久选项任务身份
         buildId:
           type: string
           format: uuid
-          title: Buildid
           description: 固定构建身份
-        state:
-          $ref: '#/components/schemas/BuildStatus'
-          description: 异步执行状态
         metricResourceIds:
           items:
             type: string
           type: array
-          title: Metricresourceids
           description: 规范化指标集合
-        options:
-          anyOf:
-          - items:
-              additionalProperties: true
-              type: object
-            type: array
-          - type: 'null'
-          title: Options
-          description: 成功后生成的合法选项
-        error:
-          anyOf:
-          - $ref: '#/components/schemas/ErrorView'
-          - type: 'null'
-          description: 稳定错误
+        dimensions:
+          items:
+            additionalProperties: true
+            type: object
+          type: array
+          description: 当前指标共同支持的合法选项
       additionalProperties: false
       type: object
       required:
-      - optionsTaskId
       - buildId
-      - state
       - metricResourceIds
-      title: OptionsTaskView
+      - dimensions
+      title: AvailableDimensionsView
     Page_BuildView_:
       properties:
         items:
@@ -1834,12 +1602,6 @@ components:
       title: QueryMode
     QueryRequest:
       properties:
-        idempotencyKey:
-          type: string
-          maxLength: 256
-          minLength: 1
-          title: Idempotencykey
-          description: 本次查询的幂等键
         mode:
           $ref: '#/components/schemas/QueryMode'
           description: 受控的引擎查询模式
@@ -1890,7 +1652,7 @@ components:
           maximum: 10000.0
           minimum: 1.0
           title: Limit
-          description: 最多保存的结果行数
+          description: 最多返回的结果行数
           default: 1000
         datasetResourceId:
           anyOf:
@@ -1907,71 +1669,8 @@ components:
       additionalProperties: false
       type: object
       required:
-      - idempotencyKey
       - mode
       title: QueryRequest
-    QueryView:
-      properties:
-        queryId:
-          type: string
-          format: uuid
-          title: Queryid
-          description: 持久查询身份
-        buildId:
-          type: string
-          format: uuid
-          title: Buildid
-          description: 固定构建身份
-        state:
-          $ref: '#/components/schemas/BuildStatus'
-          description: 执行状态
-        mode:
-          $ref: '#/components/schemas/QueryMode'
-          description: 查询模式
-        commitSha:
-          anyOf:
-          - type: string
-          - type: 'null'
-          title: Commitsha
-          description: 固定源码版本
-        businessTimezone:
-          type: string
-          title: Businesstimezone
-          description: 构建固定的业务时区
-        normalizedTimeRange:
-          additionalProperties:
-            anyOf:
-            - type: string
-            - type: 'null'
-          type: object
-          title: Normalizedtimerange
-          description: 归一化时间输入
-        boundaryPolicy:
-          type: string
-          title: Boundarypolicy
-          description: 引擎粒度边界策略
-          default: metricflow_granularity_alignment
-        resultAvailable:
-          type: boolean
-          title: Resultavailable
-          description: 结果字节是否可读
-          default: false
-        error:
-          anyOf:
-          - $ref: '#/components/schemas/ErrorView'
-          - type: 'null'
-          description: 稳定错误
-      additionalProperties: false
-      type: object
-      required:
-      - queryId
-      - buildId
-      - state
-      - mode
-      - commitSha
-      - businessTimezone
-      - normalizedTimeRange
-      title: QueryView
     RelationName:
       properties:
         database:
@@ -2140,19 +1839,11 @@ components:
       title: ResourceView
     ResultPage:
       properties:
-        queryId:
-          type: string
-          format: uuid
-          title: Queryid
-          description: 持久查询身份
         buildId:
           type: string
           format: uuid
           title: Buildid
           description: 固定构建身份
-        state:
-          $ref: '#/components/schemas/BuildStatus'
-          description: 执行状态
         mode:
           $ref: '#/components/schemas/QueryMode'
           description: 查询模式
@@ -2179,16 +1870,6 @@ components:
           title: Boundarypolicy
           description: 引擎粒度边界策略
           default: metricflow_granularity_alignment
-        resultAvailable:
-          type: boolean
-          title: Resultavailable
-          description: 结果字节是否可读
-          default: false
-        error:
-          anyOf:
-          - $ref: '#/components/schemas/ErrorView'
-          - type: 'null'
-          description: 稳定错误
         sql:
           anyOf:
           - type: string
@@ -2209,24 +1890,6 @@ components:
           type: array
           title: Rows
           description: 有界结果正文
-        offset:
-          type: integer
-          title: Offset
-          description: 已保存结果中的偏移
-        returnedRows:
-          type: integer
-          title: Returnedrows
-          description: 本页行数
-        nextOffset:
-          anyOf:
-          - type: integer
-          - type: 'null'
-          title: Nextoffset
-          description: 下一页偏移
-        availableRows:
-          type: integer
-          title: Availablerows
-          description: 已保存行数，不代表源数据总数
         resultTruncated:
           type: boolean
           title: Resulttruncated
@@ -2234,19 +1897,13 @@ components:
       additionalProperties: false
       type: object
       required:
-      - queryId
       - buildId
-      - state
       - mode
       - commitSha
       - businessTimezone
       - normalizedTimeRange
       - columns
       - rows
-      - offset
-      - returnedRows
-      - nextOffset
-      - availableRows
       - resultTruncated
       title: ResultPage
     SelectedDimension:

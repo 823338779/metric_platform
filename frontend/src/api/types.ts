@@ -53,7 +53,8 @@ export type DbtSourceDocument = {
   content: string;
 };
 export type DbtQueryStatus = {
-  queryId: UUID;
+  /** 仅旧版持久查询具有身份；同步查询展示不生成服务查询 ID。 */
+  queryId?: UUID;
   buildId: UUID;
   targetCommitSha: string;
   mode: 'QUERY' | 'EXPLAIN' | 'PREVIEW' | 'DIMENSION_VALUES';

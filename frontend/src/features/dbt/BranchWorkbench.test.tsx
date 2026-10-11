@@ -26,7 +26,11 @@ it('运行中的A查询不绘制到B，同名指标重新读取固定构建选�
       items: [{ resourceId: 'same', displayName: id === A ? 'A指标' : 'B指标' }],
       nextCursor: null,
     })),
-    options: vi.fn(async (id: string) => ({ buildId: id, state: 'SUCCEEDED', options: [] })),
+    availableDimensions: vi.fn(async (id: string) => ({
+      buildId: id,
+      state: 'SUCCEEDED',
+      dimensions: [],
+    })),
     submit: vi.fn(
       () =>
         new Promise((resolve) => {
@@ -51,7 +55,7 @@ it('运行中的A查询不绘制到B，同名指标重新读取固定构建选�
   fireEvent.click(screen.getByRole('button', { name: '切换查询分支' }));
   fireEvent.click(await screen.findByRole('checkbox', { name: 'B指标' }));
   await waitFor(() =>
-    expect(api.options).toHaveBeenCalledWith(
+    expect(api.availableDimensions).toHaveBeenCalledWith(
       B,
       expect.objectContaining({ metricResourceIds: ['same'] }),
     ),

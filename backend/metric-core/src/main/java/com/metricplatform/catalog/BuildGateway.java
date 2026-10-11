@@ -18,17 +18,9 @@ public interface BuildGateway {
 
     ResourceView resource(UUID buildId, String resourceId, String view);
 
-    OptionsTaskView options(UUID buildId, OptionsRequest request);
+    AvailableDimensionsView availableDimensions(UUID buildId, AvailableDimensionsRequest request);
 
-    OptionsTaskView getOptions(UUID optionsTaskId);
-
-    QueryView query(UUID buildId, QueryRequest request);
-
-    QueryView queryStatus(UUID queryId);
-
-    ResultPage queryResults(UUID queryId, int offset, int limit);
-
-    ChangePage changes(String cursor, int limit);
+    ResultPage query(UUID buildId, QueryRequest request);
 
     /** 保留服务状态与业务诊断，禁止错误时回退旧协议。 */
     final class Failure extends RuntimeException {

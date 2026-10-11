@@ -11,6 +11,7 @@
         "environment": "PREVIEW",
         "executionBinding": "warehouse",
         "configVersion": "1",
+        "schemaName": "analytics",
         "deploymentPolicy": "NONE",
         "idempotencyKey": "build-001",
         "origin": null
@@ -91,34 +92,29 @@
       }
     },
     {
-      "name": "options-request",
-      "model": "OptionsRequest",
+      "name": "available-dimensions-request",
+      "model": "AvailableDimensionsRequest",
       "value": {
-        "idempotencyKey": "options-1",
         "metricResourceIds": [
           "metric.revenue"
         ]
       }
     },
     {
-      "name": "options-queued",
-      "model": "OptionsTaskView",
+      "name": "available-dimensions-result",
+      "model": "AvailableDimensionsView",
       "value": {
-        "optionsTaskId": "12345678-1234-4234-8234-123456789abc",
         "buildId": "12345678-1234-4234-8234-123456789abc",
-        "state": "QUEUED",
         "metricResourceIds": [
           "metric.revenue"
         ],
-        "options": null,
-        "error": null
+        "dimensions": []
       }
     },
     {
       "name": "query",
       "model": "QueryRequest",
       "value": {
-        "idempotencyKey": "query-QUERY",
         "mode": "QUERY",
         "metricResourceIds": [
           "metric.revenue"
@@ -137,7 +133,6 @@
       "name": "explain",
       "model": "QueryRequest",
       "value": {
-        "idempotencyKey": "query-EXPLAIN",
         "mode": "EXPLAIN",
         "metricResourceIds": [
           "metric.revenue"
@@ -156,7 +151,6 @@
       "name": "preview",
       "model": "QueryRequest",
       "value": {
-        "idempotencyKey": "query-PREVIEW",
         "mode": "PREVIEW",
         "metricResourceIds": [],
         "groupBy": [],
@@ -173,7 +167,6 @@
       "name": "dimension_values",
       "model": "QueryRequest",
       "value": {
-        "idempotencyKey": "query-DIMENSION_VALUES",
         "mode": "DIMENSION_VALUES",
         "metricResourceIds": [
           "metric.revenue"
@@ -189,12 +182,10 @@
       }
     },
     {
-      "name": "query-status",
-      "model": "QueryView",
+      "name": "query-result",
+      "model": "QueryResult",
       "value": {
-        "queryId": "12345678-1234-4234-8234-123456789abc",
         "buildId": "12345678-1234-4234-8234-123456789abc",
-        "state": "SUCCEEDED",
         "mode": "QUERY",
         "commitSha": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
         "businessTimezone": "Asia/Shanghai",
@@ -203,17 +194,17 @@
           "endTime": null
         },
         "boundaryPolicy": "metricflow_granularity_alignment",
-        "resultAvailable": true,
-        "error": null
+        "sql": null,
+        "columns": [],
+        "rows": [],
+        "resultTruncated": false
       }
     },
     {
       "name": "precision-result",
-      "model": "ResultPage",
+      "model": "QueryResult",
       "value": {
-        "queryId": "12345678-1234-4234-8234-123456789abc",
         "buildId": "12345678-1234-4234-8234-123456789abc",
-        "state": "SUCCEEDED",
         "mode": "QUERY",
         "commitSha": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
         "businessTimezone": "Asia/Shanghai",
@@ -222,8 +213,6 @@
           "endTime": null
         },
         "boundaryPolicy": "metricflow_granularity_alignment",
-        "resultAvailable": true,
-        "error": null,
         "sql": null,
         "columns": [
           {
@@ -237,10 +226,6 @@
             null
           ]
         ],
-        "offset": 0,
-        "returnedRows": 1,
-        "nextOffset": null,
-        "availableRows": 1,
         "resultTruncated": false
       }
     },
@@ -359,7 +344,7 @@
               "relation": {
                 "database": null,
                 "schema": "analytics",
-                "identifier": "rv_example_orders"
+                "identifier": "orders"
               },
               "columns": {}
             }
@@ -381,7 +366,7 @@
               "relation": {
                 "database": null,
                 "schema": "analytics",
-                "identifier": "rv_example_view"
+                "identifier": "orders_view"
               },
               "columns": {}
             }

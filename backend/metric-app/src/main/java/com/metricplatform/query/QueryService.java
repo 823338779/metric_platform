@@ -16,12 +16,13 @@ public class QueryService {
     /** 受理查询的用户归因存储。 */
     private final QueryAuditRepository audit;
 
-    public QueryView submit(UUID buildId, QueryRequest request, UUID userId) {
+    public ResultPage submit(UUID buildId, QueryRequest request, UUID userId) {
         // 新请求确认服务的实时能力，历史投影不能作为执行许可。
         gateway.getBuild(buildId);
         var query = gateway.query(buildId, request);
         if (!buildId.equals(query.buildId())) throw new IllegalStateException("服务返回了不同构建的查询");
-        audit.record(query.queryId(), buildId, userId, request.idempotencyKey());
+        // 本地审计身份仅供归因，不作为服务查询身份返回或用于结果读取。
+        audit.record(UUID.randomUUID(), buildId, userId);
         return query;
     }
 }

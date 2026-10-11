@@ -10,7 +10,7 @@ import com.metricplatform.catalog.BuildContracts.*;
 import com.metricplatform.catalog.BuildGateway;
 import com.metricplatform.identity.auth.PlatformAuthenticationService;
 import com.metricplatform.security.PlatformPrincipal;
-
+import java.util.*;
 import org.junit.jupiter.api.*;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
@@ -21,8 +21,6 @@ import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
-
-import java.util.*;
 
 @SpringBootTest
 @AutoConfigureMockMvc
@@ -65,12 +63,39 @@ class QueryControllerTest {
                                 null));
     }
 
+    @Test
+    void availableDimensionsReturnCompletedViewWithoutTaskReceipt() throws Exception {
+        var metrics = List.of("metric.revenue");
+        when(gateway.availableDimensions(build, new AvailableDimensionsRequest(metrics)))
+                .thenReturn(new AvailableDimensionsView(build, metrics, List.of()));
+        mvc.perform(
+                        post(ROOT + "/builds/" + build + "/available-dimensions")
+                                .header(AUTH, TOKEN)
+                                .contentType("application/json")
+                                .content("{\"metricResourceIds\":[\"metric.revenue\"]}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.buildId").value(build.toString()))
+                .andExpect(jsonPath("$.dimensions").isArray())
+                .andExpect(jsonPath("$.optionsTaskId").doesNotExist())
+                .andExpect(jsonPath("$.state").doesNotExist());
+        verify(gateway).availableDimensions(build, new AvailableDimensionsRequest(metrics));
+        verifyNoMoreInteractions(gateway);
+    }
+
+    @Test
+    void removedStatusRoutesAreNotExposed() throws Exception {
+        mvc.perform(get(ROOT + "/query-options/" + query).header(AUTH, TOKEN))
+                .andExpect(status().isNotFound());
+        mvc.perform(get(ROOT + "/queries/" + query + "/status").header(AUTH, TOKEN))
+                .andExpect(status().isNotFound());
+        verifyNoInteractions(gateway);
+    }
+
     @ParameterizedTest
     @EnumSource(QueryMode.class)
     void allQueryModesRemainFixedToRequestedBuild(QueryMode mode) throws Exception {
         var request =
                 new QueryRequest(
-                        "request-" + mode,
                         mode,
                         mode == QueryMode.PREVIEW ? List.of() : List.of("metric.revenue"),
                         List.of(),
@@ -82,26 +107,27 @@ class QueryControllerTest {
                         mode == QueryMode.PREVIEW ? "model.orders" : null,
                         mode == QueryMode.DIMENSION_VALUES ? "option-region" : null);
         var view =
-                new QueryView(
-                        query,
+                new ResultPage(
                         build,
-                        BuildStatus.QUEUED,
                         mode,
                         "a".repeat(40),
                         "Asia/Shanghai",
                         Map.of(),
                         "metricflow_granularity_alignment",
-                        false,
-                        null);
+                        null,
+                        List.of(),
+                        List.of(),
+                        false);
         when(gateway.query(build, request)).thenReturn(view);
         mvc.perform(
                         post(ROOT + "/builds/" + build + "/queries")
                                 .header(AUTH, TOKEN)
                                 .contentType("application/json")
                                 .content(new ObjectMapper().writeValueAsString(request)))
-                .andExpect(status().isAccepted())
+                .andExpect(status().isOk())
                 .andExpect(jsonPath("$.buildId").value(build.toString()))
-                .andExpect(jsonPath("$.state").value("QUEUED"))
+                .andExpect(jsonPath("$.state").doesNotExist())
+                .andExpect(jsonPath("$.queryId").doesNotExist())
                 .andExpect(jsonPath("$.mode").value(mode.name()));
         verify(gateway).getBuild(build);
         verify(gateway).query(build, request);
@@ -112,35 +138,28 @@ class QueryControllerTest {
     void resultPaginationPreservesExactValuesAndExplainSql() throws Exception {
         var result =
                 new ResultPage(
-                        query,
                         build,
-                        BuildStatus.SUCCEEDED,
                         QueryMode.EXPLAIN,
                         "a".repeat(40),
                         "Asia/Shanghai",
                         Map.of("startTime", "2026-10-10T00:00:00.123456"),
                         "metricflow_granularity_alignment",
-                        true,
-                        null,
                         "select precise_value from fixed_build",
                         List.of(Map.of("name", "precise_value", "type", "DECIMAL")),
                         List.of(List.of("9007199254740993.123456789")),
-                        5,
-                        1,
-                        6,
-                        20,
                         true);
-        when(gateway.queryResults(query, 5, 1)).thenReturn(result);
+        when(gateway.query(eq(build), any())).thenReturn(result);
         mvc.perform(
-                        get(ROOT + "/queries/" + query + "/results")
-                                .param("offset", "5")
-                                .param("limit", "1")
+                        post(ROOT + "/builds/" + build + "/queries")
+                                .contentType("application/json")
+                                .content(
+                                        "{\"mode\":\"EXPLAIN\",\"metricResourceIds\":[\"metric.revenue\"]}")
                                 .header(AUTH, TOKEN))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.rows[0][0]").value("9007199254740993.123456789"))
                 .andExpect(jsonPath("$.sql").value("select precise_value from fixed_build"))
-                .andExpect(jsonPath("$.nextOffset").value(6))
-                .andExpect(jsonPath("$.availableRows").value(20))
+                .andExpect(jsonPath("$.nextOffset").doesNotExist())
+                .andExpect(jsonPath("$.availableRows").doesNotExist())
                 .andExpect(jsonPath("$.resultTruncated").value(true))
                 .andExpect(
                         jsonPath("$.normalizedTimeRange.startTime")
@@ -148,53 +167,42 @@ class QueryControllerTest {
     }
 
     @ParameterizedTest
-    @CsvSource({"-1,100", "0,0", "0,201", "0,1000"})
-    void rejectsResultPaginationOutsideServiceContract(int offset, int limit) throws Exception {
+    @CsvSource({"-1,100", "0,0", "0,201", "0,1000", "1000,200"})
+    void removedResultPaginationIsNotExposed(int offset, int limit) throws Exception {
         mvc.perform(
                         get(ROOT + "/queries/" + query + "/results")
                                 .param("offset", Integer.toString(offset))
                                 .param("limit", Integer.toString(limit))
                                 .header(AUTH, TOKEN))
-                .andExpect(status().isUnprocessableEntity());
+                .andExpect(status().isNotFound());
         verifyNoInteractions(gateway);
-    }
-
-    @Test
-    void acceptsLargestResultPageAndArbitraryValidOffset() throws Exception {
-        mvc.perform(
-                        get(ROOT + "/queries/" + query + "/results")
-                                .param("offset", "1000")
-                                .param("limit", "200")
-                                .header(AUTH, TOKEN))
-                .andExpect(status().isOk());
-        verify(gateway).queryResults(query, 1000, 200);
     }
 
     @Test
     void queryRowLimitRemainsIndependentOfResultPageSize() throws Exception {
         when(gateway.query(eq(build), any()))
                 .thenReturn(
-                        new QueryView(
-                                query,
+                        new ResultPage(
                                 build,
-                                BuildStatus.QUEUED,
                                 QueryMode.QUERY,
                                 "a".repeat(40),
                                 "Asia/Shanghai",
                                 Map.of(),
                                 "metricflow_granularity_alignment",
-                                false,
-                                null));
+                                null,
+                                List.of(),
+                                List.of(),
+                                false));
         mvc.perform(
                         post(ROOT + "/builds/" + build + "/queries")
                                 .header(AUTH, TOKEN)
                                 .contentType("application/json")
                                 .content(
                                         """
-                                        {"idempotencyKey":"row-limit-1000","mode":"QUERY",
+                                        {"mode":"QUERY",
                                         "metricResourceIds":["metric.revenue"],"limit":1000}
                                         """))
-                .andExpect(status().isAccepted());
+                .andExpect(status().isOk());
         verify(gateway).query(eq(build), argThat(request -> request.limit() == 1000));
     }
 
@@ -202,25 +210,25 @@ class QueryControllerTest {
     void filterDecimalAndBigintAreNotRoundedByBffParsing() throws Exception {
         when(gateway.query(eq(build), any()))
                 .thenReturn(
-                        new QueryView(
-                                query,
+                        new ResultPage(
                                 build,
-                                BuildStatus.QUEUED,
                                 QueryMode.QUERY,
                                 null,
                                 "Asia/Shanghai",
                                 Map.of(),
                                 "metricflow_granularity_alignment",
-                                false,
-                                null));
+                                null,
+                                List.of(),
+                                List.of(),
+                                false));
         var body =
-                "{\"idempotencyKey\":\"precision\",\"mode\":\"QUERY\",\"metricResourceIds\":[\"metric.revenue\"],\"filters\":[{\"optionId\":\"amount\",\"operator\":\"=\",\"value\":1234567890.123456789},{\"optionId\":\"identifier\",\"operator\":\"=\",\"value\":900719925474099312345}]}";
+                "{\"mode\":\"QUERY\",\"metricResourceIds\":[\"metric.revenue\"],\"filters\":[{\"optionId\":\"amount\",\"operator\":\"=\",\"value\":1234567890.123456789},{\"optionId\":\"identifier\",\"operator\":\"=\",\"value\":900719925474099312345}]}";
         mvc.perform(
                         post(ROOT + "/builds/" + build + "/queries")
                                 .header(AUTH, TOKEN)
                                 .contentType("application/json")
                                 .content(body))
-                .andExpect(status().isAccepted());
+                .andExpect(status().isOk());
         var captured = org.mockito.ArgumentCaptor.forClass(QueryRequest.class);
         verify(gateway).query(eq(build), captured.capture());
         assertThat(captured.getValue().filters().get(0).value().toString())
@@ -229,41 +237,24 @@ class QueryControllerTest {
                 .isEqualTo("900719925474099312345");
     }
 
-    @Test
-    void asyncFailureAndUnavailableReasonRemainStructured() throws Exception {
-        var error =
-                new ErrorView(
-                        "INVALID_DIMENSION_OPTION", "selection mismatch", false, "QUERY", build);
-        when(gateway.queryStatus(query))
-                .thenReturn(
-                        new QueryView(
-                                query,
-                                build,
-                                BuildStatus.FAILED,
-                                QueryMode.QUERY,
-                                null,
-                                "Asia/Shanghai",
-                                Map.of(),
-                                "metricflow_granularity_alignment",
-                                false,
-                                error));
-        mvc.perform(get(ROOT + "/queries/" + query + "/status").header(AUTH, TOKEN))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.error.code").value("INVALID_DIMENSION_OPTION"))
-                .andExpect(jsonPath("$.error.buildId").value(build.toString()));
-        when(gateway.queryStatus(query))
+    @ParameterizedTest
+    @CsvSource({"422,INVALID_DIMENSION_OPTION,false", "503,EXECUTION_ENVIRONMENT_UNAVAILABLE,true"})
+    void synchronousFailureRemainsStructured(int status, String code, boolean retryable)
+            throws Exception {
+        when(gateway.query(eq(build), any()))
                 .thenThrow(
                         new BuildGateway.Failure(
-                                503,
-                                new ErrorView(
-                                        "EXECUTION_ENVIRONMENT_UNAVAILABLE",
-                                        "unavailable",
-                                        true,
-                                        "QUERY",
-                                        build)));
-        mvc.perform(get(ROOT + "/queries/" + query + "/status").header(AUTH, TOKEN))
-                .andExpect(status().isServiceUnavailable())
-                .andExpect(jsonPath("$.code").value("EXECUTION_ENVIRONMENT_UNAVAILABLE"))
-                .andExpect(jsonPath("$.retryable").value(true));
+                                status,
+                                new ErrorView(code, "diagnostic", retryable, "QUERY", build)));
+        mvc.perform(
+                        post(ROOT + "/builds/" + build + "/queries")
+                                .header(AUTH, TOKEN)
+                                .contentType("application/json")
+                                .content(
+                                        "{\"mode\":\"QUERY\",\"metricResourceIds\":[\"metric.revenue\"]}"))
+                .andExpect(status().is(status))
+                .andExpect(jsonPath("$.code").value(code))
+                .andExpect(jsonPath("$.buildId").value(build.toString()))
+                .andExpect(jsonPath("$.retryable").value(retryable));
     }
 }

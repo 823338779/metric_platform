@@ -103,7 +103,6 @@ test('builds an analysis with direct choices, fixed identities and no setup drop
     groupBy: [{ optionId: 'opaque-brand' }, { optionId: 'opaque-time', grain: 'day' }],
     filters: [{ optionId: 'opaque-brand', operator: 'IN', value: ['North', 'South'] }],
     orderBy: [{ fieldId: 'metric-total', direction: 'DESC' }],
-    idempotencyKey: expect.any(String),
     startTime: '2026-08-31T16:00:00.000Z',
     endTime: '2026-09-30T15:59:00.000Z',
   });

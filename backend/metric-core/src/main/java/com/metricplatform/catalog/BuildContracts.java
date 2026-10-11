@@ -279,17 +279,13 @@ public final class BuildContracts {
             /** 排序方向。 */
             String direction) {}
 
-    public record OptionsRequest(
-            /** 本次查询的幂等键。 */
-            String idempotencyKey,
+    public record AvailableDimensionsRequest(
             /** 规范化指标集合。 */
             List<String> metricResourceIds) {}
 
     @com.fasterxml.jackson.annotation.JsonInclude(
             com.fasterxml.jackson.annotation.JsonInclude.Include.NON_NULL)
     public record QueryRequest(
-            /** 本次查询的幂等键。 */
-            String idempotencyKey,
             /** 查询模式。 */
             QueryMode mode,
             /** 规范化指标集合。 */
@@ -311,49 +307,17 @@ public final class BuildContracts {
             /** DIMENSION_VALUES 的维度选项。 */
             String dimensionOptionId) {}
 
-    public record OptionsTaskView(
-            /** 持久选项任务身份。 */
-            UUID optionsTaskId,
+    public record AvailableDimensionsView(
             /** 原生详情所属构建。 */
             UUID buildId,
-            /** 执行状态。 */
-            BuildStatus state,
             /** 规范化指标集合。 */
             List<String> metricResourceIds,
-            /** 成功后生成的合法选项。 */
-            List<Map<String, Object>> options,
-            /** 稳定错误。 */
-            ErrorView error) {}
-
-    public record QueryView(
-            /** 持久查询身份。 */
-            UUID queryId,
-            /** 原生详情所属构建。 */
-            UUID buildId,
-            /** 执行状态。 */
-            BuildStatus state,
-            /** 查询模式。 */
-            QueryMode mode,
-            /** 固定源码版本。 */
-            String commitSha,
-            /** 构建固定的业务时区。 */
-            String businessTimezone,
-            /** 归一化时间输入。 */
-            Map<String, String> normalizedTimeRange,
-            /** 引擎粒度边界策略。 */
-            String boundaryPolicy,
-            /** 结果字节是否可读。 */
-            boolean resultAvailable,
-            /** 稳定错误。 */
-            ErrorView error) {}
+            /** 当前指标共同支持的可用维度。 */
+            List<Map<String, Object>> dimensions) {}
 
     public record ResultPage(
-            /** 持久查询身份。 */
-            UUID queryId,
             /** 原生详情所属构建。 */
             UUID buildId,
-            /** 执行状态。 */
-            BuildStatus state,
             /** 查询模式。 */
             QueryMode mode,
             /** 固定源码版本。 */
@@ -364,24 +328,12 @@ public final class BuildContracts {
             Map<String, String> normalizedTimeRange,
             /** 引擎粒度边界策略。 */
             String boundaryPolicy,
-            /** 结果字节是否可读。 */
-            boolean resultAvailable,
-            /** 稳定错误。 */
-            ErrorView error,
             /** EXPLAIN 返回的完整编译 SQL。 */
             String sql,
             /** 结果列及精度类型。 */
             List<Map<String, Object>> columns,
             /** 有界结果正文。 */
             List<List<Object>> rows,
-            /** 已保存结果中的偏移。 */
-            int offset,
-            /** 本页行数。 */
-            int returnedRows,
-            /** 下一页偏移。 */
-            Integer nextOffset,
-            /** 已保存行数，不代表源数据总数。 */
-            int availableRows,
             /** 引擎结果是否截断。 */
             boolean resultTruncated) {}
 

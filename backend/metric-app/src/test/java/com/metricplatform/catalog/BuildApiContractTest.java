@@ -42,83 +42,22 @@ class BuildApiContractTest {
     }
 
     @Test
-    @org.springframework.transaction.annotation.Transactional
-    void historyWithoutRepositoryRemainsAvailableAndCursorKeepsOptionalScope() throws Exception {
-        // 使用真实投影表覆盖首页、跨仓库翻页和 Agent 失联时的历史读取。
-        jdbc.update("delete from build_history");
-        for (int index = 1; index <= 3; index++) {
-            var repository = index == 1 ? "repo-a" : "repo-b";
-            var branch = index == 3 ? "main" : "feature/a";
-            var id = UUID.randomUUID();
-            var summary =
-                    new com.fasterxml.jackson.databind.ObjectMapper()
-                            .writeValueAsString(
-                                    Map.of(
-                                            "buildId",
-                                            id.toString(),
-                                            "repository",
-                                            repository,
-                                            "branchName",
-                                            branch,
-                                            "environment",
-                                            "PREVIEW",
-                                            "buildStatus",
-                                            "SUCCEEDED"));
-            jdbc.update(
-                    "insert into build_history(build_id,repository,branch_name,object_version,first_sequence,last_sequence,summary) values(?,?,?,1,?,?,?::jsonb)",
-                    id,
-                    repository,
-                    branch,
-                    index,
-                    index,
-                    summary);
-        }
-        var first =
-                mvc.perform(
-                                get(ROOT + "/builds")
-                                        .param("limit", "1")
-                                        .header("Authorization", "Bearer " + TOKEN))
-                        .andExpect(status().isOk())
-                        .andExpect(jsonPath("$.items.length()").value(1))
-                        .andExpect(jsonPath("$.items[0].repository").value("repo-a"))
-                        .andExpect(jsonPath("$.source").value("SERVICE_CHANGE_FEED"))
-                        .andReturn()
-                        .getResponse()
-                        .getContentAsString();
-        var cursor =
-                new com.fasterxml.jackson.databind.ObjectMapper()
-                        .readTree(first)
-                        .path("nextCursor")
-                        .asText();
+    void historyRequiresRepositoryAndForwardsCursorToLiveService() throws Exception {
+        mvc.perform(get(ROOT + "/builds").header("Authorization", "Bearer " + TOKEN))
+                .andExpect(status().isBadRequest());
+        var filter = new BuildFilter("repo-a", "feature/a", "service-cursor", 10);
+        when(gateway.listBuilds(filter)).thenReturn(new BuildPage(List.of(), "next-cursor"));
         mvc.perform(
                         get(ROOT + "/builds")
-                                .param("cursor", cursor)
-                                .header("Authorization", "Bearer " + TOKEN))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.items.length()").value(2))
-                .andExpect(jsonPath("$.items[0].repository").value("repo-b"));
-        // null 也是游标作用域的一部分，不能带着全局游标新增仓库或分支筛选。
-        for (var filter : List.of("repository", "branchName")) {
-            mvc.perform(
-                            get(ROOT + "/builds")
-                                    .param("cursor", cursor)
-                                    .param(filter, "repo-a")
-                                    .header("Authorization", "Bearer " + TOKEN))
-                    .andExpect(status().isUnprocessableEntity());
-        }
-        mvc.perform(
-                        get(ROOT + "/builds")
+                                .param("repository", "repo-a")
                                 .param("branchName", "feature/a")
+                                .param("cursor", "service-cursor")
+                                .param("limit", "10")
                                 .header("Authorization", "Bearer " + TOKEN))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.items.length()").value(2));
-        mvc.perform(
-                        get(ROOT + "/builds")
-                                .param("repository", "repo-b")
-                                .header("Authorization", "Bearer " + TOKEN))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.items.length()").value(2));
-        verifyNoInteractions(gateway, agent);
+                .andExpect(jsonPath("$.nextCursor").value("next-cursor"));
+        verify(gateway).listBuilds(filter);
+        verifyNoInteractions(agent);
     }
 
     @Test
@@ -198,7 +137,7 @@ class BuildApiContractTest {
         for (var parameter :
                 document.path("paths").path(ROOT + "/builds").path("get").path("parameters")) {
             if (parameter.path("name").asText().equals("repository"))
-                assertThat(parameter.path("required").asBoolean()).isFalse();
+                assertThat(parameter.path("required").asBoolean()).isTrue();
         }
         var actual = new java.util.TreeSet<String>();
         mappings.getHandlerMethods()
@@ -239,7 +178,6 @@ class BuildApiContractTest {
         UUID query = UUID.randomUUID();
         var request =
                 new QueryRequest(
-                        "key-1",
                         QueryMode.QUERY,
                         List.of("metric.revenue"),
                         List.of(),
@@ -275,17 +213,17 @@ class BuildApiContractTest {
                                 null));
         when(gateway.query(build, request))
                 .thenReturn(
-                        new QueryView(
-                                query,
+                        new ResultPage(
                                 build,
-                                BuildStatus.QUEUED,
                                 QueryMode.QUERY,
                                 null,
                                 "Asia/Shanghai",
                                 Map.of(),
                                 "metricflow_granularity_alignment",
-                                false,
-                                null));
+                                null,
+                                List.of(),
+                                List.of(),
+                                false));
         mvc.perform(
                         post(ROOT + "/builds/" + build + "/queries")
                                 .contentType("application/json")
@@ -297,13 +235,13 @@ class BuildApiContractTest {
                                 .header("Authorization", "Bearer " + TOKEN)
                                 .contentType("application/json")
                                 .content(body))
-                .andExpect(status().isAccepted())
+                .andExpect(status().isOk())
                 .andExpect(jsonPath("$.buildId").value(build.toString()));
         assertThat(
                         jdbc.queryForObject(
-                                "select user_id from build_query_audit where query_id=?",
+                                "select user_id from query_execution_audit where build_id=?",
                                 UUID.class,
-                                query))
+                                build))
                 .isEqualTo(user);
     }
 }

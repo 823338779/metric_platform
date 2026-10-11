@@ -40,14 +40,12 @@ metric-platform:
     base-uri: ${AGENT_BASE_URI:http://127.0.0.1:8080}
     service-token: ${AGENT_SERVICE_TOKEN:}
     timeout: PT30S
-  build-history:
-    # 从上次已提交水位补拉；不会触发构建或部署。
-    poll-ms: 30000
   dbt-runtime:
     # 构建和查询执行服务；平台仅提供只读目录与查询代理。
     base-uri: ${DBT_SERVICE_BASE_URI:http://127.0.0.1:8000}
     service-token: ${DBT_SERVICE_TOKEN:}
     timeout: PT30S
+    query-timeout: ${DBT_SERVICE_QUERY_TIMEOUT:PT1860S}
   identity-auth:
     # 认证开关、令牌有效期、登录锁定阈值、锁定时长和请求频率限制。
     enabled: true

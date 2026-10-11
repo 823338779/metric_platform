@@ -27,10 +27,10 @@ function page() {
       nextCursor: null,
       items: [{ resourceId: 'metric-id', name: 'revenue', displayName: '销售额' }],
     }),
-    options: vi.fn().mockResolvedValue({
+    availableDimensions: vi.fn().mockResolvedValue({
       state: 'SUCCEEDED',
       buildId: 'A',
-      options: [
+      dimensions: [
         {
           optionId: 'time-option',
           resourceId: 'time-resource',

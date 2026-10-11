@@ -28,7 +28,9 @@ it.each([false, true])(
         nextCursor: null,
         items: [{ resourceId: 'M', kind: 'METRIC', displayName: '指标 M' }],
       }),
-      options: vi.fn().mockResolvedValue({ buildId: 'A', state: 'SUCCEEDED', options: [] }),
+      availableDimensions: vi
+        .fn()
+        .mockResolvedValue({ buildId: 'A', state: 'SUCCEEDED', dimensions: [] }),
       submit: vi.fn().mockReturnValue(pending),
     };
     render(
@@ -53,7 +55,7 @@ it.each([false, true])(
     await act(async () => {
       complete({ queryId: 'Q', buildId: 'A', state: 'SUCCEEDED', columns: [], rows: [] });
     });
-    await screen.findByText('查询 Q · 版本 A');
+    await screen.findByText('版本 A');
     await waitFor(() =>
       expect((screen.getByRole('button', { name: '查询' }) as HTMLButtonElement).disabled).toBe(
         false,
@@ -88,10 +90,10 @@ it('queries with platform identities and refreshes without requesting publicatio
         },
       ],
     }),
-    options: vi.fn().mockResolvedValue({
+    availableDimensions: vi.fn().mockResolvedValue({
       state: 'SUCCEEDED',
       buildId: 'A',
-      options: [
+      dimensions: [
         {
           optionId: 'opaque-region',
           displayName: '地区',
@@ -131,7 +133,6 @@ it('queries with platform identities and refreshes without requesting publicatio
       expect.objectContaining({
         metricResourceIds: ['metric.p.revenue'],
         groupBy: [{ optionId: 'opaque-region' }],
-        idempotencyKey: expect.any(String),
       }),
     ),
   );

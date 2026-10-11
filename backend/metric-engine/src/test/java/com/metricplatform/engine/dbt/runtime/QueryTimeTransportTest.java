@@ -30,20 +30,20 @@ class QueryTimeTransportTest {
             throws Exception {
         var mapper = new ObjectMapper();
         var received = new AtomicReference<JsonNode>();
+        var path = new AtomicReference<String>();
         var build = UUID.randomUUID();
         var server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
         server.createContext(
                 "/",
                 e -> {
                     received.set(mapper.readTree(e.getRequestBody()));
+                    path.set(e.getRequestURI().toString());
                     var bytes =
-                            ("{\"queryId\":\""
-                                            + UUID.randomUUID()
-                                            + "\",\"buildId\":\""
+                            ("{\"buildId\":\""
                                             + build
-                                            + "\",\"state\":\"QUEUED\",\"mode\":\"QUERY\",\"businessTimezone\":\"Asia/Shanghai\",\"normalizedTimeRange\":{}}")
+                                            + "\",\"mode\":\"QUERY\",\"businessTimezone\":\"Asia/Shanghai\",\"normalizedTimeRange\":{},\"columns\":[],\"rows\":[]}")
                                     .getBytes(StandardCharsets.UTF_8);
-                    e.sendResponseHeaders(202, bytes.length);
+                    e.sendResponseHeaders(200, bytes.length);
                     try (var out = e.getResponseBody()) {
                         out.write(bytes);
                     }
@@ -58,7 +58,6 @@ class QueryTimeTransportTest {
             for (var mode : QueryMode.values()) {
                 var request =
                         new QueryRequest(
-                                "key",
                                 mode,
                                 List.of("metric.revenue"),
                                 List.of(),
@@ -72,6 +71,8 @@ class QueryTimeTransportTest {
                 client.query(build, request);
                 assertThat(received.get()).isEqualTo(mapper.valueToTree(request));
                 assertThat(received.get().has("buildId")).isFalse();
+                assertThat(received.get().has("idempotencyKey")).isFalse();
+                assertThat(path.get()).isEqualTo("/v3/query?build_id=" + build);
                 assertThat(request.startTime()).isEqualTo(start);
                 assertThat(request.endTime()).isEqualTo(end);
             }

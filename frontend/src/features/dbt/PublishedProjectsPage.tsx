@@ -1,5 +1,5 @@
 import { Alert, Button, Card, Empty } from 'antd';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import {
   buildCatalogApi,
@@ -8,8 +8,17 @@ import {
   type BuildPage,
 } from '../../api/buildCatalogApi';
 
-/** 项目选择来自Agent，历史构建来自平台投影；Agent失联不阻断已有历史。 */
+const COPY = {
+  projectUnavailable: 'Agent 项目列表不可用，请重试或打开已知构建链接。',
+  historyUnavailable: '构建历史读取失败，请重试。',
+  repository: '构建历史仓库',
+};
+
+/** 项目选择来自 Agent，历史构建按选定仓库实时读取。 */
 export function PublishedProjectsPage({ api = buildCatalogApi }: { api?: BuildCatalogApi }) {
+  // 仓库来自所选项目；切换后旧仓库分页响应不能写入新列表。
+  const [repository, setRepository] = useState('');
+  const historyGeneration = useRef(0);
   const [projects, setProjects] = useState<DevelopmentProject[]>([]);
   const [history, setHistory] = useState<BuildPage | null>(null);
   const [error, setError] = useState('');
@@ -29,33 +38,59 @@ export function PublishedProjectsPage({ api = buildCatalogApi }: { api?: BuildCa
         } while (cursor && active);
         return result;
       };
-      const [projectResult, buildResult] = await Promise.allSettled([list(), api.builds()]);
-      if (!active) return;
-      if (projectResult.status === 'fulfilled') setProjects(projectResult.value);
-      else setError('Agent 项目列表不可用，以下构建历史仍可查看。');
-      if (buildResult.status === 'fulfilled') setHistory(buildResult.value);
+      try {
+        const result = await list();
+        if (!active) return;
+        setProjects(result);
+        setRepository((current) =>
+          result.some((project) => project.repository === current)
+            ? current
+            : (result.find((project) => project.repository)?.repository ?? ''),
+        );
+      } catch {
+        if (active) setError(COPY.projectUnavailable);
+      }
     }
     void read();
     return () => {
       active = false;
     };
   }, [api, refresh]);
+  useEffect(() => {
+    const turn = ++historyGeneration.current;
+    setHistory(null);
+    setLoadingMore(false);
+    if (repository)
+      void api
+        .builds({ repository })
+        .then((page) => {
+          if (historyGeneration.current === turn) setHistory(page);
+        })
+        .catch(() => {
+          if (historyGeneration.current === turn) setError(COPY.historyUnavailable);
+        });
+    return () => {
+      historyGeneration.current++;
+    };
+  }, [api, repository, refresh]);
   // 游标由服务生成，追加历史时保留每条记录的固定构建身份。
   async function loadMore() {
     if (!history?.nextCursor) return;
     const cursor = history.nextCursor;
+    const turn = historyGeneration.current;
     setLoadingMore(true);
     try {
-      const page = await api.builds({ cursor });
+      const page = await api.builds({ repository, cursor });
+      if (turn !== historyGeneration.current) return;
       setHistory((current) =>
         current?.nextCursor === cursor
           ? { ...page, items: [...current.items, ...page.items] }
           : current,
       );
     } catch {
-      setError('构建历史读取失败，请重试。');
+      if (turn === historyGeneration.current) setError(COPY.historyUnavailable);
     } finally {
-      setLoadingMore(false);
+      if (turn === historyGeneration.current) setLoadingMore(false);
     }
   }
   return (
@@ -78,11 +113,25 @@ export function PublishedProjectsPage({ api = buildCatalogApi }: { api?: BuildCa
           )}
         </Card>
       ))}
+      <label>
+        {COPY.repository}{' '}
+        <select
+          aria-label={COPY.repository}
+          value={repository}
+          onChange={(event) => setRepository(event.target.value)}
+        >
+          {projects
+            .filter((project) => project.repository)
+            .map((project) => (
+              <option key={project.projectId} value={project.repository!}>
+                {project.name}
+              </option>
+            ))}
+        </select>
+      </label>
       {history && (
         <section aria-label="构建历史">
-          <p>
-            来源：{history.source} · 同步时间：{history.syncedAt}
-          </p>
+          <p>来源：dbt-service 实时构建历史</p>
           {history.items.map((build) => (
             <p key={build.buildId}>
               {build.repository} · {build.branchName} · {build.buildStatus}{' '}

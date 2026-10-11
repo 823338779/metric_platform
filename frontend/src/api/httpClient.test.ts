@@ -9,7 +9,6 @@ describe('typed API client', () => {
       .mockResolvedValue({ ok: true, status: 200, json: async () => ({ valid: true }) });
     const api = createBuildCatalogApi(fetcher);
     await api.submit('11111111-1111-4111-8111-111111111111', {
-      idempotencyKey: 'q1',
       mode: 'QUERY',
       metricResourceIds: ['revenue'],
     });
@@ -17,7 +16,6 @@ describe('typed API client', () => {
       expect.stringContaining('/builds/11111111-1111-4111-8111-111111111111/queries'),
       expect.objectContaining({
         body: JSON.stringify({
-          idempotencyKey: 'q1',
           mode: 'QUERY',
           metricResourceIds: ['revenue'],
         }),

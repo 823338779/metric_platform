@@ -18,9 +18,7 @@ export function BranchBuildPanel({
   return (
     <details>
       <summary>构建与部署历史</summary>
-      <p>
-        来源：{history.source} · 同步时间：{history.syncedAt}
-      </p>
+      <p>来源：dbt-service 实时构建历史</p>
       <ul>
         {history.items.map((build) => (
           <li key={build.buildId}>
