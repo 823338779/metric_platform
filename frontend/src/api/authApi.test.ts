@@ -17,6 +17,13 @@ describe('authentication API', () => {
   });
 
   it.each([
+    '/dbt/environments',
+    '/dbt/environments/00000000-0000-4000-8000-000000000001?buildStatus=FAILED',
+  ])('preserves the environment login destination: %s', (destination) => {
+    expect(safeReturnTo(destination)).toBe(destination);
+  });
+
+  it.each([
     'https://outside.invalid/dbt/builds/00000000-0000-4000-8000-000000000001/catalog',
     '//outside.invalid/dbt/builds/00000000-0000-4000-8000-000000000001/catalog',
     '/\\outside.invalid/catalog',

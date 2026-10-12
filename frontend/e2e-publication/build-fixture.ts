@@ -72,9 +72,9 @@ export async function buildFixture(
       sourcePath: 'models/metrics.yml',
       ...item,
     }));
-  await page.route('**/api/v3/dbt/**', async (route) => {
+  await page.route('**/api/v{3,4}/dbt/**', async (route) => {
     const url = new URL(route.request().url());
-    const path = decodeURIComponent(url.pathname);
+    const path = decodeURIComponent(url.pathname).replace('/api/v4/', '/api/v3/');
     const body = route.request().method() === 'POST' ? route.request().postDataJSON() : undefined;
     requests.push({ path, body });
     const id = path.match(/\/builds\/([^/]+)/)?.[1] ?? active;

@@ -50,7 +50,7 @@ npm ci
 npm run dev
 ```
 
-开发服务器将 `/api` 代理到 `http://localhost:8090`。平台部署只需匹配 dbt-service v3，不依赖 Agent 的运行状态。平台没有协议模式开关，也不会在新接口失败时访问旧业务路径。
+开发服务器将 `/api` 代理到 `http://localhost:8090`。平台部署需要支持 v4 环境构建及 v3 固定构建资源接口的 dbt-service，不依赖 Agent 的运行状态。平台没有协议模式开关，也不会在新接口失败时访问旧业务路径。
 
 ## 固定构建与历史
 
@@ -64,7 +64,7 @@ npm run dev
 
 `GET /api/v3/dbt/builds` 直接读取服务构建历史，`repository` 必填，`branchName` 可选。部署列表使用 `/api/v3/dbt/deployments`，固定 repository/environment/branchName 与服务游标。旧投影、变化游标和 Agent 分支缓存表保留供审计，不作为当前列表数据源；旧项目和 Agent 分支代理接口已移除。
 
-构建成功、部署生效和可查询是独立状态。历史物理对象已清理时仍可查看服务封存目录；查询返回对应不可用原因。平台不自行重建物理表、切换部署或启动发布。
+构建成功、部署生效和可查询是独立状态。历史物理对象已清理时仍可查看服务封存目录；查询返回对应不可用原因。平台通过 v4 环境构建接口提交执行快照；物理构建和部署由 dbt-service 执行。
 
 ## 历史关联迁移
 
@@ -96,3 +96,18 @@ npm run test:e2e -- --config=playwright.publication.config.ts
 
 真实 PostgreSQL 浏览器验收需先具备匹配版本的三个服务、真实 Git 项目及已部署构建。测试使用 `postgres_platform` 隔离 fixture 的 `revenue` 指标与 2024 年 1、2 月数据。设置 `DBT_POSTGRES_E2E=1`、`DBT_POSTGRES_E2E_USER`、`DBT_POSTGRES_E2E_PASSWORD`、`DBT_POSTGRES_E2E_BUILD_ID`、`DBT_POSTGRES_E2E_PLATFORM_URL` 后，在 `frontend/` 运行 `npm run test:e2e -- --config=playwright.postgres.config.ts`。可用 `DBT_POSTGRES_E2E_FRONTEND_PORT` 指定独占前端端口（默认 4175），用 `DBT_POSTGRES_E2E_OUTPUT_DIR` 指定操作系统临时目录中的结果位置。专用配置禁止复用其他开发服务器，并关闭含真实认证请求的 trace 和视频。未准备真实环境时必须明确记录跳过，不将协议桩通过视为真实引擎验收。
 
+
+## 执行环境与构建历史（v4）
+
+入口 `/dbt/environments`。环境仅保存连接实例、凭据引用、catalog/schema、并行度和业务时区；仓库与分支由每次构建单独指定。修改配置须提交 `expectedConfigVersion`，旧配置、旧目标归属和已受理构建快照保留。多个环境不能占用同一实例/适配器/catalog/schema。
+
+- `/api/v4/dbt/environments`：环境列表（最多 200 项）和新增；`/{environmentId}`：读取和按期望版本更新。
+- `/{environmentId}/builds`：POST 提交；GET 按环境读取全部构建历史，可选仓库、分支、状态和游标。失败、排队、未部署构建也保留。
+- `/api/v4/dbt/builds/{buildId}` 和 `/logs`：固定元信息及日志；旧构建通过 `legacyEnvironment` 明示旧分类。
+- 固定 buildId 的目录和查询继续使用 v3 资源接口。旧部署入口 `/dbt/projects` 保留，旧 v3 提交不伪装成新环境。
+
+部署时平台和服务必须配置相同的 `EXECUTION_INSTANCES` JSON，例如 `{"warehouse":{"type":"starrocks","hosts":["localhost","127.0.0.1"],"port":9030}}`。这份清单只规范物理实例和地址别名，不含环境的 catalog/schema。凭据引用及 secret 仅由服务部署解析；浏览器不提交密码或服务令牌。
+
+平台通过 Flyway V17/V18 保存环境版本、物理目标归属和幂等提交。提交前固定登录身份、环境版本和完整快照；HTTP 超时后用原 `idempotencyKey` 重试，仍发送原快照，即使环境已修改。只有明确开始新的提交才生成新键。先升级并启用服务 v4，再启动平台。
+
+同一环境后续构建会更新同名表。旧 build 固定的是源码和执行目标，不承诺历史数据快照。环境目标修改后旧 build 的查询仍使用当时的 catalog/schema。

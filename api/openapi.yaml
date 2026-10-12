@@ -1,10 +1,281 @@
 openapi: 3.1.0
 info:
   title: 指标平台固定构建 BFF
-  version: 3.0.0
+  version: 4.0.0
   description: 平台直接读取 dbt-service 的部署历史及固定 buildId 目录和查询，不依赖 Agent。
 x-protocol-version: build-deployment-v3
+x-supported-protocols: [build-deployment-v3, execution-snapshot-v4]
 paths:
+  /api/v4/dbt/environments:
+    get:
+      summary: 列出执行环境（最多 200 项）
+      security:
+      - bearerAuth: []
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EnvironmentPage'
+        '401':
+          $ref: '#/components/responses/Problem'
+        '404':
+          $ref: '#/components/responses/Problem'
+        '409':
+          $ref: '#/components/responses/Problem'
+        '422':
+          $ref: '#/components/responses/Problem'
+        '502':
+          $ref: '#/components/responses/Problem'
+        '503':
+          $ref: '#/components/responses/Problem'
+    post:
+      summary: 创建不绑定源码的执行环境
+      security:
+      - bearerAuth: []
+      responses:
+        '201':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EnvironmentView'
+        '401':
+          $ref: '#/components/responses/Problem'
+        '404':
+          $ref: '#/components/responses/Problem'
+        '409':
+          $ref: '#/components/responses/Problem'
+        '422':
+          $ref: '#/components/responses/Problem'
+        '502':
+          $ref: '#/components/responses/Problem'
+        '503':
+          $ref: '#/components/responses/Problem'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/EnvironmentInput'
+  /api/v4/dbt/environments/{environmentId}:
+    get:
+      summary: 读取环境当前配置
+      security:
+      - bearerAuth: []
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EnvironmentView'
+        '401':
+          $ref: '#/components/responses/Problem'
+        '404':
+          $ref: '#/components/responses/Problem'
+        '409':
+          $ref: '#/components/responses/Problem'
+        '422':
+          $ref: '#/components/responses/Problem'
+        '502':
+          $ref: '#/components/responses/Problem'
+        '503':
+          $ref: '#/components/responses/Problem'
+      parameters:
+      - &id001
+        name: environmentId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+    put:
+      summary: 基于期望版本更新环境，保留历史配置和目标归属
+      security:
+      - bearerAuth: []
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EnvironmentView'
+        '401':
+          $ref: '#/components/responses/Problem'
+        '404':
+          $ref: '#/components/responses/Problem'
+        '409':
+          $ref: '#/components/responses/Problem'
+        '422':
+          $ref: '#/components/responses/Problem'
+        '502':
+          $ref: '#/components/responses/Problem'
+        '503':
+          $ref: '#/components/responses/Problem'
+      parameters:
+      - *id001
+      - name: expectedConfigVersion
+        in: query
+        required: true
+        schema:
+          type: integer
+          minimum: 1
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/EnvironmentInput'
+  /api/v4/dbt/environments/{environmentId}/builds:
+    post:
+      summary: 固定环境快照并提交构建，超时可用原键重试
+      security:
+      - bearerAuth: []
+      responses:
+        '202':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SnapshotBuildView'
+        '401':
+          $ref: '#/components/responses/Problem'
+        '404':
+          $ref: '#/components/responses/Problem'
+        '409':
+          $ref: '#/components/responses/Problem'
+        '422':
+          $ref: '#/components/responses/Problem'
+        '502':
+          $ref: '#/components/responses/Problem'
+        '503':
+          $ref: '#/components/responses/Problem'
+      parameters:
+      - *id001
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/BuildSubmission'
+    get:
+      summary: 读取环境的全部构建历史，包含失败和未部署记录
+      security:
+      - bearerAuth: []
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EnvironmentBuildPage'
+        '401':
+          $ref: '#/components/responses/Problem'
+        '404':
+          $ref: '#/components/responses/Problem'
+        '409':
+          $ref: '#/components/responses/Problem'
+        '422':
+          $ref: '#/components/responses/Problem'
+        '502':
+          $ref: '#/components/responses/Problem'
+        '503':
+          $ref: '#/components/responses/Problem'
+      parameters:
+      - *id001
+      - name: repository
+        in: query
+        required: false
+        schema:
+          type: string
+      - name: branchName
+        in: query
+        required: false
+        schema:
+          type: string
+      - name: buildStatus
+        in: query
+        required: false
+        schema:
+          type: string
+      - name: cursor
+        in: query
+        required: false
+        schema:
+          type: string
+      - name: limit
+        in: query
+        required: false
+        schema:
+          type: integer
+          minimum: 1
+          maximum: 200
+          default: 50
+  /api/v4/dbt/builds/{buildId}:
+    get:
+      summary: 读取固定构建快照，兼容旧构建的 legacyEnvironment
+      security:
+      - bearerAuth: []
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SnapshotBuildView'
+        '401':
+          $ref: '#/components/responses/Problem'
+        '404':
+          $ref: '#/components/responses/Problem'
+        '409':
+          $ref: '#/components/responses/Problem'
+        '422':
+          $ref: '#/components/responses/Problem'
+        '502':
+          $ref: '#/components/responses/Problem'
+        '503':
+          $ref: '#/components/responses/Problem'
+      parameters:
+      - &id002
+        name: buildId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+  /api/v4/dbt/builds/{buildId}/logs:
+    get:
+      summary: 读取固定构建的脱敏日志
+      security:
+      - bearerAuth: []
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BuildLogPage'
+        '401':
+          $ref: '#/components/responses/Problem'
+        '404':
+          $ref: '#/components/responses/Problem'
+        '409':
+          $ref: '#/components/responses/Problem'
+        '422':
+          $ref: '#/components/responses/Problem'
+        '502':
+          $ref: '#/components/responses/Problem'
+        '503':
+          $ref: '#/components/responses/Problem'
+      parameters:
+      - *id002
+      - name: cursor
+        in: query
+        required: false
+        schema:
+          type: string
   /api/v1/auth/token:
     post:
       summary: Exchange one Metric Platform username and password for an access token
@@ -768,6 +1039,575 @@ paths:
                     type: object
 components:
   schemas:
+    SnapshotBuildView:
+      $defs:
+        BuildStatus:
+          enum:
+          - QUEUED
+          - RUNNING
+          - SUCCEEDED
+          - FAILED
+          - CANCELLED
+          - OUTCOME_UNKNOWN
+          title: BuildStatus
+          type: string
+        ConnectionTarget:
+          additionalProperties: false
+          description: 非敏感连接信息；实例身份必须由运行基础设施核验。
+          properties:
+            type:
+              description: 已支持的 dbt 适配器
+              enum:
+              - starrocks
+              - postgres
+              - duckdb
+              title: Type
+              type: string
+            instanceId:
+              description: 规范化物理实例身份
+              maxLength: 128
+              minLength: 1
+              title: Instanceid
+              type: string
+            host:
+              anyOf:
+              - maxLength: 253
+                type: string
+              - type: 'null'
+              default: null
+              description: 网络数据库主机
+              title: Host
+            port:
+              anyOf:
+              - maximum: 65535
+                minimum: 1
+                type: integer
+              - type: 'null'
+              default: null
+              description: 网络数据库端口
+              title: Port
+            path:
+              anyOf:
+              - maxLength: 2048
+                type: string
+              - type: 'null'
+              default: null
+              description: 受控 DuckDB 文件绝对路径
+              title: Path
+          required:
+          - type
+          - instanceId
+          title: ConnectionTarget
+          type: object
+        Environment:
+          enum:
+          - PREVIEW
+          - PRODUCTION
+          title: Environment
+          type: string
+        ErrorView:
+          additionalProperties: false
+          properties:
+            code:
+              description: 稳定错误码
+              title: Code
+              type: string
+            message:
+              description: 不含凭据或本地路径的诊断
+              title: Message
+              type: string
+            retryable:
+              default: false
+              description: 能否以同请求重试
+              title: Retryable
+              type: boolean
+            phase:
+              anyOf:
+              - type: string
+              - type: 'null'
+              default: null
+              description: 失败执行阶段
+              title: Phase
+            buildId:
+              anyOf:
+              - format: uuid
+                type: string
+              - type: 'null'
+              default: null
+              description: 已有构建身份
+              title: Buildid
+          required:
+          - code
+          - message
+          title: ErrorView
+          type: object
+        ExecutionSnapshot:
+          additionalProperties: false
+          properties:
+            environmentId:
+              description: 外部环境稳定身份，与源码无关
+              format: uuid
+              title: Environmentid
+              type: string
+            configVersion:
+              description: 外部环境配置版本，不是 worker 运行版本
+              minimum: 1
+              title: Configversion
+              type: integer
+            connection:
+              $ref: '#/components/schemas/SnapshotBuildView/$defs/ConnectionTarget'
+              description: 完整非敏感物理连接目标
+            credentialRef:
+              description: 运行基础设施允许的 secret 引用
+              maxLength: 128
+              minLength: 1
+              title: Credentialref
+              type: string
+            catalog:
+              description: 目标 catalog 或适配器数据库
+              pattern: ^[a-z][a-z0-9_]{0,62}$
+              title: Catalog
+              type: string
+            schema:
+              description: 物理写入 schema
+              pattern: ^[a-z][a-z0-9_]{0,62}$
+              title: Schema
+              type: string
+            threads:
+              default: 1
+              description: 单次 dbt 并行度
+              maximum: 32
+              minimum: 1
+              title: Threads
+              type: integer
+            businessTimezone:
+              default: UTC
+              description: 该构建查询的业务时区
+              title: Businesstimezone
+              type: string
+          required:
+          - environmentId
+          - configVersion
+          - connection
+          - credentialRef
+          - catalog
+          - schema
+          title: ExecutionSnapshot
+          type: object
+      additionalProperties: false
+      properties:
+        buildId:
+          description: 一次构建身份，与提交 SHA 无关
+          format: uuid
+          title: Buildid
+          type: string
+        repository:
+          description: 规范仓库地址
+          title: Repository
+          type: string
+        branchName:
+          anyOf:
+          - type: string
+          - type: 'null'
+          description: 请求来源分支
+          title: Branchname
+        requestedCommitSha:
+          anyOf:
+          - type: string
+          - type: 'null'
+          description: 受理时显式指定的 SHA
+          title: Requestedcommitsha
+        commitSha:
+          anyOf:
+          - type: string
+          - type: 'null'
+          description: 首次解析后固定的实际 SHA
+          title: Commitsha
+        configVersion:
+          description: 固定配置版本
+          title: Configversion
+          type: string
+        toolchainVersion:
+          description: 固定工具链版本
+          title: Toolchainversion
+          type: string
+        buildStatus:
+          $ref: '#/components/schemas/SnapshotBuildView/$defs/BuildStatus'
+          description: 构建状态，不代表部署状态
+        phase:
+          description: 当前执行阶段
+          title: Phase
+          type: string
+        createdAt:
+          description: 受理时间
+          format: date-time
+          title: Createdat
+          type: string
+        updatedAt:
+          description: 最近事实更新时间
+          format: date-time
+          title: Updatedat
+          type: string
+        finishedAt:
+          anyOf:
+          - format: date-time
+            type: string
+          - type: 'null'
+          default: null
+          description: 终态时间
+          title: Finishedat
+        cancelRequested:
+          default: false
+          description: 是否已请求取消
+          title: Cancelrequested
+          type: boolean
+        catalogAvailable:
+          default: false
+          description: 完整封存目录是否可读
+          title: Catalogavailable
+          type: boolean
+        queryAvailable:
+          default: false
+          description: 是否可受理新的查询
+          title: Queryavailable
+          type: boolean
+        queryUnavailableReason:
+          anyOf:
+          - type: string
+          - type: 'null'
+          default: null
+          description: 不可查询原因
+          title: Queryunavailablereason
+        error:
+          anyOf:
+          - $ref: '#/components/schemas/SnapshotBuildView/$defs/ErrorView'
+          - type: 'null'
+          default: null
+          description: 脱敏错误摘要
+        initialDeployment:
+          anyOf:
+          - additionalProperties: true
+            type: object
+          - type: 'null'
+          default: null
+          description: 受理时附带的部署意图
+          title: Initialdeployment
+        execution:
+          anyOf:
+          - $ref: '#/components/schemas/SnapshotBuildView/$defs/ExecutionSnapshot'
+          - type: 'null'
+          default: null
+          description: 新构建的不可变执行快照
+        legacyEnvironment:
+          anyOf:
+          - $ref: '#/components/schemas/SnapshotBuildView/$defs/Environment'
+          - type: 'null'
+          default: null
+          description: 旧构建原始环境分类
+      required:
+      - buildId
+      - repository
+      - branchName
+      - requestedCommitSha
+      - commitSha
+      - configVersion
+      - toolchainVersion
+      - buildStatus
+      - phase
+      - createdAt
+      - updatedAt
+      title: SnapshotBuildView
+      type: object
+    ExecutionSnapshot:
+      $defs:
+        ConnectionTarget:
+          additionalProperties: false
+          description: 非敏感连接信息；实例身份必须由运行基础设施核验。
+          properties:
+            type:
+              description: 已支持的 dbt 适配器
+              enum:
+              - starrocks
+              - postgres
+              - duckdb
+              title: Type
+              type: string
+            instanceId:
+              description: 规范化物理实例身份
+              maxLength: 128
+              minLength: 1
+              title: Instanceid
+              type: string
+            host:
+              anyOf:
+              - maxLength: 253
+                type: string
+              - type: 'null'
+              default: null
+              description: 网络数据库主机
+              title: Host
+            port:
+              anyOf:
+              - maximum: 65535
+                minimum: 1
+                type: integer
+              - type: 'null'
+              default: null
+              description: 网络数据库端口
+              title: Port
+            path:
+              anyOf:
+              - maxLength: 2048
+                type: string
+              - type: 'null'
+              default: null
+              description: 受控 DuckDB 文件绝对路径
+              title: Path
+          required:
+          - type
+          - instanceId
+          title: ConnectionTarget
+          type: object
+      additionalProperties: false
+      properties:
+        environmentId:
+          description: 外部环境稳定身份，与源码无关
+          format: uuid
+          title: Environmentid
+          type: string
+        configVersion:
+          description: 外部环境配置版本，不是 worker 运行版本
+          minimum: 1
+          title: Configversion
+          type: integer
+        connection:
+          $ref: '#/components/schemas/ExecutionSnapshot/$defs/ConnectionTarget'
+          description: 完整非敏感物理连接目标
+        credentialRef:
+          description: 运行基础设施允许的 secret 引用
+          maxLength: 128
+          minLength: 1
+          title: Credentialref
+          type: string
+        catalog:
+          description: 目标 catalog 或适配器数据库
+          pattern: ^[a-z][a-z0-9_]{0,62}$
+          title: Catalog
+          type: string
+        schema:
+          description: 物理写入 schema
+          pattern: ^[a-z][a-z0-9_]{0,62}$
+          title: Schema
+          type: string
+        threads:
+          default: 1
+          description: 单次 dbt 并行度
+          maximum: 32
+          minimum: 1
+          title: Threads
+          type: integer
+        businessTimezone:
+          default: UTC
+          description: 该构建查询的业务时区
+          title: Businesstimezone
+          type: string
+      required:
+      - environmentId
+      - configVersion
+      - connection
+      - credentialRef
+      - catalog
+      - schema
+      title: ExecutionSnapshot
+      type: object
+    ConnectionTarget:
+      additionalProperties: false
+      description: 非敏感连接信息；实例身份必须由运行基础设施核验。
+      properties:
+        type:
+          description: 已支持的 dbt 适配器
+          enum:
+          - starrocks
+          - postgres
+          - duckdb
+          title: Type
+          type: string
+        instanceId:
+          description: 规范化物理实例身份
+          maxLength: 128
+          minLength: 1
+          title: Instanceid
+          type: string
+        host:
+          anyOf:
+          - maxLength: 253
+            type: string
+          - type: 'null'
+          default: null
+          description: 网络数据库主机
+          title: Host
+        port:
+          anyOf:
+          - maximum: 65535
+            minimum: 1
+            type: integer
+          - type: 'null'
+          default: null
+          description: 网络数据库端口
+          title: Port
+        path:
+          anyOf:
+          - maxLength: 2048
+            type: string
+          - type: 'null'
+          default: null
+          description: 受控 DuckDB 文件绝对路径
+          title: Path
+      required:
+      - type
+      - instanceId
+      title: ConnectionTarget
+      type: object
+    EnvironmentInput:
+      type: object
+      additionalProperties: false
+      required:
+      - connection
+      - credentialRef
+      - catalog
+      - schema
+      - threads
+      - businessTimezone
+      - name
+      properties:
+        connection:
+          $ref: '#/components/schemas/ConnectionTarget'
+        credentialRef:
+          description: 运行基础设施允许的 secret 引用
+          maxLength: 128
+          minLength: 1
+          title: Credentialref
+          type: string
+        catalog:
+          description: 目标 catalog 或适配器数据库
+          pattern: ^[a-z][a-z0-9_]{0,62}$
+          title: Catalog
+          type: string
+        schema:
+          description: 物理写入 schema
+          pattern: ^[a-z][a-z0-9_]{0,62}$
+          title: Schema
+          type: string
+        threads:
+          default: 1
+          description: 单次 dbt 并行度
+          maximum: 32
+          minimum: 1
+          title: Threads
+          type: integer
+        businessTimezone:
+          default: UTC
+          description: 该构建查询的业务时区
+          title: Businesstimezone
+          type: string
+        name:
+          type: string
+          minLength: 1
+          maxLength: 128
+          description: 环境展示名称
+    EnvironmentView:
+      type: object
+      required:
+      - environmentId
+      - name
+      - configVersion
+      - execution
+      properties:
+        environmentId:
+          type: string
+          format: uuid
+        name:
+          type: string
+        configVersion:
+          type: integer
+          minimum: 1
+        execution:
+          $ref: '#/components/schemas/ExecutionSnapshot'
+    EnvironmentPage:
+      type: object
+      required:
+      - items
+      properties:
+        items:
+          type: array
+          maxItems: 200
+          items:
+            $ref: '#/components/schemas/EnvironmentView'
+    EnvironmentBuildPage:
+      type: object
+      required:
+      - items
+      - nextCursor
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/SnapshotBuildView'
+        nextCursor:
+          type:
+          - string
+          - 'null'
+    BuildSubmission:
+      type: object
+      required:
+      - repository
+      - branchName
+      - expectedConfigVersion
+      - deploymentPolicy
+      - idempotencyKey
+      properties:
+        repository:
+          type: string
+          maxLength: 2048
+          description: 本次远程 Git 仓库，不允许明文凭据
+        branchName:
+          type: string
+          description: 本次显式分支，与环境无绑定
+        commitSha:
+          type:
+          - string
+          - 'null'
+          pattern: ^[0-9a-f]{40}$
+        expectedConfigVersion:
+          type: integer
+          minimum: 1
+        deploymentPolicy:
+          type: string
+          enum:
+          - NONE
+          - ON_SUCCESS
+        idempotencyKey:
+          type: string
+          minLength: 1
+          maxLength: 256
+          description: 同一次提交重试必须保持不变
+    BuildLogPage:
+      type: object
+      required:
+      - items
+      - nextCursor
+      - truncated
+      properties:
+        items:
+          type: array
+          items:
+            type: string
+        nextCursor:
+          type:
+          - string
+          - 'null'
+        truncated:
+          type: boolean
     BindingMode:
       type: string
       enum:

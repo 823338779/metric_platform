@@ -1,5 +1,8 @@
 const STORAGE_KEY = 'metric-platform.auth-session';
 const DBT_PROJECTS_PATH = '/dbt/projects';
+// 登录后保留环境列表或指定环境，限制为实际存在的路由。
+const ENVIRONMENT_PATH =
+  /^\/dbt\/environments(?:\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})?$/i;
 const FIXED_BUILD_PATH =
   /^\/dbt\/builds\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\/(catalog|query)$/i;
 
@@ -58,6 +61,7 @@ export function safeReturnTo(value: string | null) {
   // 仅放行实际固定构建页面，保留查询参数及片段，不扩大到任意内部或外部地址。
   return pathname === DBT_PROJECTS_PATH ||
     pathname.startsWith(`${DBT_PROJECTS_PATH}/`) ||
+    ENVIRONMENT_PATH.test(pathname) ||
     FIXED_BUILD_PATH.test(pathname)
     ? value
     : DBT_PROJECTS_PATH;

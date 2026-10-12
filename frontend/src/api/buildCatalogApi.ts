@@ -1,4 +1,5 @@
 import { createHttpClient, type Fetcher } from './httpClient';
+import type { ExecutionSnapshot } from './environmentApi';
 
 export type Environment = 'PREVIEW' | 'PRODUCTION';
 export type ServiceError = {
@@ -29,11 +30,15 @@ export type DeploymentTarget = DeploymentKey & {
   sourceState: string;
 };
 /** 构建成功、目录可读和物理查询可用是独立事实。 */
-export type BuildView = DeploymentKey & {
+export type BuildView = Omit<DeploymentKey, 'environment'> & {
+  /** 新构建携带不可变快照；旧构建保留 legacyEnvironment。 */
+  execution?: ExecutionSnapshot | null;
+  environment?: Environment | null;
+  legacyEnvironment?: Environment | null;
   buildId: string;
   requestedCommitSha: string | null;
   commitSha: string | null;
-  executionBinding: string;
+  executionBinding?: string;
   configVersion: string;
   toolchainVersion: string;
   buildStatus: string;
@@ -104,11 +109,13 @@ export type PublishedResult = {
   resultTruncated?: boolean;
 };
 const ROOT = '/api/v3/dbt';
+const METADATA_ROOT = '/api/v4/dbt';
 const POST = 'POST';
 const segment = encodeURIComponent;
 /** 唯一 v3 传输层，不含构建/部署写入或任何旧协议探测。 */
 export function createBuildCatalogApi(fetcher?: Fetcher) {
   const request = createHttpClient(fetcher, ROOT);
+  const metadata = createHttpClient(fetcher, METADATA_ROOT);
   const build = (id: string) => `/builds/${segment(id)}`;
   const resource = (id: string, rid: string) => `${build(id)}/resources/${segment(rid)}`;
   const query = (values: Record<string, string | number | undefined>) =>
@@ -124,7 +131,10 @@ export function createBuildCatalogApi(fetcher?: Fetcher) {
       cursor?: string;
       limit?: number;
     }) => request<BuildPage>(`/builds?${query({ limit: 50, ...filter })}`),
-    build: (id: string) => request<BuildView>(build(id)),
+    build: async (id: string) => {
+      const value = await metadata<BuildView>(build(id));
+      return { ...value, environment: value.legacyEnvironment ?? value.environment };
+    },
     current: (key: DeploymentKey) =>
       request<DeploymentTarget>(`/deployments/current?${query(key)}`),
     deployments: (key: DeploymentKey, cursor?: string) =>

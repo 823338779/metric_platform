@@ -8,6 +8,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.metricplatform.catalog.BuildContracts.*;
 import com.metricplatform.catalog.BuildGateway;
+import com.metricplatform.environment.EnvironmentBuildGateway;
 import com.metricplatform.identity.auth.PlatformAuthenticationService;
 import com.metricplatform.security.PlatformPrincipal;
 import java.util.*;
@@ -31,8 +32,47 @@ class QueryControllerTest {
             TOKEN = "Bearer query-test";
     @Autowired MockMvc mvc;
     @MockitoBean BuildGateway gateway;
+    @MockitoBean EnvironmentBuildGateway environmentBuilds;
     @MockitoBean PlatformAuthenticationService authentication;
     private final UUID build = UUID.randomUUID(), query = UUID.randomUUID();
+
+    @Test
+    void snapshotBuildQueryDoesNotReadLegacyMetadata() throws Exception {
+        when(gateway.getBuild(build))
+                .thenThrow(
+                        new BuildGateway.Failure(
+                                409,
+                                new ErrorView(
+                                        "PROTOCOL_VERSION_MISMATCH", "use v4", false, null, null)));
+        when(environmentBuilds.getBuild(build))
+                .thenReturn(
+                        new ObjectMapper()
+                                .readTree(
+                                        "{\"buildId\":\"" + build + "\",\"queryAvailable\":true}"));
+        when(gateway.query(eq(build), any()))
+                .thenReturn(
+                        new ResultPage(
+                                build,
+                                QueryMode.EXPLAIN,
+                                "a".repeat(40),
+                                "Asia/Shanghai",
+                                Map.of(),
+                                "metricflow_granularity_alignment",
+                                "select 1",
+                                List.of(),
+                                List.of(),
+                                false));
+        mvc.perform(
+                        post(ROOT + "/builds/" + build + "/queries")
+                                .header(AUTH, TOKEN)
+                                .contentType("application/json")
+                                .content(
+                                        "{\"mode\":\"EXPLAIN\",\"metricResourceIds\":[\"metric.revenue\"]}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.buildId").value(build.toString()));
+        verify(environmentBuilds).getBuild(build);
+        verify(gateway, never()).getBuild(any());
+    }
 
     @BeforeEach
     void prepare() {
@@ -129,9 +169,10 @@ class QueryControllerTest {
                 .andExpect(jsonPath("$.state").doesNotExist())
                 .andExpect(jsonPath("$.queryId").doesNotExist())
                 .andExpect(jsonPath("$.mode").value(mode.name()));
-        verify(gateway).getBuild(build);
+        verify(environmentBuilds).getBuild(build);
         verify(gateway).query(build, request);
         verifyNoMoreInteractions(gateway);
+        verifyNoMoreInteractions(environmentBuilds);
     }
 
     @Test

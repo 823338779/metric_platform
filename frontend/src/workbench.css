@@ -750,3 +750,57 @@ button.lineage-summary-node:hover {
 .projects-page code {
   overflow-wrap: anywhere;
 }
+
+/* 环境配置与历史沿用控制台间距，表单在窄屏下自动换行。 */
+.environment-page {
+  padding: 24px;
+  display: grid;
+  gap: 20px;
+  max-width: 1400px;
+  margin: auto;
+}
+.environment-page header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+.environment-form {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 16px;
+  align-items: end;
+}
+.environment-form label {
+  display: grid;
+  gap: 6px;
+  font-weight: 500;
+}
+.environment-form input,
+.environment-form select {
+  width: 100%;
+  padding: 8px 10px;
+  border: 1px solid #d9e1eb;
+  border-radius: 6px;
+  background: white;
+}
+.environment-form p,
+.environment-form .ant-alert {
+  grid-column: 1 / -1;
+}
+.environment-build {
+  padding: 16px 0;
+  border-bottom: 1px solid #edf0f4;
+  overflow-wrap: anywhere;
+}
+.environment-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+  align-items: center;
+}
+.environment-page pre {
+  max-height: 360px;
+  overflow: auto;
+  white-space: pre-wrap;
+}

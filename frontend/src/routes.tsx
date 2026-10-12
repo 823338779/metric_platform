@@ -5,6 +5,8 @@ import { PlatformLayout } from './layout/PlatformLayout';
 import { PublishedProjectsPage } from './features/dbt/PublishedProjectsPage';
 import { PublishedWorkbench } from './features/dbt/PublishedWorkbench';
 import { PublishedCatalogPage } from './features/dbt/PublishedCatalogPage';
+import { EnvironmentsPage } from './features/environments/EnvironmentsPage';
+import { EnvironmentDetailPage } from './features/environments/EnvironmentDetailPage';
 
 /** 所有目录和查询路由统一使用构建契约，无发布模式开关。 */
 export const router = createBrowserRouter([
@@ -15,11 +17,13 @@ export const router = createBrowserRouter([
       {
         element: <PlatformLayout />,
         children: [
-          { index: true, element: <Navigate to="/dbt/projects" replace /> },
+          { index: true, element: <Navigate to="/dbt/environments" replace /> },
+          { path: '/dbt/environments', element: <EnvironmentsPage /> },
+          { path: '/dbt/environments/:environmentId', element: <EnvironmentDetailPage /> },
           { path: '/dbt/projects', element: <PublishedProjectsPage /> },
           { path: '/dbt/builds/:buildId/catalog', element: <PublishedCatalogPage /> },
           { path: '/dbt/builds/:buildId/query', element: <PublishedWorkbench /> },
-          { path: '*', element: <Navigate to="/dbt/projects" replace /> },
+          { path: '*', element: <Navigate to="/dbt/environments" replace /> },
         ],
       },
     ],

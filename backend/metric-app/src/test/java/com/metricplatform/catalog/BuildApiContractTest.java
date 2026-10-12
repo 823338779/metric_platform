@@ -6,6 +6,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
 import com.metricplatform.catalog.BuildContracts.*;
+import com.metricplatform.environment.EnvironmentBuildGateway;
 import com.metricplatform.identity.auth.PlatformAuthenticationService;
 import com.metricplatform.security.PlatformPrincipal;
 import java.util.*;
@@ -30,6 +31,7 @@ class BuildApiContractTest {
 
     @Autowired JdbcTemplate jdbc;
     @MockitoBean BuildGateway gateway;
+    @MockitoBean EnvironmentBuildGateway environmentBuilds;
     @MockitoBean PlatformAuthenticationService authentication;
     private static final String ROOT = "/api/v3/dbt", TOKEN = "test-v3";
     private final UUID build = UUID.randomUUID(), user = UUID.randomUUID();

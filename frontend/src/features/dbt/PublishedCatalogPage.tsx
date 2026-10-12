@@ -1,6 +1,6 @@
 import { Alert, Button } from 'antd';
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
+import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import {
   buildCatalogApi,
   type BuildCatalogApi,
@@ -71,11 +71,16 @@ export function PublishedCatalogPage({ api = buildCatalogApi }: { api?: BuildCat
         if (fixed && fixed.buildId !== buildId) throw new Error('构建身份不一致');
         if (!active) return;
         setBuild(fixed);
+        // 快照构建只读取固定身份，环境历史由环境页面展示。
+        if (fixed?.execution) {
+          timer = setTimeout(() => void read(), POLL_MS);
+          return;
+        }
         const key = fixed
           ? {
               repository: fixed.repository,
               branchName: fixed.branchName,
-              environment: fixed.environment,
+              environment: fixed.environment ?? environment,
             }
           : { repository, branchName, environment };
         if (!key.repository || !key.branchName) {
@@ -166,8 +171,16 @@ export function PublishedCatalogPage({ api = buildCatalogApi }: { api?: BuildCat
       {error && <Alert type="warning" title={error} />}
       {build && (
         <p>
-          仓库：{build.repository} · 分支：{build.branchName} · 环境：{build.environment} ·
-          buildId：{build.buildId} · SHA：{build.commitSha}
+          仓库：{build.repository} · 分支：{build.branchName} · 环境：
+          {build.execution ? (
+            <Link to={`/dbt/environments/${build.execution.environmentId}`}>
+              {build.execution.catalog} / {build.execution.schema} · 配置版本{' '}
+              {build.execution.configVersion}
+            </Link>
+          ) : (
+            build.environment
+          )}{' '}
+          · buildId：{build.buildId} · SHA：{build.commitSha}
         </p>
       )}
       {current?.activeBuildId && buildId && current.activeBuildId !== buildId && (

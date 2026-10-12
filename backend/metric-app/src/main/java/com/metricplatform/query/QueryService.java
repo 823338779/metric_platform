@@ -2,6 +2,7 @@ package com.metricplatform.query;
 
 import com.metricplatform.catalog.BuildContracts.*;
 import com.metricplatform.catalog.BuildGateway;
+import com.metricplatform.environment.EnvironmentBuildGateway;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -13,12 +14,15 @@ public class QueryService {
     /** 服务权威读取与查询端口。 */
     private final BuildGateway gateway;
 
+    /** v4 元信息门面兼容新环境与旧构建，资源查询仍使用固定 buildId。 */
+    private final EnvironmentBuildGateway builds;
+
     /** 受理查询的用户归因存储。 */
     private final QueryAuditRepository audit;
 
     public ResultPage submit(UUID buildId, QueryRequest request, UUID userId) {
         // 新请求确认服务的实时能力，历史投影不能作为执行许可。
-        gateway.getBuild(buildId);
+        builds.getBuild(buildId);
         var query = gateway.query(buildId, request);
         if (!buildId.equals(query.buildId())) throw new IllegalStateException("服务返回了不同构建的查询");
         // 本地审计身份仅供归因，不作为服务查询身份返回或用于结果读取。

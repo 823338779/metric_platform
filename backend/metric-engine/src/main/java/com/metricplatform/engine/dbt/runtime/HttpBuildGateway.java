@@ -232,7 +232,7 @@ public class HttpBuildGateway implements BuildGateway {
         return values.toString();
     }
 
-    private <T> T call(String method, String path, Object body, Class<T> type) {
+    <T> T call(String method, String path, Object body, Class<T> type) {
         try {
             var request =
                     HttpRequest.newBuilder(baseUri.resolve(path))
@@ -275,7 +275,10 @@ public class HttpBuildGateway implements BuildGateway {
                     throw new Failure(
                             response.statusCode(), mapper.treeToValue(node, ErrorView.class));
                 }
-                if (POST.equals(method) && response.statusCode() != 200) throw invalid();
+                if (POST.equals(method)
+                        && response.statusCode() != 200
+                        && !(path.equals("/v4/builds") && response.statusCode() == 202))
+                    throw invalid();
                 T result = mapper.readValue(bytes, type);
                 if (result == null) throw invalid();
                 return result;

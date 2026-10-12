@@ -16,10 +16,12 @@ import {
 import { clearAuthSession, getAuthSession } from '../api/auth';
 
 const PROJECTS = '/dbt/projects';
+const ENVIRONMENTS = '/dbt/environments';
 const LOGIN = '/login?reason=required';
 const COPY = {
   brand: 'Metric Platform',
   projects: '部署版本',
+  environments: '执行环境',
   catalog: '资源管理',
   query: '分析探索',
   logout: '登出',
@@ -44,11 +46,24 @@ export function PlatformLayout() {
       className={`platform-layout ${buildId ? 'platform-workbench' : 'platform-projects'} ${queryPage ? 'platform-analysis' : ''}`}
     >
       <nav className="platform-rail" aria-label={COPY.brand}>
-        <Link className="platform-mark" to={PROJECTS} aria-label={COPY.brand}>
+        <Link className="platform-mark" to={ENVIRONMENTS} aria-label={COPY.brand}>
           MP
         </Link>
+        <Tooltip title={COPY.environments} placement="right">
+          <Link
+            to={ENVIRONMENTS}
+            className={pathname.startsWith(ENVIRONMENTS) ? 'is-active' : ''}
+            aria-label={COPY.environments}
+          >
+            <AppstoreOutlined />
+          </Link>
+        </Tooltip>
         <Tooltip title={COPY.projects} placement="right">
-          <Link to={PROJECTS} className={!buildId ? 'is-active' : ''} aria-label={COPY.projects}>
+          <Link
+            to={PROJECTS}
+            className={pathname === PROJECTS ? 'is-active' : ''}
+            aria-label={COPY.projects}
+          >
             <FolderOpenOutlined />
           </Link>
         </Tooltip>
@@ -88,7 +103,7 @@ export function PlatformLayout() {
               </Link>
             </nav>
           ) : (
-            <h1>{COPY.projects}</h1>
+            <h1>{pathname.startsWith(ENVIRONMENTS) ? COPY.environments : COPY.projects}</h1>
           )}
           <div className="platform-session">
             {buildId && (

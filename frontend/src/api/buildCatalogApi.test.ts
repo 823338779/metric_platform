@@ -46,7 +46,7 @@ describe('唯一构建协议', () => {
       problem: { code: 'BUILD_NOT_FOUND' },
     });
     expect(fetcher).toHaveBeenCalledTimes(1);
-    expect(fetcher.mock.calls[0][0]).toBe(`/api/v3/dbt/builds/${B1}`);
+    expect(fetcher.mock.calls[0][0]).toBe(`/api/v4/dbt/builds/${B1}`);
   });
   it('目录资源与同步选项固定 buildId，精度与时间原样传递', async () => {
     const fetcher = vi.fn().mockImplementation(
