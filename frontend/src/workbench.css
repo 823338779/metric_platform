@@ -728,3 +728,25 @@ button.lineage-summary-node:hover {
     padding: 40px 10px;
   }
 }
+
+/* 部署筛选在窄屏自动换行，长仓库地址和构建身份不撑开页面。 */
+.deployment-filter {
+  display: flex;
+  align-items: end;
+  flex-wrap: wrap;
+  gap: 16px;
+  margin-bottom: 24px;
+}
+.deployment-filter label {
+  display: grid;
+  gap: 8px;
+}
+.deployment-filter label:first-child {
+  flex: 1 1 320px;
+}
+.deployment-filter select {
+  min-height: 32px;
+}
+.projects-page code {
+  overflow-wrap: anywhere;
+}

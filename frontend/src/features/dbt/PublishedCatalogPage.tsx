@@ -6,14 +6,12 @@ import {
   type BuildCatalogApi,
   type BuildView,
   type DeploymentTarget,
-  type BranchList,
   type BuildPage,
   type DeploymentAttempt,
   type Environment,
 } from '../../api/buildCatalogApi';
 import { publishedResourceAdapter } from './publishedResourceAdapter';
 import { DbtCatalogPage } from './DbtCatalogPage';
-import { BranchContextBar } from './BranchContextBar';
 import { BranchBuildPanel } from './BranchBuildPanel';
 
 const PREVIEW = 'PREVIEW';
@@ -32,14 +30,12 @@ const COPY = {
 };
 /** 构建页面只在初次无版本时解析部署，新部署只提示，不覆盖固定 buildId。 */
 export function PublishedCatalogPage({ api = buildCatalogApi }: { api?: BuildCatalogApi }) {
-  const { projectId: routeProjectId, buildId: routeBuildId } = useParams();
+  const { buildId: routeBuildId } = useParams();
   const [params, setParams] = useSearchParams();
-  const projectId = routeProjectId ?? params.get('agentProjectId') ?? '';
   const navigate = useNavigate();
   const buildId = routeBuildId ?? params.get('buildId');
   const [build, setBuild] = useState<BuildView | null>(null);
   const [current, setCurrent] = useState<DeploymentTarget | null>(null);
-  const [branches, setBranches] = useState<BranchList | null>(null);
   const [history, setHistory] = useState<BuildPage | null>(null);
   const [deployments, setDeployments] = useState<DeploymentAttempt[]>([]);
   const [deploymentCursor, setDeploymentCursor] = useState<string | null>(null);
@@ -127,21 +123,6 @@ export function PublishedCatalogPage({ api = buildCatalogApi }: { api?: BuildCat
       if (timer) clearTimeout(timer);
     };
   }, [api, buildId, repository, branchName, environment, refresh]);
-  useEffect(() => {
-    if (!projectId) return;
-    let active = true;
-    void api
-      .branches(projectId)
-      .then((value) => {
-        if (active) setBranches(value);
-      })
-      .catch(() => {
-        if (active) setError('Agent 分支信息不可用，历史构建仍可浏览。');
-      });
-    return () => {
-      active = false;
-    };
-  }, [api, projectId, refresh]);
   // 两类历史游标独立前进；状态轮询不覆盖已追加的历史页面。
   async function loadHistory(deployment: boolean) {
     const cursor = deployment ? deploymentCursor : history?.nextCursor;
@@ -178,35 +159,11 @@ export function PublishedCatalogPage({ api = buildCatalogApi }: { api?: BuildCat
     }
   }
   function selectBuild(id: string) {
-    navigate(
-      `/dbt/builds/${encodeURIComponent(id)}/catalog${projectId ? `?agentProjectId=${encodeURIComponent(projectId)}` : ''}`,
-    );
-  }
-  function selectBranch(name: string) {
-    const selection = {
-      repository: build?.repository ?? repository,
-      branchName: name,
-      environment: name === 'main' ? PRODUCTION : PREVIEW,
-    };
-    if (routeBuildId)
-      navigate(
-        `/dbt/projects/${encodeURIComponent(projectId)}/catalog?${new URLSearchParams(selection)}`,
-      );
-    else setParams(selection);
+    navigate(`/dbt/builds/${encodeURIComponent(id)}/catalog`);
   }
   return (
     <div className="published-catalog">
       {error && <Alert type="warning" title={error} />}
-      {branches && (
-        <BranchContextBar
-          branches={branches}
-          repository={build?.repository ?? repository}
-          branchName={build?.branchName ?? branchName}
-          environment={build?.environment ?? environment}
-          onSelect={selectBranch}
-          projectId={projectId}
-        />
-      )}
       {build && (
         <p>
           仓库：{build.repository} · 分支：{build.branchName} · 环境：{build.environment} ·

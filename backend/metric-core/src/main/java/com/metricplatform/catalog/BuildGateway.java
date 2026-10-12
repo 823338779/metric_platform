@@ -4,7 +4,7 @@ import com.metricplatform.catalog.BuildContracts.*;
 
 import java.util.UUID;
 
-/** 只读构建及版本固定查询端口，发布仅由 Agent 调用服务。 */
+/** 只读构建及版本固定查询端口，平台不发起构建或部署。 */
 public interface BuildGateway {
     BuildView getBuild(UUID buildId);
 

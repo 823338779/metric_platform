@@ -1,16 +1,16 @@
 # Metric Platform
 
-指标平台负责登录认证、构建与部署历史展示，以及固定 `buildId` 的目录、可用维度和查询。Agent 是项目配置及真实 Git 分支的来源；dbt-service 是构建事实、有效部署、目录和查询执行的唯一权威。保存到 Git、构建部署、合并并发布均进入 Agent。
+指标平台负责登录认证、构建与部署历史展示，以及固定 `buildId` 的目录、可用维度和查询。dbt-service 是构建事实、有效部署、目录和查询执行的唯一权威。平台与 Agent 不直接交互，不发起构建或部署。
 
 ## 模块边界
 
 | 目录 | 职责 |
 | --- | --- |
 | `backend/metric-core` | 构建、查询、身份及历史投影端口和类型契约 |
-| `backend/metric-engine` | dbt-service v3 与 Agent 公开接口的 HTTP 适配 |
+| `backend/metric-engine` | dbt-service v3 公开接口的 HTTP 适配 |
 | `backend/metric-persistence` | MyBatis Plus、PostgreSQL、Redis、Flyway 与原子历史投影 |
 | `backend/metric-app` | 登录安全链、只读 BFF、查询归因与实时历史读取 |
-| `frontend` | 项目/分支选择、历史构建、固定版本目录与查询界面 |
+| `frontend` | 部署历史筛选、固定版本目录与查询界面 |
 | `api/openapi.yaml` | 平台公开接口的唯一契约，构建时同步打包 |
 
 产品独立构建，不导入 Agent 或 dbt-service 的实现类。旧审计表、历史资源和已应用的迁移继续保留；这些记录不再驱动发布。
@@ -42,8 +42,6 @@ mvn -f .\backend\metric-app\pom.xml spring-boot:run
 | `DBT_SERVICE_BASE_URI` | dbt-service 地址，默认 `http://127.0.0.1:8000` |
 | `DBT_SERVICE_QUERY_TIMEOUT` | 同步选项与查询的有界 HTTP 等待上限，默认 `PT1860S`，需高于服务执行时限（默认 1800 秒）；外围代理等待时间须更长。其他服务读取仍限 30 秒 |
 | `DBT_SERVICE_TOKEN` | 服务访问凭据，供 HTTP 适配使用，不发送到浏览器 |
-| `AGENT_BASE_URI` | Agent 地址，默认 `http://127.0.0.1:8080` |
-| `AGENT_SERVICE_TOKEN` | Agent 已有服务访问边界需要的凭据 |
 
 前端在 `frontend/` 运行：
 
@@ -52,15 +50,19 @@ npm ci
 npm run dev
 ```
 
-开发服务器将 `/api` 代理到 `http://localhost:8090`。部署必须同时使用匹配的 Agent、平台和 dbt-service v3 版本。平台没有协议模式开关，也不会在新接口失败时访问旧业务路径。
+开发服务器将 `/api` 代理到 `http://localhost:8090`。平台部署只需匹配 dbt-service v3，不依赖 Agent 的运行状态。平台没有协议模式开关，也不会在新接口失败时访问旧业务路径。
 
 ## 固定构建与历史
 
-浏览器接口使用 `/api/v3/dbt`。项目和分支由 Agent 提供；页面上下文记录项目、规范仓库、分支、环境和 `buildId`。未部署分支显示空态；新部署出现只提示显式刷新，目录、可用维度、查询与结果不会自动切换版本。历史构建可通过 `/dbt/builds/{buildId}/catalog` 打开。
+浏览器接口使用 `/api/v3/dbt`。首页 `/dbt/projects` 展示部署版本，输入规范 Git 仓库地址、分支和环境后，通过服务现有部署历史接口分页读取所有部署记录。筛选写入 URL，可收藏或分享；例如 `/dbt/projects?repository=<URL编码的仓库地址>&branchName=main&environment=PRODUCTION`。服务要求明确仓库，不提供全局仓库发现，平台不再读取 Agent 项目或分支。
+
+每条部署记录保留 generation、状态、时间及固定 buildId。已部署记录提供“查询此版本”和“查看指标目录”；当前指针只用于标记当前生效版本，读取失败不阻止浏览历史。目录、可用维度、查询与结果不会自动切换版本；物理对象清理或执行环境不兼容时，由服务返回查询不可用原因。已知构建仍可通过 `/dbt/builds/{buildId}/catalog` 或 `/dbt/builds/{buildId}/query` 打开。
+
+固定 buildId 固定指标定义和构建身份，不等于历史数据快照：当前服务在同一 schema 覆盖同名表，历史版本可能读取当前物理数据。
 
 可用维度与四种查询模式（QUERY、EXPLAIN、PREVIEW、DIMENSION_VALUES）均同步完成。平台保留 `/builds/{buildId}/available-dimensions` 与 `/builds/{buildId}/queries` 门面；适配层分别调用 `/v3/query/available-dimensions?build_id=…` 和 `/v3/query?build_id=…`。可用维度返回 `dimensions`；查询不携带幂等键，一次返回完整有界结果，不再返回 `queryId`、状态或分页字段，也不提供历史结果读取。失败通过非 2xx 业务错误返回，不使用任务状态轮询。平台保留 optionId、时间原值、结果精度及服务的业务错误码、phase、buildId、retryable。时间按构建固定的业务时区解释，由服务返回 `businessTimezone`、`normalizedTimeRange` 与边界策略。
 
-`GET /api/v3/dbt/builds` 直接读取服务构建历史，`repository` 必填，`branchName` 可选。首页先读取 Agent 项目，由所选项目仓库加载历史；分页沿用同一仓库与筛选。已知构建链接可直接读取详情，不依赖 Agent 项目发现。平台不再消费已删除的 `/v3/changes`；旧投影与变化游标保留供审计，不作为当前构建列表数据源。Agent 失联时分支缓存仍明确标记 `cached=true`、来源和观察时间。
+`GET /api/v3/dbt/builds` 直接读取服务构建历史，`repository` 必填，`branchName` 可选。部署列表使用 `/api/v3/dbt/deployments`，固定 repository/environment/branchName 与服务游标。旧投影、变化游标和 Agent 分支缓存表保留供审计，不作为当前列表数据源；旧项目和 Agent 分支代理接口已移除。
 
 构建成功、部署生效和可查询是独立状态。历史物理对象已清理时仍可查看服务封存目录；查询返回对应不可用原因。平台不自行重建物理表、切换部署或启动发布。
 
@@ -94,4 +96,3 @@ npm run test:e2e -- --config=playwright.publication.config.ts
 
 真实 PostgreSQL 浏览器验收需先具备匹配版本的三个服务、真实 Git 项目及已部署构建。测试使用 `postgres_platform` 隔离 fixture 的 `revenue` 指标与 2024 年 1、2 月数据。设置 `DBT_POSTGRES_E2E=1`、`DBT_POSTGRES_E2E_USER`、`DBT_POSTGRES_E2E_PASSWORD`、`DBT_POSTGRES_E2E_BUILD_ID`、`DBT_POSTGRES_E2E_PLATFORM_URL` 后，在 `frontend/` 运行 `npm run test:e2e -- --config=playwright.postgres.config.ts`。可用 `DBT_POSTGRES_E2E_FRONTEND_PORT` 指定独占前端端口（默认 4175），用 `DBT_POSTGRES_E2E_OUTPUT_DIR` 指定操作系统临时目录中的结果位置。专用配置禁止复用其他开发服务器，并关闭含真实认证请求的 trace 和视频。未准备真实环境时必须明确记录跳过，不将协议桩通过视为真实引擎验收。
 
-前端可配置 `VITE_AGENT_URL` 作为返回 Agent 的开发入口，只接受 HTTP/HTTPS 地址并仅传递 `projectId`、`branchName`。

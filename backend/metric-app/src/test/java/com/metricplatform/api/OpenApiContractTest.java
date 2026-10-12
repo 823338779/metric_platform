@@ -19,8 +19,6 @@ class OpenApiContractTest {
                 java.util.List.of(
                         "/api/v1/auth/token",
                         "/api/v1/auth/me",
-                        "/api/v3/dbt/projects",
-                        "/api/v3/dbt/projects/{agentProjectId}/branches",
                         "/api/v3/dbt/builds",
                         "/api/v3/dbt/builds/{buildId}",
                         "/api/v3/dbt/deployments",
@@ -35,7 +33,10 @@ class OpenApiContractTest {
         api.path("paths")
                 .fieldNames()
                 .forEachRemaining(
-                        path -> assertThat(path).doesNotContain("semantic-projects", "git-sync"));
+                        path ->
+                                assertThat(path)
+                                        .doesNotContain(
+                                                "semantic-projects", "git-sync", "/projects"));
         assertThat(api.at("/paths/~1api~1v3~1dbt~1builds").has("post")).isFalse();
         assertThat(api.at("/paths/~1api~1v3~1dbt~1deployments").has("post")).isFalse();
         assertThat(api.at("/components/schemas/IdentitySummary/required").toString())

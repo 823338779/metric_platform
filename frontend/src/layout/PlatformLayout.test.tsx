@@ -10,13 +10,13 @@ afterEach(() => {
 });
 
 describe('PlatformLayout', () => {
-  it('shows only dbt project navigation', () => {
+  it('shows deployment version navigation', () => {
     render(
       <MemoryRouter>
         <PlatformLayout />
       </MemoryRouter>,
     );
-    expect(screen.getByText('语义项目')).toBeTruthy();
+    expect(screen.getByText('部署版本')).toBeTruthy();
     expect(screen.queryByText('数据源')).toBeNull();
     expect(screen.queryByText('数据集')).toBeNull();
     expect(screen.queryByText('指标')).toBeNull();

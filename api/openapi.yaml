@@ -2,7 +2,7 @@ openapi: 3.1.0
 info:
   title: 指标平台固定构建 BFF
   version: 3.0.0
-  description: 平台负责登录、历史投影及固定 buildId 查询；Agent 管理项目和分支。
+  description: 平台直接读取 dbt-service 的部署历史及固定 buildId 目录和查询，不依赖 Agent。
 x-protocol-version: build-deployment-v3
 paths:
   /api/v1/auth/token:
@@ -744,52 +744,6 @@ paths:
                 $ref: '#/components/schemas/Problem'
       security:
       - bearerAuth: []
-  /api/v3/dbt/projects:
-    get:
-      summary: 读取 Agent 项目或真实分支观察
-      security:
-      - bearerAuth: []
-      parameters:
-      - name: cursor
-        in: query
-        schema:
-          type: string
-      - name: limit
-        in: query
-        schema:
-          type: integer
-          default: 50
-          minimum: 1
-          maximum: 200
-      responses:
-        '200':
-          description: 只读观察结果
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ProjectPage'
-        '503':
-          description: Agent 不可用且无已标注历史快照
-  /api/v3/dbt/projects/{agentProjectId}/branches:
-    get:
-      summary: 读取 Agent 项目或真实分支观察
-      security:
-      - bearerAuth: []
-      parameters:
-      - name: agentProjectId
-        in: path
-        required: true
-        schema:
-          type: string
-      responses:
-        '200':
-          description: 只读观察结果
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/BranchList'
-        '503':
-          description: Agent 不可用且无已标注历史快照
   /api/v3/dbt/contract:
     get:
       summary: 当前 BFF 协议和契约
@@ -2057,71 +2011,6 @@ components:
           type: integer
         detail:
           type: string
-    ProjectView:
-      type: object
-      required:
-      - projectId
-      - name
-      - version
-      - developmentConfigured
-      properties:
-        projectId:
-          type: string
-        name:
-          type: string
-        version:
-          type: integer
-        developmentConfigured:
-          type: boolean
-        repository:
-          type:
-          - string
-          - 'null'
-    ProjectPage:
-      type: object
-      required:
-      - items
-      properties:
-        items:
-          type: array
-          items:
-            $ref: '#/components/schemas/ProjectView'
-        nextCursor:
-          type:
-          - string
-          - 'null'
-    BranchList:
-      type: object
-      required:
-      - items
-      - observedAt
-      - cached
-      - source
-      properties:
-        items:
-          type: array
-          items:
-            type: object
-            required:
-            - branchName
-            - headSha
-            properties:
-              branchName:
-                type: string
-              headSha:
-                type:
-                - string
-                - 'null'
-        observedAt:
-          type: string
-          format: date-time
-        cached:
-          type: boolean
-        source:
-          type: string
-          enum:
-          - AGENT
-          - AGENT_CACHE
   securitySchemes:
     bearerAuth:
       type: http

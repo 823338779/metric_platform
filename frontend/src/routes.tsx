@@ -17,8 +17,6 @@ export const router = createBrowserRouter([
         children: [
           { index: true, element: <Navigate to="/dbt/projects" replace /> },
           { path: '/dbt/projects', element: <PublishedProjectsPage /> },
-          { path: '/dbt/projects/:projectId/catalog', element: <PublishedCatalogPage /> },
-          { path: '/dbt/projects/:projectId/query', element: <PublishedWorkbench /> },
           { path: '/dbt/builds/:buildId/catalog', element: <PublishedCatalogPage /> },
           { path: '/dbt/builds/:buildId/query', element: <PublishedWorkbench /> },
           { path: '*', element: <Navigate to="/dbt/projects" replace /> },

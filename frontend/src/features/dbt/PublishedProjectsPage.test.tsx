@@ -4,47 +4,32 @@ import { afterEach, expect, it, vi } from 'vitest';
 import { MemoryRouter } from 'react-router-dom';
 import { PublishedProjectsPage } from './PublishedProjectsPage';
 afterEach(cleanup);
-it('Agent失联时提示项目不可用，不发送缺少repository的构建请求', async () => {
+it('dbt-service失联时提示部署历史错误', async () => {
   const api = {
-    projects: vi.fn().mockRejectedValue(new Error('offline')),
-    builds: vi.fn().mockResolvedValue({
-      items: [
-        {
-          buildId: '11111111-1111-4111-8111-111111111111',
-          repository: 'repo',
-          branchName: 'feature/a',
-          buildStatus: 'FAILED',
-        },
-      ],
-      nextCursor: null,
-      source: 'SERVICE_CHANGE_FEED',
-      syncedAt: '2026-10-10',
-    }),
+    deployments: vi.fn().mockRejectedValue(new Error('offline')),
+    current: vi.fn().mockResolvedValue({ activeBuildId: null }),
   };
   render(
-    <MemoryRouter>
+    <MemoryRouter initialEntries={['/dbt/projects?repository=repo%2Fa']}>
       <PublishedProjectsPage api={api as never} />
     </MemoryRouter>,
   );
-  expect(await screen.findByText(/Agent 项目列表不可用/)).toBeInTheDocument();
-  expect(api.builds).not.toHaveBeenCalled();
+  expect(await screen.findByText('部署历史读取失败，请重试。')).toBeInTheDocument();
 });
 
-it('构建历史按服务游标追加，不改写已有固定链接', async () => {
+it('部署历史按服务游标追加，不改写已有固定链接', async () => {
   const api = {
-    projects: vi.fn().mockResolvedValue({
-      items: [{ projectId: 'p', name: '项目', repository: 'repo/a' }],
-      nextCursor: null,
-    }),
-    builds: vi
+    current: vi.fn().mockResolvedValue({ activeBuildId: null }),
+    deployments: vi
       .fn()
       .mockResolvedValueOnce({
         items: [
           {
+            generation: 1,
             buildId: '11111111-1111-4111-8111-111111111111',
             repository: 'repo/a',
             branchName: 'a',
-            buildStatus: 'SUCCEEDED',
+            deploymentStatus: 'DEPLOYED',
           },
         ],
         nextCursor: 'opaque',
@@ -53,10 +38,11 @@ it('构建历史按服务游标追加，不改写已有固定链接', async () =
       .mockResolvedValueOnce({
         items: [
           {
+            generation: 2,
             buildId: '22222222-2222-4222-8222-222222222222',
             repository: 'repo/a',
             branchName: 'b',
-            buildStatus: 'FAILED',
+            deploymentStatus: 'FAILED',
           },
         ],
         nextCursor: null,
@@ -64,39 +50,41 @@ it('构建历史按服务游标追加，不改写已有固定链接', async () =
       }),
   };
   render(
-    <MemoryRouter>
+    <MemoryRouter
+      initialEntries={['/dbt/projects?repository=repo%2Fa&branchName=main&environment=PRODUCTION']}
+    >
       <PublishedProjectsPage api={api as never} />
     </MemoryRouter>,
   );
-  fireEvent.click(await screen.findByRole('button', { name: '加载更多构建' }));
-  await screen.findByRole('link', { name: '22222222-2222-4222-8222-222222222222' });
-  expect(api.builds).toHaveBeenLastCalledWith({ repository: 'repo/a', cursor: 'opaque' });
-  expect(screen.getAllByRole('link')).toHaveLength(2);
+  fireEvent.click(await screen.findByRole('button', { name: '加载更多部署版本' }));
+  await waitFor(() =>
+    expect(screen.getAllByRole('link', { name: '查看指标目录' })).toHaveLength(2),
+  );
+  expect(api.deployments).toHaveBeenLastCalledWith(
+    { repository: 'repo/a', branchName: 'main', environment: 'PRODUCTION' },
+    'opaque',
+  );
+  expect(screen.getAllByRole('link')).toHaveLength(3);
 });
 
-it('切换项目仓库后忽略旧仓库晚到的分页结果', async () => {
+it('切换仓库后忽略旧仓库晚到的分页结果', async () => {
   let complete!: (value: unknown) => void;
   const pending = new Promise((resolve) => {
     complete = resolve;
   });
   const api = {
-    projects: vi.fn().mockResolvedValue({
-      items: [
-        { projectId: 'a', name: '项目 A', repository: 'repo/a' },
-        { projectId: 'b', name: '项目 B', repository: 'repo/b' },
-      ],
-      nextCursor: null,
-    }),
-    builds: vi.fn().mockImplementation(({ repository, cursor }) =>
+    current: vi.fn().mockResolvedValue({ activeBuildId: null }),
+    deployments: vi.fn().mockImplementation(({ repository }, cursor) =>
       cursor
         ? pending
         : Promise.resolve({
             items: [
               {
+                generation: 1,
                 buildId: repository === 'repo/a' ? 'build-a' : 'build-b',
                 repository,
                 branchName: 'main',
-                buildStatus: 'SUCCEEDED',
+                deploymentStatus: 'DEPLOYED',
               },
             ],
             nextCursor: repository === 'repo/a' ? 'cursor-a' : null,
@@ -104,20 +92,30 @@ it('切换项目仓库后忽略旧仓库晚到的分页结果', async () => {
     ),
   };
   render(
-    <MemoryRouter>
+    <MemoryRouter
+      initialEntries={['/dbt/projects?repository=repo%2Fa&branchName=main&environment=PRODUCTION']}
+    >
       <PublishedProjectsPage api={api as never} />
     </MemoryRouter>,
   );
-  fireEvent.click(await screen.findByRole('button', { name: '加载更多构建' }));
+  fireEvent.click(await screen.findByRole('button', { name: '加载更多部署版本' }));
   await waitFor(() =>
-    expect(api.builds).toHaveBeenCalledWith({ repository: 'repo/a', cursor: 'cursor-a' }),
+    expect(api.deployments).toHaveBeenCalledWith(
+      { repository: 'repo/a', branchName: 'main', environment: 'PRODUCTION' },
+      'cursor-a',
+    ),
   );
-  fireEvent.change(screen.getByLabelText('构建历史仓库'), { target: { value: 'repo/b' } });
-  await screen.findByRole('link', { name: 'build-b' });
+  fireEvent.change(screen.getByLabelText('Git 仓库地址'), { target: { value: 'repo/b' } });
+  fireEvent.click(screen.getByRole('button', { name: '查看部署版本' }));
+  await screen.findByText('build-b');
   await act(async () => {
     complete({ items: [{ buildId: 'stale-a' }], nextCursor: null });
   });
-  expect(screen.queryByRole('link', { name: 'stale-a' })).not.toBeInTheDocument();
-  expect(screen.queryByRole('link', { name: 'build-a' })).not.toBeInTheDocument();
-  expect(api.builds).toHaveBeenLastCalledWith({ repository: 'repo/b' });
+  expect(screen.queryByText('stale-a')).not.toBeInTheDocument();
+  expect(screen.queryByText('build-a')).not.toBeInTheDocument();
+  expect(api.deployments).toHaveBeenLastCalledWith({
+    repository: 'repo/b',
+    branchName: 'main',
+    environment: 'PRODUCTION',
+  });
 });

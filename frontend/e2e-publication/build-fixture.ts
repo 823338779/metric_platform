@@ -78,24 +78,6 @@ export async function buildFixture(
     const body = route.request().method() === 'POST' ? route.request().postDataJSON() : undefined;
     requests.push({ path, body });
     const id = path.match(/\/builds\/([^/]+)/)?.[1] ?? active;
-    if (path.endsWith('/projects'))
-      return route.fulfill({
-        json: {
-          items: [
-            { projectId: 'p', name: '演示项目', repository: 'repo/a', developmentConfigured: true },
-          ],
-          nextCursor: null,
-        },
-      });
-    if (path.endsWith('/branches'))
-      return route.fulfill({
-        json: {
-          items: ['main', 'a', 'b', 'empty'].map((branchName) => ({ branchName, headSha: 'sha' })),
-          source: 'AGENT',
-          cached: false,
-          observedAt: '2026-10-10',
-        },
-      });
     if (path.endsWith('/deployments/current')) {
       const branch = url.searchParams.get('branchName');
       return route.fulfill({

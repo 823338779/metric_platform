@@ -35,11 +35,6 @@ management:
       probes:
         enabled: true
 metric-platform:
-  # Agent 是项目配置和真实 Git 分支唯一读取来源。
-  agent:
-    base-uri: ${AGENT_BASE_URI:http://127.0.0.1:8080}
-    service-token: ${AGENT_SERVICE_TOKEN:}
-    timeout: PT30S
   dbt-runtime:
     # 构建和查询执行服务；平台仅提供只读目录与查询代理。
     base-uri: ${DBT_SERVICE_BASE_URI:http://127.0.0.1:8000}

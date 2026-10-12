@@ -30,7 +30,6 @@ class BuildApiContractTest {
 
     @Autowired JdbcTemplate jdbc;
     @MockitoBean BuildGateway gateway;
-    @MockitoBean AgentProjectGateway agent;
     @MockitoBean PlatformAuthenticationService authentication;
     private static final String ROOT = "/api/v3/dbt", TOKEN = "test-v3";
     private final UUID build = UUID.randomUUID(), user = UUID.randomUUID();
@@ -57,7 +56,6 @@ class BuildApiContractTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.nextCursor").value("next-cursor"));
         verify(gateway).listBuilds(filter);
-        verifyNoInteractions(agent);
     }
 
     @Test
@@ -97,31 +95,12 @@ class BuildApiContractTest {
     }
 
     @Test
-    void agentOutageMarksBranchCacheStale() throws Exception {
-        var observed = "2026-10-10T01:00:00Z";
-        when(agent.listBranches("project"))
-                .thenReturn(
-                        new AgentProjectContracts.BranchList(
-                                List.of(new AgentProjectContracts.BranchView("feature/a", "sha")),
-                                observed,
-                                false,
-                                "AGENT"));
-        mvc.perform(
-                        get(ROOT + "/projects/project/branches")
-                                .header("Authorization", "Bearer " + TOKEN))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.cached").value(false));
-        when(agent.listBranches("project"))
-                .thenThrow(
-                        new BuildGateway.Failure(
-                                503, new ErrorView("AGENT_UNAVAILABLE", "down", true, null, null)));
-        mvc.perform(
-                        get(ROOT + "/projects/project/branches")
-                                .header("Authorization", "Bearer " + TOKEN))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.cached").value(true))
-                .andExpect(jsonPath("$.observedAt").value(observed))
-                .andExpect(jsonPath("$.source").value("AGENT_CACHE"));
+    void removedAgentIntegrationRoutesAreUnavailable() throws Exception {
+        for (var path : List.of(ROOT + "/projects", ROOT + "/projects/project/branches")) {
+            mvc.perform(get(path).header("Authorization", "Bearer " + TOKEN))
+                    .andExpect(status().isNotFound());
+        }
+        verifyNoInteractions(gateway);
     }
 
     @Test

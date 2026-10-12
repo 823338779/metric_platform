@@ -19,7 +19,7 @@ const PROJECTS = '/dbt/projects';
 const LOGIN = '/login?reason=required';
 const COPY = {
   brand: 'Metric Platform',
-  projects: '语义项目',
+  projects: '部署版本',
   catalog: '资源管理',
   query: '分析探索',
   logout: '登出',
@@ -30,37 +30,29 @@ const COPY = {
 export function PlatformLayout() {
   const navigate = useNavigate();
   const { pathname } = useLocation();
-  const { projectId, buildId: routeBuildId } = useParams();
+  const { buildId: routeBuildId } = useParams();
   const [params] = useSearchParams();
   const buildId = routeBuildId ?? params.get('buildId');
   const queryPage = pathname.endsWith('/query');
-  const projectPath = buildId
-    ? `/dbt/builds/${encodeURIComponent(buildId)}`
-    : projectId
-      ? `${PROJECTS}/${encodeURIComponent(projectId)}`
-      : PROJECTS;
+  const projectPath = buildId ? `/dbt/builds/${encodeURIComponent(buildId)}` : PROJECTS;
   // 工作区切换携带当前版本与资源上下文；不会静默切换到最新发布。
   const catalogPath = `${projectPath}/catalog?${params}`;
   const queryPath = `${projectPath}/query?${params}`;
   const displayName = getAuthSession()?.identity.displayName;
   return (
     <div
-      className={`platform-layout ${projectId || buildId ? 'platform-workbench' : 'platform-projects'} ${queryPage ? 'platform-analysis' : ''}`}
+      className={`platform-layout ${buildId ? 'platform-workbench' : 'platform-projects'} ${queryPage ? 'platform-analysis' : ''}`}
     >
       <nav className="platform-rail" aria-label={COPY.brand}>
         <Link className="platform-mark" to={PROJECTS} aria-label={COPY.brand}>
           MP
         </Link>
         <Tooltip title={COPY.projects} placement="right">
-          <Link
-            to={PROJECTS}
-            className={!projectId && !buildId ? 'is-active' : ''}
-            aria-label={COPY.projects}
-          >
+          <Link to={PROJECTS} className={!buildId ? 'is-active' : ''} aria-label={COPY.projects}>
             <FolderOpenOutlined />
           </Link>
         </Tooltip>
-        {(projectId || buildId) && (
+        {buildId && (
           <>
             <Tooltip title={COPY.catalog} placement="right">
               <Link
@@ -86,7 +78,7 @@ export function PlatformLayout() {
       </nav>
       <div className="platform-main">
         <header className="platform-header">
-          {projectId || buildId ? (
+          {buildId ? (
             <nav className="workspace-tabs" aria-label="工作区">
               <Link aria-current={!queryPage ? 'page' : undefined} to={catalogPath}>
                 {COPY.catalog}

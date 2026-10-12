@@ -8,22 +8,8 @@ export type ServiceError = {
   phase?: string;
   buildId?: string;
 };
-/** 仓库、环境和真实分支构成部署自然键，项目身份仅由 Agent 管理。 */
+/** 仓库、环境和分支构成 dbt-service 部署自然键。 */
 export type DeploymentKey = { repository: string; environment: Environment; branchName: string };
-export type BuildContext = DeploymentKey & { agentProjectId?: string; buildId: string };
-export type DevelopmentProject = {
-  projectId: string;
-  name: string;
-  version: number;
-  developmentConfigured: boolean;
-  repository: string | null;
-};
-export type BranchList = {
-  items: { branchName: string; headSha: string }[];
-  observedAt: string | null;
-  cached: boolean;
-  source: string;
-};
 export type DeploymentAttempt = DeploymentKey & {
   generation: number;
   buildId: string;
@@ -132,12 +118,6 @@ export function createBuildCatalogApi(fetcher?: Fetcher) {
       ),
     ).toString();
   return {
-    projects: (cursor?: string) =>
-      request<{ items: DevelopmentProject[]; nextCursor: string | null }>(
-        `/projects?${query({ limit: 50, cursor })}`,
-      ),
-    branches: (projectId: string) =>
-      request<BranchList>(`/projects/${segment(projectId)}/branches`),
     builds: (filter: {
       repository: string;
       branchName?: string;
