@@ -19,7 +19,7 @@ test('环境配置独立于源码，构建历史进入固定目录和查询', as
     queryAvailable: true,
     initialDeployment: null,
   });
-  await page.route('**/api/v4/dbt/**', async (route) => {
+  await page.route('**/api/dbt/**', async (route) => {
     const path = new URL(route.request().url()).pathname;
     const post = route.request().method() === 'POST';
     calls.push(path);
@@ -45,7 +45,7 @@ test('环境配置独立于源码，构建历史进入固定目录和查询', as
       });
     }
     if (path.endsWith(`/builds/${BUILD_A}`)) return route.fulfill({ json: build() });
-    return route.fulfill({ status: 404, json: { detail: 'unexpected route' } });
+    return route.fallback();
   });
   await page.goto('/dbt/environments');
   await page.getByRole('button', { name: '新建环境' }).click();
@@ -65,7 +65,7 @@ test('环境配置独立于源码，构建历史进入固定目录和查询', as
   await expect(page.getByText(/default_catalog \/ env_browser/)).toBeVisible();
   await page.getByRole('link', { name: '分析探索', exact: true }).last().click();
   await expect(page).toHaveURL(new RegExp(`/builds/${BUILD_A}/query`));
-  await expect(page.getByRole('button', { name: '刷新此构建' })).toBeVisible();
+  await expect(page.getByRole('button', { name: '刷新已发布版本' })).toBeVisible();
   expect(submitted).toMatchObject({ branchName: 'feature/browser', expectedConfigVersion: 1 });
   expect(calls.some((path) => path.includes('agent'))).toBe(false);
 });

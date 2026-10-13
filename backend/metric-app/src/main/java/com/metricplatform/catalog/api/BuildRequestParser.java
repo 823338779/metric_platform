@@ -21,7 +21,7 @@ public final class BuildRequestParser {
             if (value == null) throw new IllegalArgumentException("请求不能为 null");
             return value;
         } catch (java.io.IOException e) {
-            throw new IllegalArgumentException("请求字段或类型不符合 v3 契约");
+            throw new IllegalArgumentException("请求字段或类型不符合执行快照契约");
         }
     }
 }

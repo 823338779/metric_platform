@@ -50,7 +50,7 @@ export function publishedTreeResource(resource: PublishedResource): DbtResource 
   };
 }
 
-/** 仅适配展示契约；所有读取和执行仍走 v3，资源与查询身份不转换为名称。 */
+/** 适配展示契约；读取和执行使用固定资源与查询身份，不转换为名称。 */
 export function publishedResourceAdapter(api: BuildCatalogApi) {
   const cursors = new Map<string, (string | undefined)[]>();
   const resource = async (project: string, id: string, buildId: string) => {

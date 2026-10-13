@@ -81,15 +81,10 @@ function FixedPublishedWorkbench({ api }: { api: BuildCatalogApi }) {
         if (value.buildId !== buildId) throw new Error('构建身份不一致');
         setIdentity(value);
         setIdentityError(false);
-        if (value.execution) {
-          timer = setTimeout(() => void read(), 5000);
-          return;
-        }
-        if (!value.environment) throw new Error('旧构建缺少环境身份');
         const deployment = await api.current({
           repository: value.repository,
           branchName: value.branchName,
-          environment: value.environment,
+          environmentId: value.execution.environmentId,
         });
         if (active) {
           setAvailableBuild(deployment.activeBuildId);
@@ -122,16 +117,10 @@ function FixedPublishedWorkbench({ api }: { api: BuildCatalogApi }) {
   async function latest() {
     if (!identity) return;
     try {
-      if (identity.execution) {
-        setIdentity(await api.build(buildId));
-        setRefresh((value) => value + 1);
-        return;
-      }
-      if (!identity.environment) throw new Error('旧构建缺少环境身份');
       const target = await api.current({
         repository: identity.repository,
         branchName: identity.branchName,
-        environment: identity.environment,
+        environmentId: identity.execution.environmentId,
       });
       if (!target.activeBuildId) {
         setError('当前分支尚未部署');
@@ -306,7 +295,7 @@ function FixedPublishedWorkbench({ api }: { api: BuildCatalogApi }) {
         </div>
         <div className="query-toolbar-actions">
           <Button loading={loading} onClick={() => void latest()}>
-            {identity?.execution ? '刷新此构建' : '刷新已发布版本'}
+            刷新已发布版本
           </Button>
           <Button
             disabled={
@@ -340,7 +329,7 @@ function FixedPublishedWorkbench({ api }: { api: BuildCatalogApi }) {
           仓库：{identity?.repository} · 分支：{identity?.branchName} · 环境：
           {identity?.execution
             ? `${identity.execution.catalog} / ${identity.execution.schema} · 配置版本 ${identity.execution.configVersion}`
-            : identity?.environment}
+            : undefined}
         </p>
         <p>
           固定版本：<code>{buildId || '尚未选择'}</code> · 源码提交：

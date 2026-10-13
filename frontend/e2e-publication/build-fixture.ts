@@ -10,7 +10,7 @@ const IDENTITY = {
   authVersion: 1,
 };
 type Json = Record<string, any>;
-/** 唯一 v3 fixture：保留独立构建、同步选项/查询和构建分页身份，未知路由明确失败。 */
+/** 完整执行快照 fixture：保留独立构建、同步选项/查询和构建分页身份，未知路由明确失败。 */
 export async function buildFixture(
   page: Page,
   config: {
@@ -44,7 +44,22 @@ export async function buildFixture(
     buildId: id,
     repository: 'repo/a',
     branchName: id === BUILD_MAIN ? 'main' : id === BUILD_B ? 'b' : 'a',
-    environment: id === BUILD_MAIN ? 'PRODUCTION' : 'PREVIEW',
+    execution: {
+      environmentId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+      configVersion: 1,
+      connection: {
+        type: 'postgres',
+        instanceId: 'fixture',
+        host: 'localhost',
+        port: 5432,
+        path: null,
+      },
+      credentialRef: 'fixture',
+      catalog: 'warehouse',
+      schema: 'analytics',
+      threads: 1,
+      businessTimezone: 'UTC',
+    },
     commitSha: 'sha-' + id,
     buildStatus: 'SUCCEEDED',
     catalogAvailable: true,
@@ -72,9 +87,9 @@ export async function buildFixture(
       sourcePath: 'models/metrics.yml',
       ...item,
     }));
-  await page.route('**/api/v{3,4}/dbt/**', async (route) => {
+  await page.route('**/api/dbt/**', async (route) => {
     const url = new URL(route.request().url());
-    const path = decodeURIComponent(url.pathname).replace('/api/v4/', '/api/v3/');
+    const path = decodeURIComponent(url.pathname);
     const body = route.request().method() === 'POST' ? route.request().postDataJSON() : undefined;
     requests.push({ path, body });
     const id = path.match(/\/builds\/([^/]+)/)?.[1] ?? active;

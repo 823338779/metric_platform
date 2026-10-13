@@ -10,21 +10,19 @@ import {
 
 const EMPTY = '';
 const MAIN = 'main';
-const PRODUCTION = 'PRODUCTION';
-const PREVIEW = 'PREVIEW';
 const DEPLOYED = 'DEPLOYED';
 const REPOSITORY = 'repository';
 const BRANCH = 'branchName';
-const ENVIRONMENT = 'environment';
+const ENVIRONMENT = 'environmentId';
 const COPY = {
   title: '部署版本',
   repository: 'Git 仓库地址',
   branch: '分支',
-  environment: '环境',
+  environment: '环境 UUID',
   submit: '查看部署版本',
   refresh: '刷新状态',
   more: '加载更多部署版本',
-  required: '填写 Git 仓库地址，查看 dbt-service 中的部署版本。',
+  required: '填写 Git 仓库地址和环境 UUID，查看 dbt-service 中的部署版本。',
   empty: '该仓库、分支和环境暂无部署记录',
   failure: '部署历史读取失败，请重试。',
   currentFailure: '当前部署状态暂不可用，仍可浏览历史版本。',
@@ -35,8 +33,6 @@ const COPY = {
   version: '部署序号',
   created: '提交时间',
   deployed: '部署时间',
-  production: '正式',
-  preview: '预览',
 };
 type DeploymentPage = { items: DeploymentAttempt[]; nextCursor: string | null };
 
@@ -45,10 +41,10 @@ export function PublishedProjectsPage({ api = buildCatalogApi }: { api?: BuildCa
   const [params, setParams] = useSearchParams();
   const repository = params.get(REPOSITORY) ?? EMPTY;
   const branchName = params.get(BRANCH) ?? MAIN;
-  const environment = params.get(ENVIRONMENT) === PREVIEW ? PREVIEW : PRODUCTION;
+  const environmentId = params.get(ENVIRONMENT) ?? EMPTY;
   const [draftRepository, setDraftRepository] = useState(repository);
   const [draftBranch, setDraftBranch] = useState(branchName);
-  const [draftEnvironment, setDraftEnvironment] = useState(environment);
+  const [draftEnvironment, setDraftEnvironment] = useState(environmentId);
   const [history, setHistory] = useState<DeploymentPage | null>(null);
   const [activeBuild, setActiveBuild] = useState<string | null>(null);
   const [error, setError] = useState(EMPTY);
@@ -62,7 +58,7 @@ export function PublishedProjectsPage({ api = buildCatalogApi }: { api?: BuildCa
   useEffect(() => {
     setDraftRepository(repository);
     setDraftBranch(branchName);
-    setDraftEnvironment(environment);
+    setDraftEnvironment(environmentId);
     const turn = ++generation.current;
     setHistory(null);
     setActiveBuild(null);
@@ -70,9 +66,9 @@ export function PublishedProjectsPage({ api = buildCatalogApi }: { api?: BuildCa
     setCurrentError(false);
     setLoadingMore(false);
     paging.current = false;
-    setLoading(Boolean(repository && branchName));
-    if (repository && branchName) {
-      const key: DeploymentKey = { repository, branchName, environment };
+    setLoading(Boolean(repository && branchName && environmentId));
+    if (repository && branchName && environmentId) {
+      const key: DeploymentKey = { repository, branchName, environmentId };
       void api
         .deployments(key)
         .then((page) => {
@@ -97,7 +93,7 @@ export function PublishedProjectsPage({ api = buildCatalogApi }: { api?: BuildCa
     return () => {
       generation.current++;
     };
-  }, [api, repository, branchName, environment, refresh]);
+  }, [api, repository, branchName, environmentId, refresh]);
 
   async function loadMore() {
     if (!history?.nextCursor || paging.current) return;
@@ -107,7 +103,7 @@ export function PublishedProjectsPage({ api = buildCatalogApi }: { api?: BuildCa
     setLoadingMore(true);
     setError(EMPTY);
     try {
-      const page = await api.deployments({ repository, branchName, environment }, cursor);
+      const page = await api.deployments({ repository, branchName, environmentId }, cursor);
       if (generation.current === turn)
         setHistory((previous) =>
           previous?.nextCursor === cursor
@@ -161,28 +157,24 @@ export function PublishedProjectsPage({ api = buildCatalogApi }: { api?: BuildCa
         </label>
         <label>
           {COPY.environment}
-          <select
+          <Input
             aria-label={COPY.environment}
+            required
             value={draftEnvironment}
-            onChange={(event) =>
-              setDraftEnvironment(event.target.value === PREVIEW ? PREVIEW : PRODUCTION)
-            }
-          >
-            <option value={PRODUCTION}>{COPY.production}</option>
-            <option value={PREVIEW}>{COPY.preview}</option>
-          </select>
+            onChange={(event) => setDraftEnvironment(event.target.value)}
+          />
         </label>
         <Button
           htmlType="submit"
           loading={loading}
-          disabled={!draftRepository.trim() || !draftBranch.trim()}
+          disabled={!draftRepository.trim() || !draftBranch.trim() || !draftEnvironment.trim()}
         >
           {COPY.submit}
         </Button>
       </form>
       {error && <Alert type="error" title={error} />}
       {currentError && <Alert type="warning" title={COPY.currentFailure} />}
-      {!repository && <Empty description={COPY.required} />}
+      {(!repository || !environmentId) && <Empty description={COPY.required} />}
       {history && (
         <section aria-label={COPY.title}>
           <p>{COPY.source}</p>

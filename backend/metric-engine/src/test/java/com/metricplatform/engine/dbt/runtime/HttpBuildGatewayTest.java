@@ -6,11 +6,13 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.metricplatform.catalog.BuildContracts.*;
 import com.metricplatform.catalog.BuildGateway;
 import com.sun.net.httpserver.HttpServer;
+
+import org.junit.jupiter.api.Test;
+
 import java.net.InetSocketAddress;
 import java.net.URI;
 import java.time.Duration;
 import java.util.*;
-import org.junit.jupiter.api.Test;
 
 class HttpBuildGatewayTest {
     private static final UUID BUILD = UUID.fromString("12345678-1234-4234-8234-123456789abc");
@@ -35,7 +37,7 @@ class HttpBuildGatewayTest {
                                 assertThat(e.error().code()).isEqualTo("PHYSICAL_OBJECTS_REMOVED");
                                 assertThat(e.error().buildId()).isEqualTo(BUILD);
                             });
-            assertThat(paths).containsExactly("/v3/builds/" + BUILD);
+            assertThat(paths).containsExactly("/builds/" + BUILD);
         } finally {
             server.stop(0);
         }
@@ -44,7 +46,7 @@ class HttpBuildGatewayTest {
     @Test
     void availableDimensionsReturnCompletedResult() throws Exception {
         var paths = new ArrayList<String>();
-        var fixture = mapper.readTree(getClass().getResourceAsStream("/contracts/v3.json"));
+        var fixture = mapper.readTree(getClass().getResourceAsStream("/contracts/dbt.json"));
         var options = fixture.path("examples");
         String response = null;
         for (var sample : options)
@@ -62,7 +64,7 @@ class HttpBuildGatewayTest {
                                     new AvailableDimensionsRequest(List.of("metric.revenue")));
             assertThat(result.dimensions()).isNotNull();
             assertThat(result.buildId()).isEqualTo(BUILD);
-            assertThat(paths).containsExactly("/v3/query/available-dimensions?build_id=" + BUILD);
+            assertThat(paths).containsExactly("/query/available-dimensions?build_id=" + BUILD);
         } finally {
             server.stop(0);
         }
@@ -80,7 +82,7 @@ class HttpBuildGatewayTest {
                                 + "\",\"resourceId\":\"a/b\",\"path\":\"x.yml\",\"content\":\"x\"}");
         try {
             assertThat(client(server).resource(BUILD, "a/b", "source").content()).isEqualTo("x");
-            assertThat(paths).containsExactly("/v3/builds/" + BUILD + "/resources/a%2Fb/source");
+            assertThat(paths).containsExactly("/builds/" + BUILD + "/resources/a%2Fb/source");
         } finally {
             server.stop(0);
         }
@@ -88,7 +90,7 @@ class HttpBuildGatewayTest {
 
     @Test
     void timePrecisionAndErrorsRoundTrip() throws Exception {
-        var fixture = mapper.readTree(getClass().getResourceAsStream("/contracts/v3.json"));
+        var fixture = mapper.readTree(getClass().getResourceAsStream("/contracts/dbt.json"));
         for (var sample : fixture.path("examples")) {
             if (sample.path("model").asText().equals("QueryResult")) {
                 var paths = new ArrayList<String>();
@@ -145,7 +147,7 @@ class HttpBuildGatewayTest {
     @org.junit.jupiter.params.ParameterizedTest
     @org.junit.jupiter.params.provider.EnumSource(QueryMode.class)
     void querySubmissionReturnsCompleteFirstPage(QueryMode mode) throws Exception {
-        var fixture = mapper.readTree(getClass().getResourceAsStream("/contracts/v3.json"));
+        var fixture = mapper.readTree(getClass().getResourceAsStream("/contracts/dbt.json"));
         var sample =
                 java.util.stream.StreamSupport.stream(fixture.path("examples").spliterator(), false)
                         .filter(value -> value.path("model").asText().equals("QueryResult"))

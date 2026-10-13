@@ -13,7 +13,22 @@ const build = (id = B1) =>
     buildId: id,
     repository: 'repo/a',
     branchName: 'feature/shared',
-    environment: 'PREVIEW',
+    execution: {
+      environmentId: '12345678-1234-4234-8234-000000000001',
+      configVersion: 1,
+      connection: {
+        type: 'starrocks',
+        instanceId: 'warehouse',
+        host: 'localhost',
+        port: 9030,
+        path: null,
+      },
+      credentialRef: 'warehouse-test',
+      catalog: 'default_catalog',
+      schema: 'analytics',
+      threads: 2,
+      businessTimezone: 'Asia/Shanghai',
+    },
     buildStatus: 'SUCCEEDED',
     catalogAvailable: true,
     queryAvailable: true,
@@ -75,7 +90,7 @@ it('undeployedBranchDoesNotUseMainCatalog', async () => {
   api.current.mockResolvedValue({ activeBuildId: null, sourceState: 'UNDEPLOYED' });
   mount(
     api,
-    '/dbt/projects/p1/catalog?repository=repo%2Fa&branchName=feature%2Fshared&environment=PREVIEW',
+    '/dbt/projects/p1/catalog?repository=repo%2Fa&branchName=feature%2Fshared&environmentId=12345678-1234-4234-8234-000000000001',
   );
   expect(await screen.findByText('当前分支尚未部署')).toBeInTheDocument();
   expect(screen.queryByText('固定构建目录')).not.toBeInTheDocument();
@@ -83,7 +98,7 @@ it('undeployedBranchDoesNotUseMainCatalog', async () => {
   expect(api.current).toHaveBeenCalledWith({
     repository: 'repo/a',
     branchName: 'feature/shared',
-    environment: 'PREVIEW',
+    environmentId: '12345678-1234-4234-8234-000000000001',
   });
 });
 it('historicalCatalogVisibleWhenQueryUnavailable', async () => {
@@ -121,10 +136,15 @@ it('构建与部署历史各自保留游标和完整分支作用域', async () =
   expect(api.builds).toHaveBeenLastCalledWith({
     repository: 'repo/a',
     branchName: 'feature/shared',
+    environmentId: '12345678-1234-4234-8234-000000000001',
     cursor: 'build-page-2',
   });
   expect(api.deployments).toHaveBeenLastCalledWith(
-    { repository: 'repo/a', branchName: 'feature/shared', environment: 'PREVIEW' },
+    {
+      repository: 'repo/a',
+      branchName: 'feature/shared',
+      environmentId: '12345678-1234-4234-8234-000000000001',
+    },
     'deployment-page-2',
   );
   expect(screen.queryByRole('button', { name: '加载更多构建历史' })).not.toBeInTheDocument();
@@ -153,6 +173,7 @@ it('切换仓库后的旧历史分页晚到不能混入新作用域', async () =
     expect(api.builds).toHaveBeenLastCalledWith({
       repository: 'repo/b',
       branchName: 'feature/shared',
+      environmentId: '12345678-1234-4234-8234-000000000001',
     }),
   );
   await act(async () =>

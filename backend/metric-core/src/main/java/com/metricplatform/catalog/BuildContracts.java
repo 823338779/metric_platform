@@ -1,17 +1,14 @@
 package com.metricplatform.catalog;
 
+import com.metricplatform.environment.EnvironmentContracts.ExecutionSnapshot;
+
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
-/** 服务 v3 的固定构建协议；不包含平台发布操作。 */
+/** 执行服务 的固定构建协议；不包含平台发布操作。 */
 public final class BuildContracts {
     private BuildContracts() {}
-
-    public enum Environment {
-        PREVIEW,
-        PRODUCTION
-    }
 
     public enum BuildStatus {
         QUEUED,
@@ -62,10 +59,8 @@ public final class BuildContracts {
             String requestedCommitSha,
             /** 固定源码版本。 */
             String commitSha,
-            /** 物理执行环境。 */
-            Environment environment,
-            /** 执行配置引用。 */
-            String executionBinding,
+            /** 受理时固定的完整执行快照。 */
+            ExecutionSnapshot execution,
             /** 固定配置版本。 */
             String configVersion,
             /** 固定工具链版本。 */
@@ -94,10 +89,14 @@ public final class BuildContracts {
             Map<String, Object> initialDeployment) {}
 
     public record BuildFilter(
+            /** 必填外部环境身份，隔离历史及分页游标。 */
+            UUID environmentId,
             /** 规范仓库地址。 */
             String repository,
             /** 目标分支短名。 */
             String branchName,
+            /** 可选构建状态筛选。 */
+            String buildStatus,
             /** 当前筛选条件的分页位置。 */
             String cursor,
             /** 本次读取的最大条数。 */
@@ -121,7 +120,7 @@ public final class BuildContracts {
             /** 规范仓库地址。 */
             String repository,
             /** 物理执行环境。 */
-            Environment environment,
+            UUID environmentId,
             /** 目标分支短名。 */
             String branchName) {}
 
@@ -129,7 +128,7 @@ public final class BuildContracts {
             /** 规范仓库地址。 */
             String repository,
             /** 物理执行环境。 */
-            Environment environment,
+            UUID environmentId,
             /** 目标分支短名。 */
             String branchName,
             /** 当前筛选条件的分页位置。 */
@@ -141,7 +140,7 @@ public final class BuildContracts {
             /** 规范仓库地址。 */
             String repository,
             /** 物理执行环境。 */
-            Environment environment,
+            UUID environmentId,
             /** 目标分支短名。 */
             String branchName,
             /** 受理顺序，不按完成时间分配。 */
@@ -161,7 +160,7 @@ public final class BuildContracts {
             /** 规范仓库地址。 */
             String repository,
             /** 物理执行环境。 */
-            Environment environment,
+            UUID environmentId,
             /** 目标分支短名。 */
             String branchName,
             /** 目标乐观锁版本。 */

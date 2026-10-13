@@ -17,8 +17,10 @@ public class BuildHistoryStore implements BuildHistoryRepository {
             TARGET = "DEPLOYMENT_TARGET",
             ATTEMPT = "DEPLOYMENT_ATTEMPT",
             BRANCH = "branchName";
+
     /** 负责 MyBatis 行锁及版本条件更新的持久化服务。 */
     private final com.metricplatform.persistence.service.BuildHistoryPersistenceService persistence;
+
     private final ObjectMapper mapper =
             new ObjectMapper().disable(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES);
 
@@ -49,7 +51,7 @@ public class BuildHistoryStore implements BuildHistoryRepository {
                         || !view.buildId().toString().equals(event.objectId())
                         || !Objects.equals(view.repository(), event.repository())
                         || view.buildStatus() == null
-                        || view.environment() == null)
+                        || view.execution() == null)
                     throw new IllegalArgumentException("构建摘要身份或必需字段无效");
                 var row = new com.metricplatform.persistence.entity.BuildHistoryEntity();
                 row.setBuildId(UUID.fromString(event.objectId()));
@@ -112,7 +114,8 @@ public class BuildHistoryStore implements BuildHistoryRepository {
                             Base64.getUrlDecoder().decode(filter.cursor()), PageCursor.class);
             if (!Objects.equals(cursor.repository(), filter.repository())
                     || !Objects.equals(cursor.branchName(), filter.branchName())
-                    || cursor.firstSequence() < 0) throw new IllegalArgumentException("历史游标不属于当前仓库和分支");
+                    || cursor.firstSequence() < 0)
+                throw new IllegalArgumentException("历史游标不属于当前仓库和分支");
             return cursor.firstSequence();
         } catch (java.io.IOException e) {
             throw new IllegalArgumentException("历史游标无效", e);

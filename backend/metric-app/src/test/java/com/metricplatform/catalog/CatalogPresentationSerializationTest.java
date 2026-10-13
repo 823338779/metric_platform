@@ -6,9 +6,11 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 import com.metricplatform.catalog.BuildContracts.ResourceView;
 import com.metricplatform.catalog.api.PublishedCatalogController;
-import java.util.*;
+
 import org.junit.jupiter.api.Test;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
+
+import java.util.*;
 
 class CatalogPresentationSerializationTest {
     @Test
@@ -45,7 +47,7 @@ class CatalogPresentationSerializationTest {
         var mvc = MockMvcBuilders.standaloneSetup(new PublishedCatalogController(gateway)).build();
         mvc.perform(
                         get(
-                                "/api/v3/dbt/builds/"
+                                "/api/dbt/builds/"
                                         + build
                                         + "/resources/metric.shop.units_sold/native-details"))
                 .andExpect(status().isOk())

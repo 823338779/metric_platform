@@ -3,9 +3,12 @@ package com.metricplatform.query;
 import com.metricplatform.catalog.BuildContracts.*;
 import com.metricplatform.catalog.BuildGateway;
 import com.metricplatform.environment.EnvironmentBuildGateway;
-import java.util.UUID;
+
 import lombok.RequiredArgsConstructor;
+
 import org.springframework.stereotype.Service;
+
+import java.util.UUID;
 
 /** 查询绑定指定构建并保留登录身份；平台不重新解释引擎选择。 */
 @Service
@@ -14,7 +17,7 @@ public class QueryService {
     /** 服务权威读取与查询端口。 */
     private final BuildGateway gateway;
 
-    /** v4 元信息门面兼容新环境与旧构建，资源查询仍使用固定 buildId。 */
+    /** 完整执行快照元信息门面，资源查询使用固定 buildId。 */
     private final EnvironmentBuildGateway builds;
 
     /** 受理查询的用户归因存储。 */

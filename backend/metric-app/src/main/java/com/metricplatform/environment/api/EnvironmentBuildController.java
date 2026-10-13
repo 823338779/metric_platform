@@ -4,16 +4,18 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.metricplatform.environment.*;
 import com.metricplatform.environment.EnvironmentContracts.*;
 import com.metricplatform.security.PlatformPrincipal;
-import java.util.UUID;
+
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.UUID;
+
 /** 环境构建与历史只调用服务 HTTP API。 */
 @RestController
-@RequestMapping("/api/v4/dbt")
+@RequestMapping("/api/dbt")
 public class EnvironmentBuildController {
     /** 平台提交用例。 */
     private final EnvironmentBuildService builds;
@@ -33,40 +35,41 @@ public class EnvironmentBuildController {
         this.gateway = gateway;
     }
 
-    @PostMapping("/environments/{id}/builds")
+    @PostMapping("/environments/{environmentId}/builds")
     public ResponseEntity<String> submit(
-            @PathVariable UUID id,
+            @PathVariable UUID environmentId,
             @RequestBody SubmitBuildCommand command,
             @AuthenticationPrincipal PlatformPrincipal principal) {
-        return json(builds.submit(id, command, principal.identityId()), HttpStatus.ACCEPTED);
+        return json(
+                builds.submit(environmentId, command, principal.identityId()), HttpStatus.ACCEPTED);
     }
 
-    @GetMapping("/environments/{id}/builds")
+    @GetMapping("/environments/{environmentId}/builds")
     public ResponseEntity<String> history(
-            @PathVariable UUID id,
+            @PathVariable UUID environmentId,
             @RequestParam(required = false) String repository,
             @RequestParam(required = false) String branchName,
             @RequestParam(required = false) String buildStatus,
             @RequestParam(required = false) String cursor,
             @RequestParam(defaultValue = "50") int limit) {
-        environments.get(id);
+        environments.get(environmentId);
         if (limit < 1 || limit > 200) throw new IllegalArgumentException("页大小必须在 1 到 200 之间");
         return json(
                 gateway.history(
                         new EnvironmentBuildFilter(
-                                id, repository, branchName, buildStatus, cursor, limit)),
+                                environmentId, repository, branchName, buildStatus, cursor, limit)),
                 HttpStatus.OK);
     }
 
-    @GetMapping("/builds/{id}")
-    public ResponseEntity<String> get(@PathVariable UUID id) {
-        return json(gateway.getBuild(id), HttpStatus.OK);
+    @GetMapping("/builds/{buildId}")
+    public ResponseEntity<String> get(@PathVariable UUID buildId) {
+        return json(gateway.getBuild(buildId), HttpStatus.OK);
     }
 
-    @GetMapping("/builds/{id}/logs")
+    @GetMapping("/builds/{buildId}/logs")
     public ResponseEntity<String> logs(
-            @PathVariable UUID id, @RequestParam(required = false) String cursor) {
-        return json(gateway.logs(id, cursor), HttpStatus.OK);
+            @PathVariable UUID buildId, @RequestParam(required = false) String cursor) {
+        return json(gateway.logs(buildId, cursor), HttpStatus.OK);
     }
 
     private static ResponseEntity<String> json(JsonNode value, HttpStatus status) {

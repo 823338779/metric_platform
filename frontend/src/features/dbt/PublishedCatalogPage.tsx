@@ -8,14 +8,11 @@ import {
   type DeploymentTarget,
   type BuildPage,
   type DeploymentAttempt,
-  type Environment,
 } from '../../api/buildCatalogApi';
 import { publishedResourceAdapter } from './publishedResourceAdapter';
 import { DbtCatalogPage } from './DbtCatalogPage';
 import { BranchBuildPanel } from './BranchBuildPanel';
 
-const PREVIEW = 'PREVIEW';
-const PRODUCTION = 'PRODUCTION';
 const POLL_MS = 5000;
 const COPY = {
   refresh: '刷新构建状态',
@@ -49,9 +46,7 @@ export function PublishedCatalogPage({ api = buildCatalogApi }: { api?: BuildCat
   const adapter = useMemo(() => publishedResourceAdapter(api), [api, buildId]);
   const repository = params.get('repository') ?? '';
   const branchName = params.get('branchName') ?? '';
-  const environment = (
-    params.get('environment') === PRODUCTION ? PRODUCTION : PREVIEW
-  ) as Environment;
+  const environmentId = params.get('environmentId') ?? '';
   useEffect(() => {
     const turn = ++historyGeneration.current;
     let active = true;
@@ -71,27 +66,20 @@ export function PublishedCatalogPage({ api = buildCatalogApi }: { api?: BuildCat
         if (fixed && fixed.buildId !== buildId) throw new Error('构建身份不一致');
         if (!active) return;
         setBuild(fixed);
-        // 快照构建只读取固定身份，环境历史由环境页面展示。
-        if (fixed?.execution) {
-          timer = setTimeout(() => void read(), POLL_MS);
-          return;
-        }
         const key = fixed
           ? {
               repository: fixed.repository,
               branchName: fixed.branchName,
-              environment: fixed.environment ?? environment,
+              environmentId: fixed.execution.environmentId,
             }
-          : { repository, branchName, environment };
-        if (!key.repository || !key.branchName) {
+          : { repository, branchName, environmentId };
+        if (!key.repository || !key.branchName || !key.environmentId) {
           setBusy(false);
           return;
         }
         const [target, builds, attempts] = await Promise.allSettled([
           api.current(key),
-          includeHistory
-            ? api.builds({ repository: key.repository, branchName: key.branchName })
-            : Promise.resolve(null),
+          includeHistory ? api.builds({ ...key }) : Promise.resolve(null),
           includeHistory ? api.deployments(key) : Promise.resolve(null),
         ]);
         if (!active) return;
@@ -127,7 +115,7 @@ export function PublishedCatalogPage({ api = buildCatalogApi }: { api?: BuildCat
       if (historyGeneration.current === turn) historyGeneration.current++;
       if (timer) clearTimeout(timer);
     };
-  }, [api, buildId, repository, branchName, environment, refresh]);
+  }, [api, buildId, repository, branchName, environmentId, refresh]);
   // 两类历史游标独立前进；状态轮询不覆盖已追加的历史页面。
   async function loadHistory(deployment: boolean) {
     const cursor = deployment ? deploymentCursor : history?.nextCursor;
@@ -136,7 +124,7 @@ export function PublishedCatalogPage({ api = buildCatalogApi }: { api?: BuildCat
     const key = {
       repository: build?.repository ?? repository,
       branchName: build?.branchName ?? branchName,
-      environment: build?.environment ?? environment,
+      environmentId: build?.execution.environmentId ?? environmentId,
     };
     const setLoading = deployment ? setLoadingDeployments : setLoadingBuilds;
     setLoading(true);
@@ -148,6 +136,7 @@ export function PublishedCatalogPage({ api = buildCatalogApi }: { api?: BuildCat
         setDeploymentCursor(page.nextCursor);
       } else {
         const page = await api.builds({
+          environmentId: key.environmentId,
           repository: key.repository,
           branchName: key.branchName,
           cursor,
@@ -172,14 +161,12 @@ export function PublishedCatalogPage({ api = buildCatalogApi }: { api?: BuildCat
       {build && (
         <p>
           仓库：{build.repository} · 分支：{build.branchName} · 环境：
-          {build.execution ? (
+          {
             <Link to={`/dbt/environments/${build.execution.environmentId}`}>
               {build.execution.catalog} / {build.execution.schema} · 配置版本{' '}
               {build.execution.configVersion}
             </Link>
-          ) : (
-            build.environment
-          )}{' '}
+          }{' '}
           · buildId：{build.buildId} · SHA：{build.commitSha}
         </p>
       )}

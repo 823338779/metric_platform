@@ -8,7 +8,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.metricplatform.identity.auth.PlatformAuthenticationService;
 import com.metricplatform.security.PlatformPrincipal;
-import java.util.UUID;
+
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -19,13 +19,15 @@ import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
+import java.util.UUID;
+
 @SpringBootTest(
         properties =
                 "EXECUTION_INSTANCES={\"warehouse\":{\"type\":\"starrocks\",\"hosts\":[\"localhost\",\"127.0.0.1\"],\"port\":9030}}")
 @AutoConfigureMockMvc
 @ActiveProfiles("test")
 class EnvironmentApiTest {
-    private static final String ROOT = "/api/v4/dbt/environments";
+    private static final String ROOT = "/api/dbt/environments";
     @Autowired MockMvc mvc;
     @MockitoBean PlatformAuthenticationService authentication;
     @MockitoBean EnvironmentBuildGateway gateway;
@@ -63,12 +65,12 @@ class EnvironmentApiTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.items").isArray());
         mvc.perform(
-                        get("/api/v4/dbt/builds/" + build)
+                        get("/api/dbt/builds/" + build)
                                 .header("Authorization", "Bearer environment-test"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.buildId").value(build.toString()));
         mvc.perform(
-                        get("/api/v4/dbt/builds/" + build + "/logs")
+                        get("/api/dbt/builds/" + build + "/logs")
                                 .header("Authorization", "Bearer environment-test"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.items[0]").value("QUEUED"));
@@ -78,9 +80,9 @@ class EnvironmentApiTest {
                                 .contentType(MediaType.APPLICATION_JSON)
                                 .content(
                                         """
-                {"repository":"https://example.test/metrics.git","branchName":"main","expectedConfigVersion":1,
-                "deploymentPolicy":"NONE","idempotencyKey":"%s"}
-                """
+                                        {"repository":"https://example.test/metrics.git","branchName":"main","expectedConfigVersion":1,
+                                        "deploymentPolicy":"NONE","idempotencyKey":"%s"}
+                                        """
                                                 .formatted(UUID.randomUUID())))
                 .andExpect(status().isAccepted())
                 .andExpect(jsonPath("$.buildId").value(build.toString()));

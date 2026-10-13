@@ -6,8 +6,13 @@ import { PublishedProjectsPage } from './PublishedProjectsPage';
 
 afterEach(cleanup);
 const BUILD = '11111111-1111-4111-8111-111111111111';
-const KEY = { repository: 'repo/a', branchName: 'main', environment: 'PRODUCTION' };
-const PATH = '/dbt/projects?repository=repo%2Fa&branchName=main&environment=PRODUCTION';
+const KEY = {
+  repository: 'repo/a',
+  branchName: 'main',
+  environmentId: '12345678-1234-4234-8234-000000000001',
+};
+const PATH =
+  '/dbt/projects?repository=repo%2Fa&branchName=main&environmentId=12345678-1234-4234-8234-000000000001';
 
 it('直接读取部署历史，每个历史版本都有固定目录和查询入口', async () => {
   const api = {
@@ -94,13 +99,15 @@ it('筛选条件提交后按完整部署键读取', async () => {
   );
   fireEvent.change(screen.getByLabelText('Git 仓库地址'), { target: { value: 'repo/b' } });
   fireEvent.change(screen.getByLabelText('分支'), { target: { value: 'feature/a' } });
-  fireEvent.change(screen.getByLabelText('环境'), { target: { value: 'PREVIEW' } });
+  fireEvent.change(screen.getByLabelText('环境 UUID'), {
+    target: { value: '12345678-1234-4234-8234-000000000001' },
+  });
   fireEvent.click(screen.getByRole('button', { name: '查看部署版本' }));
   await waitFor(() =>
     expect(api.deployments).toHaveBeenCalledWith({
       repository: 'repo/b',
       branchName: 'feature/a',
-      environment: 'PREVIEW',
+      environmentId: '12345678-1234-4234-8234-000000000001',
     }),
   );
 });

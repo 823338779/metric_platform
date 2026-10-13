@@ -6,13 +6,15 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.metricplatform.catalog.BuildContracts.*;
 import com.sun.net.httpserver.HttpServer;
+
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
+
 import java.net.*;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.util.*;
 import java.util.concurrent.atomic.AtomicReference;
-import org.junit.jupiter.params.ParameterizedTest;
-import org.junit.jupiter.params.provider.CsvSource;
 
 /** 平台保留时间精度和时区，具体日历解释由固定构建服务完成。 */
 class QueryTimeTransportTest {
@@ -72,7 +74,7 @@ class QueryTimeTransportTest {
                 assertThat(received.get()).isEqualTo(mapper.valueToTree(request));
                 assertThat(received.get().has("buildId")).isFalse();
                 assertThat(received.get().has("idempotencyKey")).isFalse();
-                assertThat(path.get()).isEqualTo("/v3/query?build_id=" + build);
+                assertThat(path.get()).isEqualTo("/query?build_id=" + build);
                 assertThat(request.startTime()).isEqualTo(start);
                 assertThat(request.endTime()).isEqualTo(end);
             }

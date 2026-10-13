@@ -4,6 +4,10 @@ import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.metricplatform.catalog.BuildContracts.*;
 import com.metricplatform.catalog.BuildGateway;
+
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.stereotype.Component;
+
 import java.io.IOException;
 import java.net.URI;
 import java.net.URLEncoder;
@@ -11,16 +15,13 @@ import java.net.http.*;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.util.*;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.stereotype.Component;
 
-/** 唯一 v3 HTTP 适配；不持有部署指针，不重解释构建的业务时区。 */
+/** 唯一执行快照 HTTP 适配；不持有部署指针，不重解释构建的业务时区。 */
 @Component
 public class HttpBuildGateway implements BuildGateway {
-    private static final String ROOT = "/v3",
-            BUILDS = ROOT + "/builds",
-            DEPLOYMENTS = ROOT + "/deployments",
-            QUERY = ROOT + "/query",
+    private static final String BUILDS = "/builds",
+            DEPLOYMENTS = "/deployments",
+            QUERY = "/query",
             AVAILABLE_DIMENSIONS = QUERY + "/available-dimensions";
     private static final String GET = "GET",
             POST = "POST",
@@ -32,7 +33,8 @@ public class HttpBuildGateway implements BuildGateway {
             JSON = "application/json";
     private static final String REPOSITORY = "repository",
             BRANCH = "branchName",
-            ENVIRONMENT = "environment",
+            ENVIRONMENT = "environmentId",
+            BUILD_STATUS = "buildStatus",
             CURSOR = "cursor",
             LIMIT = "limit",
             Q = "q",
@@ -113,6 +115,10 @@ public class HttpBuildGateway implements BuildGateway {
                 GET,
                 BUILDS
                         + parameters(
+                                ENVIRONMENT,
+                                f.environmentId(),
+                                BUILD_STATUS,
+                                f.buildStatus(),
                                 REPOSITORY,
                                 f.repository(),
                                 BRANCH,
@@ -136,7 +142,7 @@ public class HttpBuildGateway implements BuildGateway {
                                 BRANCH,
                                 k.branchName(),
                                 ENVIRONMENT,
-                                k.environment()),
+                                k.environmentId()),
                 null,
                 DeploymentTargetView.class);
     }
@@ -151,7 +157,7 @@ public class HttpBuildGateway implements BuildGateway {
                                 BRANCH,
                                 f.branchName(),
                                 ENVIRONMENT,
-                                f.environment(),
+                                f.environmentId(),
                                 CURSOR,
                                 f.cursor(),
                                 LIMIT,
@@ -277,7 +283,7 @@ public class HttpBuildGateway implements BuildGateway {
                 }
                 if (POST.equals(method)
                         && response.statusCode() != 200
-                        && !(path.equals("/v4/builds") && response.statusCode() == 202))
+                        && !(path.equals("/builds") && response.statusCode() == 202))
                     throw invalid();
                 T result = mapper.readValue(bytes, type);
                 if (result == null) throw invalid();

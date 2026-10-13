@@ -25,8 +25,8 @@ it('展示适配器只调用固定build资源接口，源码与native详情保�
   });
   expect((await api.getDbtSource('agent-project', 'x', B)).content).toBe('unknown: true');
   expect(fetcher.mock.calls.map(([url]) => url)).toEqual([
-    `/api/v3/dbt/builds/${B}/resources/x`,
-    `/api/v3/dbt/builds/${B}/resources/x/source`,
+    `/api/dbt/builds/${B}/resources/x`,
+    `/api/dbt/builds/${B}/resources/x/source`,
   ]);
 });
 it('目录分页传递服务不透明cursor', async () => {

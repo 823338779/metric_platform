@@ -9,7 +9,7 @@ import com.metricplatform.catalog.BuildContracts.*;
 import com.metricplatform.environment.EnvironmentBuildGateway;
 import com.metricplatform.identity.auth.PlatformAuthenticationService;
 import com.metricplatform.security.PlatformPrincipal;
-import java.util.*;
+
 import org.junit.jupiter.api.*;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -19,10 +19,15 @@ import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
+import java.util.*;
+
 @SpringBootTest
 @AutoConfigureMockMvc
 @ActiveProfiles("test")
 class BuildApiContractTest {
+    private static final java.util.UUID ENVIRONMENT_ID =
+            java.util.UUID.fromString("12345678-1234-4234-8234-000000000001");
+
     @Autowired MockMvc mvc;
 
     @Autowired
@@ -33,7 +38,7 @@ class BuildApiContractTest {
     @MockitoBean BuildGateway gateway;
     @MockitoBean EnvironmentBuildGateway environmentBuilds;
     @MockitoBean PlatformAuthenticationService authentication;
-    private static final String ROOT = "/api/v3/dbt", TOKEN = "test-v3";
+    private static final String ROOT = "/api/dbt", TOKEN = "test-v3";
     private final UUID build = UUID.randomUUID(), user = UUID.randomUUID();
 
     @BeforeEach
@@ -46,11 +51,13 @@ class BuildApiContractTest {
     void historyRequiresRepositoryAndForwardsCursorToLiveService() throws Exception {
         mvc.perform(get(ROOT + "/builds").header("Authorization", "Bearer " + TOKEN))
                 .andExpect(status().isBadRequest());
-        var filter = new BuildFilter("repo-a", "feature/a", "service-cursor", 10);
+        var filter =
+                new BuildFilter(ENVIRONMENT_ID, "repo-a", "feature/a", null, "service-cursor", 10);
         when(gateway.listBuilds(filter)).thenReturn(new BuildPage(List.of(), "next-cursor"));
         mvc.perform(
                         get(ROOT + "/builds")
                                 .param("repository", "repo-a")
+                                .param("environmentId", ENVIRONMENT_ID.toString())
                                 .param("branchName", "feature/a")
                                 .param("cursor", "service-cursor")
                                 .param("limit", "10")
@@ -68,7 +75,7 @@ class BuildApiContractTest {
                                 .header("Authorization", "Bearer " + TOKEN))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.buildId").value(build.toString()));
-        when(gateway.getBuild(build))
+        when(environmentBuilds.getBuild(build))
                 .thenThrow(
                         new BuildGateway.Failure(
                                 410,
@@ -110,14 +117,14 @@ class BuildApiContractTest {
         var response =
                 mvc.perform(get(ROOT + "/contract"))
                         .andExpect(status().isOk())
-                        .andExpect(jsonPath("$.protocolVersion").value("build-deployment-v3"))
+                        .andExpect(jsonPath("$.protocolVersion").value("execution-snapshot"))
                         .andReturn()
                         .getResponse()
                         .getContentAsString();
         var document = new com.fasterxml.jackson.databind.ObjectMapper().readTree(response);
         for (var parameter :
                 document.path("paths").path(ROOT + "/builds").path("get").path("parameters")) {
-            if (parameter.path("name").asText().equals("repository"))
+            if (parameter.path("name").asText().equals("environmentId"))
                 assertThat(parameter.path("required").asBoolean()).isTrue();
         }
         var actual = new java.util.TreeSet<String>();
@@ -177,8 +184,18 @@ class BuildApiContractTest {
                                 "a",
                                 null,
                                 null,
-                                Environment.PREVIEW,
-                                "binding",
+                                new com.metricplatform.environment.EnvironmentContracts
+                                        .ExecutionSnapshot(
+                                        ENVIRONMENT_ID,
+                                        1,
+                                        new com.metricplatform.environment.EnvironmentContracts
+                                                .ConnectionTarget(
+                                                "starrocks", "warehouse", "localhost", 9030, null),
+                                        "warehouse-test",
+                                        "default_catalog",
+                                        "analytics",
+                                        2,
+                                        "Asia/Shanghai"),
                                 "1",
                                 "1",
                                 BuildStatus.SUCCEEDED,

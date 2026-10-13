@@ -4,16 +4,21 @@ import static org.assertj.core.api.Assertions.*;
 
 import com.metricplatform.catalog.BuildContracts.*;
 import com.metricplatform.catalog.BuildHistoryRepository;
-import java.util.*;
+
 import org.junit.jupiter.api.*;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.ActiveProfiles;
 
+import java.util.*;
+
 @SpringBootTest
 @ActiveProfiles("test")
 class BuildHistoryProjectionTest {
+    private static final java.util.UUID ENVIRONMENT_ID =
+            java.util.UUID.fromString("12345678-1234-4234-8234-000000000001");
+
     @Autowired BuildHistoryRepository history;
     @Autowired JdbcTemplate jdbc;
     private UUID id;
@@ -30,12 +35,18 @@ class BuildHistoryProjectionTest {
     void offlineReplayRestoresEveryBuild() {
         var page = new ChangePage(List.of(event(1, 1, id), event(2, 1, UUID.randomUUID())), "2");
         history.apply(page, null);
-        assertThat(history.list(new BuildFilter("repo", null, null, 50)).items()).hasSize(2);
-        var initial = history.list(new BuildFilter("repo", null, null, 50)).items();
+        assertThat(
+                        history.list(new BuildFilter(ENVIRONMENT_ID, "repo", null, null, null, 50))
+                                .items())
+                .hasSize(2);
+        var initial =
+                history.list(new BuildFilter(ENVIRONMENT_ID, "repo", null, null, null, 50)).items();
         jdbc.update("delete from build_history");
         jdbc.update("update history_cursor set cursor=null");
         history.apply(page, null);
-        assertThat(history.list(new BuildFilter("repo", null, null, 50)).items())
+        assertThat(
+                        history.list(new BuildFilter(ENVIRONMENT_ID, "repo", null, null, null, 50))
+                                .items())
                 .isEqualTo(initial);
     }
 
@@ -80,16 +91,16 @@ class BuildHistoryProjectionTest {
         UUID release = UUID.randomUUID(), query = UUID.randomUUID();
         jdbc.update(
                 "insert into"
-                        + " semantic_project(project_id,repository_id,project_subdir,profile_binding_id)"
-                        + " values(?,?,?,?)",
+                    + " semantic_project(project_id,repository_id,project_subdir,profile_binding_id)"
+                    + " values(?,?,?,?)",
                 project,
                 "repo",
                 ".",
                 "binding");
         jdbc.update(
                 "insert into"
-                        + " semantic_release(release_id,project_id,release_sequence,target_commit_sha,build_source_sha,project_digest,config_version,idempotency_key,state)"
-                        + " values(?,?,1,?,?,?,?,?,'FAILED')",
+                    + " semantic_release(release_id,project_id,release_sequence,target_commit_sha,build_source_sha,project_digest,config_version,idempotency_key,state)"
+                    + " values(?,?,1,?,?,?,?,?,'FAILED')",
                 release,
                 project,
                 "a".repeat(40),
@@ -99,8 +110,8 @@ class BuildHistoryProjectionTest {
                 UUID.randomUUID());
         jdbc.update(
                 "insert into"
-                        + " semantic_query(query_id,project_id,release_id,idempotency_key,mode,status)"
-                        + " values(?,?,?,?,'QUERY','FAILED')",
+                    + " semantic_query(query_id,project_id,release_id,idempotency_key,mode,status)"
+                    + " values(?,?,?,?,'QUERY','FAILED')",
                 query,
                 project,
                 release,
@@ -213,11 +224,14 @@ class BuildHistoryProjectionTest {
     void objectUpdatesBetweenPagesDoNotRepeatOrSkipBuilds() {
         var second = UUID.randomUUID();
         history.apply(new ChangePage(List.of(event(1, 1, id), event(2, 1, second)), "2"), null);
-        var firstPage = history.list(new BuildFilter("repo", null, null, 1));
+        var firstPage = history.list(new BuildFilter(ENVIRONMENT_ID, "repo", null, null, null, 1));
         assertThat(firstPage.items()).extracting(BuildView::buildId).containsExactly(id);
         // 更新已经展示的构建和尚未展示的构建，游标排序位置都必须保持不变。
         history.apply(new ChangePage(List.of(event(3, 2, id), event(4, 2, second)), "4"), "2");
-        var nextPage = history.list(new BuildFilter("repo", null, firstPage.nextCursor(), 10));
+        var nextPage =
+                history.list(
+                        new BuildFilter(
+                                ENVIRONMENT_ID, "repo", null, null, firstPage.nextCursor(), 10));
         assertThat(nextPage.items()).extracting(BuildView::buildId).containsExactly(second);
         assertThat(nextPage.nextCursor()).isNull();
     }
@@ -227,17 +241,30 @@ class BuildHistoryProjectionTest {
         history.apply(
                 new ChangePage(List.of(event(1, 1, id), event(2, 1, UUID.randomUUID())), "2"),
                 null);
-        var first = history.list(new BuildFilter("repo", "feature/a", null, 1));
+        var first =
+                history.list(new BuildFilter(ENVIRONMENT_ID, "repo", "feature/a", null, null, 1));
         assertThat(first.nextCursor()).isNotNull();
         assertThat(
-                        history.list(new BuildFilter("repo", "feature/a", first.nextCursor(), 1))
+                        history.list(
+                                        new BuildFilter(
+                                                ENVIRONMENT_ID,
+                                                "repo",
+                                                "feature/a",
+                                                null,
+                                                first.nextCursor(),
+                                                1))
                                 .items())
                 .hasSize(1);
         assertThatThrownBy(
                         () ->
                                 history.list(
                                         new BuildFilter(
-                                                "other", "feature/a", first.nextCursor(), 1)))
+                                                ENVIRONMENT_ID,
+                                                "other",
+                                                "feature/a",
+                                                null,
+                                                first.nextCursor(),
+                                                1)))
                 .isInstanceOf(IllegalArgumentException.class);
     }
 
@@ -253,7 +280,10 @@ class BuildHistoryProjectionTest {
                         "1"),
                 null);
         var error =
-                history.list(new BuildFilter("repo", null, null, 50)).items().getFirst().error();
+                history.list(new BuildFilter(ENVIRONMENT_ID, "repo", null, null, null, 50))
+                        .items()
+                        .getFirst()
+                        .error();
         assertThat(error).isNotNull();
         assertThat(error.code()).isEqualTo("BUILD_FAILED");
         assertThat(error.buildId()).isEqualTo(id);
@@ -279,7 +309,18 @@ class BuildHistoryProjectionTest {
         summary.put("buildId", build.toString());
         summary.put("repository", "repo");
         summary.put("branchName", "feature/a");
-        summary.put("environment", "PREVIEW");
+        summary.put(
+                "execution",
+                new com.metricplatform.environment.EnvironmentContracts.ExecutionSnapshot(
+                        ENVIRONMENT_ID,
+                        1,
+                        new com.metricplatform.environment.EnvironmentContracts.ConnectionTarget(
+                                "starrocks", "warehouse", "localhost", 9030, null),
+                        "warehouse-test",
+                        "default_catalog",
+                        "analytics",
+                        2,
+                        "Asia/Shanghai"));
         summary.put("buildStatus", "QUEUED");
         summary.put("createdAt", "2026-10-10T00:00:00Z");
         return new ChangeRecord(sequence, "repo", "BUILD", build.toString(), version, summary);

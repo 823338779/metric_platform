@@ -2,17 +2,20 @@ package com.metricplatform.catalog.api;
 
 import com.metricplatform.catalog.BuildContracts.*;
 import com.metricplatform.catalog.BuildGateway;
-import java.util.UUID;
+
 import lombok.RequiredArgsConstructor;
+
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+
+import java.util.UUID;
 
 /** 固定构建的目录及同步可用维度门面，不提供发布动作。 */
 @RestController
 @RequiredArgsConstructor
 @RequestMapping(PublishedCatalogController.ROOT)
 public class PublishedCatalogController {
-    public static final String ROOT = "/api/v3/dbt";
+    public static final String ROOT = "/api/dbt";
     private static final String BUILD = "/builds/{buildId}",
             RESOURCE = BUILD + "/resources/{resourceId}";
     private static final String CATALOG = "/catalog",

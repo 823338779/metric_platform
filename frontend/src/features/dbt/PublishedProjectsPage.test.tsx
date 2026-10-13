@@ -10,7 +10,11 @@ it('dbt-service失联时提示部署历史错误', async () => {
     current: vi.fn().mockResolvedValue({ activeBuildId: null }),
   };
   render(
-    <MemoryRouter initialEntries={['/dbt/projects?repository=repo%2Fa']}>
+    <MemoryRouter
+      initialEntries={[
+        '/dbt/projects?repository=repo%2Fa&environmentId=12345678-1234-4234-8234-000000000001',
+      ]}
+    >
       <PublishedProjectsPage api={api as never} />
     </MemoryRouter>,
   );
@@ -51,7 +55,9 @@ it('部署历史按服务游标追加，不改写已有固定链接', async () =
   };
   render(
     <MemoryRouter
-      initialEntries={['/dbt/projects?repository=repo%2Fa&branchName=main&environment=PRODUCTION']}
+      initialEntries={[
+        '/dbt/projects?repository=repo%2Fa&branchName=main&environmentId=12345678-1234-4234-8234-000000000001',
+      ]}
     >
       <PublishedProjectsPage api={api as never} />
     </MemoryRouter>,
@@ -61,7 +67,11 @@ it('部署历史按服务游标追加，不改写已有固定链接', async () =
     expect(screen.getAllByRole('link', { name: '查看指标目录' })).toHaveLength(2),
   );
   expect(api.deployments).toHaveBeenLastCalledWith(
-    { repository: 'repo/a', branchName: 'main', environment: 'PRODUCTION' },
+    {
+      repository: 'repo/a',
+      branchName: 'main',
+      environmentId: '12345678-1234-4234-8234-000000000001',
+    },
     'opaque',
   );
   expect(screen.getAllByRole('link')).toHaveLength(3);
@@ -93,7 +103,9 @@ it('切换仓库后忽略旧仓库晚到的分页结果', async () => {
   };
   render(
     <MemoryRouter
-      initialEntries={['/dbt/projects?repository=repo%2Fa&branchName=main&environment=PRODUCTION']}
+      initialEntries={[
+        '/dbt/projects?repository=repo%2Fa&branchName=main&environmentId=12345678-1234-4234-8234-000000000001',
+      ]}
     >
       <PublishedProjectsPage api={api as never} />
     </MemoryRouter>,
@@ -101,7 +113,11 @@ it('切换仓库后忽略旧仓库晚到的分页结果', async () => {
   fireEvent.click(await screen.findByRole('button', { name: '加载更多部署版本' }));
   await waitFor(() =>
     expect(api.deployments).toHaveBeenCalledWith(
-      { repository: 'repo/a', branchName: 'main', environment: 'PRODUCTION' },
+      {
+        repository: 'repo/a',
+        branchName: 'main',
+        environmentId: '12345678-1234-4234-8234-000000000001',
+      },
       'cursor-a',
     ),
   );
@@ -116,6 +132,6 @@ it('切换仓库后忽略旧仓库晚到的分页结果', async () => {
   expect(api.deployments).toHaveBeenLastCalledWith({
     repository: 'repo/b',
     branchName: 'main',
-    environment: 'PRODUCTION',
+    environmentId: '12345678-1234-4234-8234-000000000001',
   });
 });

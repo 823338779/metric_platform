@@ -56,7 +56,7 @@ test('真实 PostgreSQL 固定构建目录、维度值和月粒度查询', async
     const acceptedResponse = page.waitForResponse(
       (response) =>
         response.request().method() === 'POST' &&
-        new URL(response.url()).pathname === `/api/v3/dbt/builds/${buildId}/queries` &&
+        new URL(response.url()).pathname === `/api/dbt/builds/${buildId}/queries` &&
         response.request().postDataJSON().mode === mode,
       { timeout: RESULT_TIMEOUT },
     );

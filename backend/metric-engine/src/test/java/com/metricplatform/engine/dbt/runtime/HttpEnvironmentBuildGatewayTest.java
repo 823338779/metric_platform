@@ -5,32 +5,35 @@ import static org.assertj.core.api.Assertions.*;
 import com.metricplatform.catalog.BuildGateway;
 import com.metricplatform.environment.EnvironmentContracts.*;
 import com.sun.net.httpserver.HttpServer;
+
+import org.junit.jupiter.api.Test;
+
 import java.net.InetSocketAddress;
 import java.net.URI;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.util.UUID;
-import org.junit.jupiter.api.Test;
 
 class HttpEnvironmentBuildGatewayTest {
     @Test
     void accepts202WithServiceAuthenticationAndRejectsMismatchedEnvironment() throws Exception {
         UUID environment = UUID.randomUUID(), build = UUID.randomUUID();
         var seen = new java.util.ArrayList<String>();
+        var json = new com.fasterxml.jackson.databind.ObjectMapper();
+        var reply = json.createObjectNode();
+        reply.put("buildId", build.toString());
+        reply.put("repository", request(environment).repository());
+        reply.put("branchName", request(environment).branchName());
+        reply.put("buildStatus", "QUEUED");
+        reply.set("execution", json.valueToTree(request(environment).execution()));
         var server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
         server.createContext(
-                "/v4/builds",
+                "/builds",
                 exchange -> {
                     seen.add(exchange.getRequestMethod());
                     assertThat(exchange.getRequestHeaders().getFirst("Authorization"))
                             .isEqualTo("Bearer private-token");
-                    byte[] body =
-                            ("{\"buildId\":\""
-                                            + build
-                                            + "\",\"execution\":{\"environmentId\":\""
-                                            + environment
-                                            + "\"}}")
-                                    .getBytes(StandardCharsets.UTF_8);
+                    byte[] body = reply.toString().getBytes(StandardCharsets.UTF_8);
                     exchange.sendResponseHeaders(202, body.length);
                     try (var output = exchange.getResponseBody()) {
                         output.write(body);
@@ -51,7 +54,16 @@ class HttpEnvironmentBuildGatewayTest {
                     .isInstanceOfSatisfying(
                             BuildGateway.Failure.class,
                             failure -> assertThat(failure.status()).isEqualTo(502));
-            assertThat(seen).containsExactly("POST", "POST");
+            // 同一环境身份下 schema 不符也不能将回执当作原构建。
+            ((com.fasterxml.jackson.databind.node.ObjectNode) reply.path("execution"))
+                    .put("schema", "other_schema");
+            assertThatThrownBy(() -> gateway.submit(request))
+                    .isInstanceOf(BuildGateway.Failure.class);
+            reply.set("execution", json.valueToTree(request.execution()));
+            reply.put("repository", "https://example.test/other.git");
+            assertThatThrownBy(() -> gateway.submit(request))
+                    .isInstanceOf(BuildGateway.Failure.class);
+            assertThat(seen).containsExactly("POST", "POST", "POST", "POST");
         } finally {
             server.stop(0);
         }

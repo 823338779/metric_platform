@@ -8,9 +8,9 @@ export type ExecutionSnapshot = {
   connection: {
     type: 'starrocks' | 'postgres' | 'duckdb';
     instanceId: string;
-    host?: string;
-    port?: number;
-    path?: string;
+    host?: string | null;
+    port?: number | null;
+    path?: string | null;
   };
   credentialRef: string;
   catalog: string;
@@ -36,8 +36,7 @@ export type EnvironmentBuild = {
   phase: string;
   createdAt: string;
   configVersion: string;
-  execution: ExecutionSnapshot | null;
-  legacyEnvironment?: 'PREVIEW' | 'PRODUCTION' | null;
+  execution: ExecutionSnapshot;
   catalogAvailable: boolean;
   queryAvailable: boolean;
   initialDeployment: { deploymentStatus: string } | null;
@@ -56,7 +55,7 @@ export type EnvironmentFilter = {
   buildStatus?: string;
   cursor?: string;
 };
-const ROOT = '/api/v4/dbt';
+const ROOT = '/api/dbt';
 const ENVIRONMENTS = '/environments';
 const POST = 'POST';
 const PUT = 'PUT';

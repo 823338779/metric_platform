@@ -1,7 +1,6 @@
 import { createHttpClient, type Fetcher } from './httpClient';
 import type { ExecutionSnapshot } from './environmentApi';
 
-export type Environment = 'PREVIEW' | 'PRODUCTION';
 export type ServiceError = {
   code: string;
   message: string;
@@ -10,7 +9,7 @@ export type ServiceError = {
   buildId?: string;
 };
 /** 仓库、环境和分支构成 dbt-service 部署自然键。 */
-export type DeploymentKey = { repository: string; environment: Environment; branchName: string };
+export type DeploymentKey = { repository: string; environmentId: string; branchName: string };
 export type DeploymentAttempt = DeploymentKey & {
   generation: number;
   buildId: string;
@@ -30,15 +29,12 @@ export type DeploymentTarget = DeploymentKey & {
   sourceState: string;
 };
 /** 构建成功、目录可读和物理查询可用是独立事实。 */
-export type BuildView = Omit<DeploymentKey, 'environment'> & {
-  /** 新构建携带不可变快照；旧构建保留 legacyEnvironment。 */
-  execution?: ExecutionSnapshot | null;
-  environment?: Environment | null;
-  legacyEnvironment?: Environment | null;
+export type BuildView = Omit<DeploymentKey, 'environmentId'> & {
+  /** 受理时固定的完整执行快照。 */
+  execution: ExecutionSnapshot;
   buildId: string;
   requestedCommitSha: string | null;
   commitSha: string | null;
-  executionBinding?: string;
   configVersion: string;
   toolchainVersion: string;
   buildStatus: string;
@@ -108,14 +104,12 @@ export type PublishedResult = {
   sql?: string;
   resultTruncated?: boolean;
 };
-const ROOT = '/api/v3/dbt';
-const METADATA_ROOT = '/api/v4/dbt';
+const ROOT = '/api/dbt';
 const POST = 'POST';
 const segment = encodeURIComponent;
-/** 唯一 v3 传输层，不含构建/部署写入或任何旧协议探测。 */
+/** 唯一执行快照 传输层，不含构建/部署写入或任何旧协议探测。 */
 export function createBuildCatalogApi(fetcher?: Fetcher) {
   const request = createHttpClient(fetcher, ROOT);
-  const metadata = createHttpClient(fetcher, METADATA_ROOT);
   const build = (id: string) => `/builds/${segment(id)}`;
   const resource = (id: string, rid: string) => `${build(id)}/resources/${segment(rid)}`;
   const query = (values: Record<string, string | number | undefined>) =>
@@ -126,15 +120,14 @@ export function createBuildCatalogApi(fetcher?: Fetcher) {
     ).toString();
   return {
     builds: (filter: {
-      repository: string;
+      environmentId: string;
+      repository?: string;
+      buildStatus?: string;
       branchName?: string;
       cursor?: string;
       limit?: number;
     }) => request<BuildPage>(`/builds?${query({ limit: 50, ...filter })}`),
-    build: async (id: string) => {
-      const value = await metadata<BuildView>(build(id));
-      return { ...value, environment: value.legacyEnvironment ?? value.environment };
-    },
+    build: (id: string) => request<BuildView>(build(id)),
     current: (key: DeploymentKey) =>
       request<DeploymentTarget>(`/deployments/current?${query(key)}`),
     deployments: (key: DeploymentKey, cursor?: string) =>

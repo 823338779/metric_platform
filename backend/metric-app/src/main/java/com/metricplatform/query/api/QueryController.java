@@ -3,18 +3,21 @@ package com.metricplatform.query.api;
 import com.metricplatform.catalog.BuildContracts.*;
 import com.metricplatform.query.QueryService;
 import com.metricplatform.security.PlatformPrincipal;
-import java.util.UUID;
+
 import lombok.RequiredArgsConstructor;
+
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
+
+import java.util.UUID;
 
 /** 同步查询保留平台登录归因，完整结果由服务返回。 */
 @RestController
 @RequiredArgsConstructor
 @RequestMapping(QueryController.ROOT)
 public class QueryController {
-    public static final String ROOT = "/api/v3/dbt";
+    public static final String ROOT = "/api/dbt";
     public static final String SUBMIT = "/builds/{buildId}/queries";
 
     /** 绑定登录身份的查询用例。 */

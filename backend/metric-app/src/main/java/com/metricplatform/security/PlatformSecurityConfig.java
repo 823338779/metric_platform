@@ -1,6 +1,7 @@
 package com.metricplatform.security;
 
 import jakarta.servlet.http.HttpServletResponse;
+
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpMethod;
@@ -40,15 +41,14 @@ public class PlatformSecurityConfig {
                         a ->
                                 a.requestMatchers(HttpMethod.POST, "/api/v1/auth/token")
                                         .permitAll()
-                                        .requestMatchers(HttpMethod.GET, "/api/v3/dbt/contract")
+                                        .requestMatchers(HttpMethod.GET, "/api/dbt/contract")
                                         .permitAll()
                                         .requestMatchers(HttpMethod.GET, "/api/v1/auth/me")
                                         .authenticated()
                                         .requestMatchers(
+                                                "/api/dbt/**",
                                                 "/api/v1/**",
-                                                "/api/v2/**",
-                                                "/api/v3/**",
-                                                "/api/v4/**")
+                                                "/api/v2/**")
                                         .authenticated()
                                         .anyRequest()
                                         .permitAll())

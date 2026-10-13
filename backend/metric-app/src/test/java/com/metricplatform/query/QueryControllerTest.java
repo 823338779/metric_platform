@@ -11,7 +11,7 @@ import com.metricplatform.catalog.BuildGateway;
 import com.metricplatform.environment.EnvironmentBuildGateway;
 import com.metricplatform.identity.auth.PlatformAuthenticationService;
 import com.metricplatform.security.PlatformPrincipal;
-import java.util.*;
+
 import org.junit.jupiter.api.*;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
@@ -23,11 +23,16 @@ import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
+import java.util.*;
+
 @SpringBootTest
 @AutoConfigureMockMvc
 @ActiveProfiles("test")
 class QueryControllerTest {
-    private static final String ROOT = "/api/v3/dbt",
+    private static final java.util.UUID ENVIRONMENT_ID =
+            java.util.UUID.fromString("12345678-1234-4234-8234-000000000001");
+
+    private static final String ROOT = "/api/dbt",
             AUTH = "Authorization",
             TOKEN = "Bearer query-test";
     @Autowired MockMvc mvc;
@@ -86,8 +91,18 @@ class QueryControllerTest {
                                 "a",
                                 null,
                                 null,
-                                Environment.PREVIEW,
-                                "binding",
+                                new com.metricplatform.environment.EnvironmentContracts
+                                        .ExecutionSnapshot(
+                                        ENVIRONMENT_ID,
+                                        1,
+                                        new com.metricplatform.environment.EnvironmentContracts
+                                                .ConnectionTarget(
+                                                "starrocks", "warehouse", "localhost", 9030, null),
+                                        "warehouse-test",
+                                        "default_catalog",
+                                        "analytics",
+                                        2,
+                                        "Asia/Shanghai"),
                                 "1",
                                 "1",
                                 BuildStatus.SUCCEEDED,

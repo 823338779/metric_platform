@@ -23,7 +23,7 @@ describe('唯一构建协议', () => {
       startTime: '2026-10-10T00:00:00+08:00',
     });
     expect(fetcher).toHaveBeenCalledTimes(1);
-    expect(fetcher.mock.calls[0][0]).toBe(`/api/v3/dbt/builds/${B1}/queries`);
+    expect(fetcher.mock.calls[0][0]).toBe(`/api/dbt/builds/${B1}/queries`);
     expect(JSON.parse(fetcher.mock.calls[0][1].body)).toEqual({
       mode: 'QUERY',
       metricResourceIds: ['metric'],
@@ -46,7 +46,7 @@ describe('唯一构建协议', () => {
       problem: { code: 'BUILD_NOT_FOUND' },
     });
     expect(fetcher).toHaveBeenCalledTimes(1);
-    expect(fetcher.mock.calls[0][0]).toBe(`/api/v4/dbt/builds/${B1}`);
+    expect(fetcher.mock.calls[0][0]).toBe(`/api/dbt/builds/${B1}`);
   });
   it('目录资源与同步选项固定 buildId，精度与时间原样传递', async () => {
     const fetcher = vi.fn().mockImplementation(
@@ -72,10 +72,10 @@ describe('唯一构建协议', () => {
     };
     await api.submit(B1, input);
     expect(fetcher.mock.calls.map(([url]) => url)).toEqual([
-      `/api/v3/dbt/builds/${B1}/catalog?limit=50&cursor=opaque`,
-      `/api/v3/dbt/builds/${B1}/resources/metric%2Fa`,
-      `/api/v3/dbt/builds/${B1}/available-dimensions`,
-      `/api/v3/dbt/builds/${B1}/queries`,
+      `/api/dbt/builds/${B1}/catalog?limit=50&cursor=opaque`,
+      `/api/dbt/builds/${B1}/resources/metric%2Fa`,
+      `/api/dbt/builds/${B1}/available-dimensions`,
+      `/api/dbt/builds/${B1}/queries`,
     ]);
     expect(JSON.parse(fetcher.mock.calls[3][1].body)).toEqual(input);
     expect(JSON.parse(fetcher.mock.calls[3][1].body)).not.toHaveProperty('buildId');
@@ -86,12 +86,12 @@ describe('唯一构建协议', () => {
     await api.current({
       repository: 'repo/a',
       branchName: 'feature/shared',
-      environment: 'PREVIEW',
+      environmentId: '12345678-1234-4234-8234-000000000001',
     });
     await api.current({
       repository: 'repo/b',
       branchName: 'feature/shared',
-      environment: 'PREVIEW',
+      environmentId: '12345678-1234-4234-8234-000000000001',
     });
     expect(fetcher.mock.calls[0][0]).toContain('repository=repo%2Fa');
     expect(fetcher.mock.calls[1][0]).toContain('repository=repo%2Fb');
@@ -114,7 +114,7 @@ it.each(['QUERY', 'EXPLAIN', 'PREVIEW', 'DIMENSION_VALUES'] as const)(
     };
     await createBuildCatalogApi(fetcher).submit(B1, body);
     expect(fetcher).toHaveBeenCalledTimes(1);
-    expect(fetcher.mock.calls[0][0]).toBe(`/api/v3/dbt/builds/${B1}/queries`);
+    expect(fetcher.mock.calls[0][0]).toBe(`/api/dbt/builds/${B1}/queries`);
     expect(JSON.parse(fetcher.mock.calls[0][1].body)).toEqual(body);
     expect(body).not.toHaveProperty('sql');
   },
