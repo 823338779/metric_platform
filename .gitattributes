@@ -1,1 +1,3 @@
 ops/git/post-receive text eol=lf
+# 与 EditorConfig 保持一致，覆盖 Windows 的 core.autocrlf 设置。
+*.java text eol=lf

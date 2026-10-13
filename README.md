@@ -78,18 +78,30 @@ npm run dev
 
 ## 验证
 
-本仓库运行后端完整验证，事务测试使用真实 Testcontainers PostgreSQL，需要 Docker：
+按改动范围选择验证命令，不必每轮依次运行后端、前端、构建和浏览器验收。后端使用系统 Maven；涉及事务的测试使用真实 Testcontainers PostgreSQL，需要 Docker。
+
+在本仓库运行受影响模块的定向测试，例如引擎 HTTP 适配层：
+
+```powershell
+mvn -f .\backend\pom.xml -B -pl metric-engine -am '-Dtest=HttpBuildGatewayTest,HttpEnvironmentBuildGatewayTest,QueryTimeTransportTest' '-Dsurefire.failIfNoSpecifiedTests=false' test
+```
+
+接口路由变更可改为 `-pl metric-app` 并指定对应的 Controller/Contract 测试。`-am` 构建依赖模块，`-Dtest` 限定实际执行的用例；不要因依赖模块没有匹配测试而改跑全部测试。跨模块公共行为修改或需要完整验收时，执行一次后端完整验证：
 
 ```powershell
 mvn -B verify
 ```
 
-前端在 `frontend/` 执行：
+前端在 `frontend/` 执行。首次安装或锁文件变化时运行 `npm ci`；日常开发指定文件或目录，全量单测、生产构建和浏览器验收按需要选用：
 
 ```powershell
-npm ci
+# 查询界面局部修改
+npm test -- src/features/dbt/BuildQuery.test.tsx
+# 前端完整单测
 npm test
+# 生产构建检查
 npm run build
+# 浏览器验收：按改动涉及的工作流选择配置，两个配置覆盖不同场景
 npm run test:e2e
 npm run test:e2e -- --config=playwright.publication.config.ts
 ```
