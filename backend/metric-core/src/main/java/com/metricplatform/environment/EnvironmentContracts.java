@@ -92,7 +92,7 @@ public final class EnvironmentContracts {
             List<EnvironmentView> items) {}
 
     public record SubmitBuildCommand(
-            /** 本次源码仓库。 */
+            /** 必须与服务器全局绑定的源码仓库一致。 */
             String repository,
             /** 本次明确指定的分支。 */
             String branchName,

@@ -22,6 +22,7 @@ class OpenApiContractTest {
                         "/api/v1/auth/token",
                         "/api/v1/auth/me",
                         "/api/dbt/builds",
+                        "/api/dbt/repository/branches",
                         "/api/dbt/builds/{buildId}",
                         "/api/dbt/deployments",
                         "/api/dbt/deployments/current",

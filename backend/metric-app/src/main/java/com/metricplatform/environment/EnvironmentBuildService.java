@@ -21,14 +21,22 @@ public class EnvironmentBuildService {
     /** 服务公开构建接口。 */
     private final EnvironmentBuildGateway gateway;
 
+    private final RepositorySource source;
+
     public EnvironmentBuildService(
-            BuildSubmissionStore submissions, EnvironmentBuildGateway gateway) {
+            BuildSubmissionStore submissions,
+            EnvironmentBuildGateway gateway,
+            RepositorySource source) {
         this.submissions = submissions;
         this.gateway = gateway;
+        this.source = source;
     }
 
     public JsonNode submit(UUID environment, SubmitBuildCommand command, UUID actor) {
         validate(command);
+        if (!source.repository().equals(command.repository())) {
+            throw new IllegalArgumentException("仅允许使用服务器绑定的 Git 仓库");
+        }
         var fixed = submissions.reserve(actor, environment, command);
         JsonNode result = gateway.submit(fixed);
         submissions.accepted(

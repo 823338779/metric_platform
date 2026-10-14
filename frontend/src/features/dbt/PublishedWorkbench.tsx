@@ -190,6 +190,14 @@ function FixedPublishedWorkbench({ api }: { api: BuildCatalogApi }) {
       if (!active) return;
       if (value.buildId !== buildId) throw new Error('选项版本不匹配');
       setAvailableDimensions(value.dimensions);
+      const metricTime = value.dimensions.find((option) => option.displayName === 'metric_time');
+      if (metricTime) {
+        const id = metricTime.optionId;
+        setGroups([id]);
+        setGrains(metricTime.granularities.includes('day') ? { [id]: 'day' } : {});
+        setSortFields((fields) => [id, ...fields.filter((field) => field !== id)]);
+        setSortDirections((directions) => ({ ...directions, [id]: ASCENDING }));
+      }
       setAvailableDimensionsReady(true);
     }
     void api

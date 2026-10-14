@@ -62,6 +62,8 @@ const PUT = 'PUT';
 const request = createHttpClient(undefined, ROOT);
 const path = (id: string) => `${ENVIRONMENTS}/${encodeURIComponent(id)}`;
 export const environmentApi = {
+  repositoryBranches: () =>
+    request<{ repository: string; branches: string[] }>('/repository/branches'),
   list: () => request<{ items: ExecutionEnvironment[] }>(ENVIRONMENTS),
   get: (id: string) => request<ExecutionEnvironment>(path(id)),
   create: (body: EnvironmentInput) =>

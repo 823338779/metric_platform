@@ -43,7 +43,19 @@ function mount(api: unknown) {
       <Routes>
         <Route
           path="/dbt/environments/:environmentId"
-          element={<EnvironmentDetailPage api={api as never} />}
+          element={
+            <EnvironmentDetailPage
+              api={
+                {
+                  repositoryBranches: vi.fn().mockResolvedValue({
+                    repository: 'https://example.test/metrics.git',
+                    branches: ['main', 'feature/isolated'],
+                  }),
+                  ...(api as object),
+                } as never
+              }
+            />
+          }
         />
       </Routes>
     </MemoryRouter>,
@@ -86,7 +98,7 @@ it('完整构建历史展示失败和未部署版本，查询使用固定 build'
   expect(api.builds.mock.calls[0][0]).toBe(ID);
 });
 
-it('每次构建独立指定仓库分支，超时重试保留提交键', async () => {
+it('每次构建选择绑定仓库的分支，超时重试保留提交键', async () => {
   const api = {
     get: vi.fn().mockResolvedValue(environment),
     builds: vi.fn().mockResolvedValue({ items: [], nextCursor: null }),
@@ -94,9 +106,9 @@ it('每次构建独立指定仓库分支，超时重试保留提交键', async (
   };
   mount(api);
   await screen.findByText('测试环境');
-  fireEvent.change(screen.getByLabelText('Git 仓库地址'), {
-    target: { value: 'https://example.test/metrics.git' },
-  });
+  await screen.findByRole('option', { name: 'feature/isolated' });
+  expect(screen.getByLabelText('Git 仓库地址')).toHaveValue('https://example.test/metrics.git');
+  expect(screen.getByLabelText('Git 仓库地址')).toHaveAttribute('readonly');
   fireEvent.change(screen.getByLabelText('构建分支'), { target: { value: 'feature/isolated' } });
   fireEvent.click(screen.getByRole('button', { name: '发起构建' }));
   await screen.findByText('响应未知');
@@ -107,6 +119,7 @@ it('每次构建独立指定仓库分支，超时重试保留提交键', async (
   await waitFor(() => expect(api.submitBuild).toHaveBeenCalledTimes(2));
   expect(api.submitBuild.mock.calls[0]).toEqual(api.submitBuild.mock.calls[1]);
   expect(api.submitBuild.mock.calls[0][1]).toMatchObject({
+    repository: 'https://example.test/metrics.git',
     branchName: 'feature/isolated',
     expectedConfigVersion: 1,
   });
@@ -119,6 +132,9 @@ it('切换环境忽略晚返回的旧历史', async () => {
   });
   const other = { ...environment, environmentId: BUILD, name: '另一环境' };
   const api = {
+    repositoryBranches: vi
+      .fn()
+      .mockResolvedValue({ repository: 'https://example.test/metrics.git', branches: ['main'] }),
     get: vi
       .fn()
       .mockImplementation((id: string) => Promise.resolve(id === ID ? environment : other)),

@@ -12,7 +12,7 @@ beforeAll(() => {
   };
 });
 
-function page() {
+function page(timeLabel = '下单时间', granularities = ['day', 'month']) {
   const api = {
     build: vi.fn().mockResolvedValue({
       buildId: 'A',
@@ -49,8 +49,8 @@ function page() {
         {
           optionId: 'time-option',
           resourceId: 'time-resource',
-          displayName: '下单时间',
-          granularities: ['day', 'month'],
+          displayName: timeLabel,
+          granularities,
           operators: [],
         },
         {
@@ -95,6 +95,84 @@ async function pickOrder(name: string) {
   const menu = await screen.findByRole('region', { name: '选择排序字段' });
   fireEvent.click(within(menu).getByRole('button', { name }));
 }
+
+it('默认按指标日期的日粒度分组，并使用服务选项身份升序排序', async () => {
+  const api = page('metric_time');
+  fireEvent.click(await screen.findByRole('checkbox', { name: '销售额' }));
+  expect(await screen.findByRole('button', { name: 'metric_time排序方向：升序' })).toBeTruthy();
+  expect(screen.getByRole('button', { name: 'metric_time时间粒度' }).textContent).toContain('日');
+  fireEvent.click(screen.getByRole('button', { name: '查询' }));
+  await waitFor(() =>
+    expect(api.submit).toHaveBeenCalledWith(
+      'A',
+      expect.objectContaining({
+        groupBy: [{ optionId: 'time-option', grain: 'day' }],
+        orderBy: [{ fieldId: 'time-option', direction: 'ASC' }],
+      }),
+    ),
+  );
+});
+
+it('用户修改默认日期粒度和排序后，保留修改并允许移除', async () => {
+  const api = page('metric_time');
+  fireEvent.click(await screen.findByRole('checkbox', { name: '销售额' }));
+  fireEvent.click(await screen.findByRole('button', { name: 'metric_time排序方向：升序' }));
+  fireEvent.click(screen.getByRole('button', { name: 'metric_time时间粒度' }));
+  fireEvent.click(await screen.findByRole('menuitem', { name: '月' }));
+  fireEvent.click(screen.getByRole('button', { name: '查询' }));
+  await waitFor(() =>
+    expect(api.submit).toHaveBeenLastCalledWith(
+      'A',
+      expect.objectContaining({
+        groupBy: [{ optionId: 'time-option', grain: 'month' }],
+        orderBy: [{ fieldId: 'time-option', direction: 'DESC' }],
+      }),
+    ),
+  );
+  fireEvent.click(screen.getByRole('button', { name: '移除排序字段 metric_time' }));
+  fireEvent.change(screen.getByLabelText('行数'), { target: { value: '100' } });
+  fireEvent.click(screen.getByRole('button', { name: '查询' }));
+  await waitFor(() =>
+    expect(api.submit).toHaveBeenLastCalledWith('A', expect.objectContaining({ orderBy: [] })),
+  );
+  fireEvent.click(screen.getByRole('button', { name: '移除分组维度 metric_time' }));
+  fireEvent.click(screen.getByRole('button', { name: '查询' }));
+  await waitFor(() =>
+    expect(api.submit).toHaveBeenLastCalledWith(
+      'A',
+      expect.objectContaining({ groupBy: [], orderBy: [] }),
+    ),
+  );
+});
+
+it('不存在指标日期时不擅自添加其他时间维度或排序', async () => {
+  const api = page();
+  fireEvent.click(await screen.findByRole('checkbox', { name: '销售额' }));
+  await screen.findByRole('button', { name: '下单时间' });
+  fireEvent.click(screen.getByRole('button', { name: '查询' }));
+  await waitFor(() =>
+    expect(api.submit).toHaveBeenCalledWith(
+      'A',
+      expect.objectContaining({ groupBy: [], orderBy: [] }),
+    ),
+  );
+});
+
+it('服务未声明日粒度时保留日期分组和升序，不提交不支持的粒度', async () => {
+  const api = page('metric_time', ['month']);
+  fireEvent.click(await screen.findByRole('checkbox', { name: '销售额' }));
+  await screen.findByRole('button', { name: 'metric_time排序方向：升序' });
+  fireEvent.click(screen.getByRole('button', { name: '查询' }));
+  await waitFor(() =>
+    expect(api.submit).toHaveBeenCalledWith(
+      'A',
+      expect.objectContaining({
+        groupBy: [{ optionId: 'time-option' }],
+        orderBy: [{ fieldId: 'time-option', direction: 'ASC' }],
+      }),
+    ),
+  );
+});
 
 it('submits tag grain and ordered multi-field sorting using fixed resource identities', async () => {
   const api = page();

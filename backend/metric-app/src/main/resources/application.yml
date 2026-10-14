@@ -35,6 +35,9 @@ management:
       probes:
         enabled: true
 metric-platform:
+  git:
+    # 全局唯一构建仓库；浏览器只能选择该仓库中已存在的分支。
+    repository: ${METRIC_GIT_REPOSITORY:http://127.0.0.1:3000/agent-admin/metrics.git}
   dbt-runtime:
     # 构建和查询执行服务；平台仅提供只读目录与查询代理。
     base-uri: ${DBT_SERVICE_BASE_URI:http://127.0.0.1:8000}

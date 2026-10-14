@@ -46,7 +46,7 @@ export function EnvironmentsPage({ api = environmentApi }: { api?: EnvironmentAp
       <header>
         <div>
           <h2>执行环境</h2>
-          <p>环境决定构建的物理落点；仓库和分支在每次构建时选择。</p>
+          <p>环境决定构建的物理落点；仓库由服务器统一配置，每次构建选择分支。</p>
         </div>
         <Button type="primary" onClick={() => setEditing(!editing)}>
           新建环境

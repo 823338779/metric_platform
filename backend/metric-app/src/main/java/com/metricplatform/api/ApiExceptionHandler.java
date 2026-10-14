@@ -14,6 +14,13 @@ import org.springframework.web.method.annotation.MethodArgumentTypeMismatchExcep
 
 @RestControllerAdvice
 public class ApiExceptionHandler {
+    @ExceptionHandler(com.metricplatform.environment.RepositorySource.UnavailableException.class)
+    ResponseEntity<ProblemDetail> repositoryUnavailable(
+            com.metricplatform.environment.RepositorySource.UnavailableException exception) {
+        return problem(
+                HttpStatus.BAD_GATEWAY, "Git repository unavailable", exception.getMessage());
+    }
+
     private static final String CODE = "code",
             PHASE = "phase",
             BUILD_ID = "buildId",

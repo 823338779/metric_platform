@@ -7,6 +7,33 @@ x-protocol-version: execution-snapshot
 x-supported-protocols:
   - execution-snapshot
 paths:
+  /api/dbt/repository/branches:
+    get:
+      summary: 读取服务器全局绑定的 Git 仓库及其远端分支
+      description: 不接受客户端指定仓库。只读查询 refs/heads，不克隆或执行源码；仓库访问失败或超过 15 秒返回 502。
+      security:
+      - bearerAuth: []
+      responses:
+        '200':
+          description: 服务器绑定的仓库及按名称排序的分支；空仓库返回空分支列表。
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [repository, branches]
+                properties:
+                  repository:
+                    type: string
+                    description: 服务器配置的唯一构建仓库地址
+                  branches:
+                    type: array
+                    items:
+                      type: string
+                    description: 分支短名，不包含 refs/heads/ 前缀和标签
+        '401':
+          $ref: '#/components/responses/Problem'
+        '502':
+          $ref: '#/components/responses/Problem'
   /api/dbt/environments:
     get:
       summary: 列出执行环境（最多 200 项）
@@ -1188,7 +1215,7 @@ components:
         repository:
           type: string
           maxLength: 2048
-          description: 本次远程 Git 仓库，不允许明文凭据
+          description: 必须与服务器全局绑定的 Git 仓库地址完全一致，否则返回 422；不允许明文凭据
         branchName:
           type: string
           description: 本次显式分支，与环境无绑定

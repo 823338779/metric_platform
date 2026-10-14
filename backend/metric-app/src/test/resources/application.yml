@@ -1,3 +1,6 @@
+metric-platform:
+  git:
+    repository: https://example.test/metrics.git
 spring:
   datasource:
     url: jdbc:tc:postgresql:16-alpine:///metric_platform
