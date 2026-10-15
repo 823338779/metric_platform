@@ -1,5 +1,5 @@
 import '@testing-library/jest-dom/vitest';
-import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { afterEach, expect, it, vi } from 'vitest';
 import { Link, MemoryRouter, Route, Routes } from 'react-router-dom';
 import { EnvironmentsPage } from './EnvironmentsPage';
@@ -61,6 +61,76 @@ function mount(api: unknown) {
     </MemoryRouter>,
   );
 }
+
+function mountLogs(logs: unknown) {
+  mount({
+    get: vi.fn().mockResolvedValue(environment),
+    builds: vi.fn().mockResolvedValue({
+      items: [BUILD, 'other-build'].map((buildId) => ({
+        buildId,
+        repository: 'repo/a',
+        branchName: 'main',
+        commitSha: 'abc123',
+        buildStatus: 'SUCCEEDED',
+        phase: 'COMPLETE',
+        createdAt: '2026-10-15T00:00:00Z',
+        configVersion: '1',
+        execution: environment.execution,
+        catalogAvailable: true,
+        queryAvailable: true,
+        initialDeployment: null,
+      })),
+      nextCursor: null,
+    }),
+    logs,
+  });
+}
+
+it('点击日志立即在当前构建下显示加载反馈，空结果也有提示', async () => {
+  let resolveLogs!: (value: { items: string[]; nextCursor: null }) => void;
+  const logs = vi.fn().mockImplementation(() => new Promise((resolve) => (resolveLogs = resolve)));
+  mountLogs(logs);
+  const buttons = await screen.findAllByRole('button', { name: '查看日志' });
+  fireEvent.click(buttons[0]);
+  const build = within(buttons[0].closest('article')!);
+  expect(build.getByRole('status')).toHaveTextContent('正在加载日志');
+  expect(logs).toHaveBeenCalledWith(BUILD);
+  await act(async () => resolveLogs({ items: [], nextCursor: null }));
+  expect(build.getByText('暂无日志')).toBeInTheDocument();
+  expect(build.queryByText('正在加载日志')).not.toBeInTheDocument();
+});
+
+it('日志读取失败在当前构建下显示错误，再次点击可重新读取', async () => {
+  const logs = vi
+    .fn()
+    .mockRejectedValueOnce(new Error('日志服务暂不可用'))
+    .mockResolvedValueOnce({ items: ['开始构建', '构建完成'], nextCursor: null });
+  mountLogs(logs);
+  const buttons = await screen.findAllByRole('button', { name: '查看日志' });
+  const build = within(buttons[0].closest('article')!);
+  fireEvent.click(buttons[0]);
+  expect(await build.findByRole('alert')).toHaveTextContent('日志服务暂不可用');
+  fireEvent.click(buttons[0]);
+  expect(await build.findByText(/开始构建/)).toHaveTextContent('开始构建 构建完成');
+  expect(build.queryByRole('alert')).not.toBeInTheDocument();
+});
+
+it('切换查看的构建后忽略晚返回的旧日志', async () => {
+  let resolveOld!: (value: { items: string[]; nextCursor: null }) => void;
+  const logs = vi
+    .fn()
+    .mockImplementationOnce(() => new Promise((resolve) => (resolveOld = resolve)))
+    .mockResolvedValueOnce({ items: ['当前构建日志'], nextCursor: null });
+  mountLogs(logs);
+  const buttons = await screen.findAllByRole('button', { name: '查看日志' });
+  fireEvent.click(buttons[0]);
+  fireEvent.click(buttons[1]);
+  const current = within(buttons[1].closest('article')!);
+  expect(await current.findByText('当前构建日志')).toBeInTheDocument();
+  await act(async () => resolveOld({ items: ['旧构建日志'], nextCursor: null }));
+  expect(current.getByText('当前构建日志')).toBeInTheDocument();
+  expect(screen.queryByText('旧构建日志')).not.toBeInTheDocument();
+});
 
 it('完整构建历史展示失败和未部署版本，查询使用固定 build', async () => {
   const api = {

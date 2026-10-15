@@ -30,7 +30,13 @@ function SelectedEnvironment({
   const [editing, setEditing] = useState(false);
   const [busy, setBusy] = useState(false);
   const [refresh, setRefresh] = useState(0);
-  const [logs, setLogs] = useState<string[]>([]);
+  const [logs, setLogs] = useState<{
+    buildId: string;
+    items: string[];
+    loading: boolean;
+    error: string;
+  } | null>(null);
+  const logRequest = useRef(0);
   const generation = useRef(0);
   const paging = useRef(false);
   const repository = params.get('repository') || undefined;
@@ -40,7 +46,7 @@ function SelectedEnvironment({
     const turn = ++generation.current;
     setPage({ items: [], nextCursor: null });
     setError('');
-    setLogs([]);
+    setLogs(null);
     setEditing(false);
     paging.current = false;
     setBusy(false);
@@ -104,12 +110,20 @@ function SelectedEnvironment({
   }
   async function showLogs(buildId: string) {
     const turn = generation.current;
+    const request = ++logRequest.current;
+    setLogs({ buildId, items: [], loading: true, error: '' });
     try {
       const result = await api.logs(buildId);
-      if (turn === generation.current) setLogs(result.items);
+      if (turn === generation.current && request === logRequest.current)
+        setLogs({ buildId, items: result.items, loading: false, error: '' });
     } catch (reason) {
-      if (turn === generation.current)
-        setError(reason instanceof Error ? reason.message : '日志读取失败');
+      if (turn === generation.current && request === logRequest.current)
+        setLogs({
+          buildId,
+          items: [],
+          loading: false,
+          error: reason instanceof Error ? reason.message : '日志读取失败',
+        });
     }
   }
   return (
@@ -222,6 +236,19 @@ function SelectedEnvironment({
                 查看日志
               </Button>
             </div>
+            {logs?.buildId === build.buildId && (
+              <section aria-label="构建日志" aria-busy={logs.loading}>
+                {logs.loading ? (
+                  <p role="status">正在加载日志</p>
+                ) : logs.error ? (
+                  <Alert type="error" title={logs.error} />
+                ) : logs.items.length ? (
+                  <pre>{logs.items.join('\n')}</pre>
+                ) : (
+                  <p role="status">暂无日志</p>
+                )}
+              </section>
+            )}
           </article>
         ))}
         {page.nextCursor && (
@@ -229,7 +256,6 @@ function SelectedEnvironment({
             加载更多构建
           </Button>
         )}
-        {logs.length > 0 && <pre>{logs.join('\n')}</pre>}
       </Card>
     </section>
   );
