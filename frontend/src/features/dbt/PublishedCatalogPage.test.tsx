@@ -1,10 +1,55 @@
 import '@testing-library/jest-dom/vitest';
-import { cleanup, render, screen, waitFor } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { afterEach, expect, it, vi } from 'vitest';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { PublishedCatalogPage } from './PublishedCatalogPage';
 vi.mock('./DbtCatalogPage', () => ({ DbtCatalogPage: () => <p>目录已加载</p> }));
 afterEach(cleanup);
+it('版本侧栏可开关，完整提交信息按需展开且刷新不切换构建', async () => {
+  const buildId = '11111111-1111-4111-8111-111111111111';
+  const api = {
+    build: vi.fn().mockResolvedValue({
+      buildId,
+      repository: 'https://example.com/team/metrics.git',
+      branchName: 'main',
+      commitSha: 'abcdef0123456789',
+      catalogAvailable: true,
+      queryAvailable: true,
+      execution: {
+        environmentId: 'env',
+        configVersion: 3,
+        catalog: 'warehouse',
+        schema: 'analytics',
+      },
+    }),
+    current: vi.fn().mockResolvedValue({ activeBuildId: buildId }),
+    builds: vi.fn().mockResolvedValue({ items: [], nextCursor: null }),
+    deployments: vi.fn().mockResolvedValue({ items: [], nextCursor: null }),
+  };
+  render(
+    <MemoryRouter initialEntries={[`/dbt/builds/${buildId}/catalog`]}>
+      <Routes>
+        <Route
+          path="/dbt/builds/:buildId/catalog"
+          element={<PublishedCatalogPage api={api as never} />}
+        />
+      </Routes>
+    </MemoryRouter>,
+  );
+  await screen.findByText('目录已加载');
+  const toggle = screen.getByRole('button', { name: '版本上下文' });
+  if (toggle.getAttribute('aria-expanded') === 'false') fireEvent.click(toggle);
+  const context = screen.getByRole('complementary', { name: '版本上下文' });
+  expect(within(context).getByText('main')).toBeVisible();
+  const details = within(context).getByText('版本详情').closest('details')!;
+  fireEvent.click(within(details).getByText('版本详情'));
+  expect(within(context).getByText('abcdef0123456789')).toBeVisible();
+  fireEvent.click(screen.getByRole('button', { name: '收起版本上下文' }));
+  expect(toggle).toHaveAttribute('aria-expanded', 'false');
+  fireEvent.click(screen.getByRole('button', { name: '刷新构建状态' }));
+  await waitFor(() => expect(api.build).toHaveBeenCalledTimes(2));
+  expect(api.build).toHaveBeenLastCalledWith(buildId);
+});
 it('固定构建链接读取历史，与Agent分支登记无关', async () => {
   const B = '11111111-1111-4111-8111-111111111111';
   const api = {

@@ -15,6 +15,28 @@ import java.time.Duration;
 import java.util.*;
 
 class HttpBuildGatewayTest {
+    private static final String SERVICE_AUTHENTICATION_FAILED = "SERVICE_AUTHENTICATION_FAILED";
+    private static final String CREDENTIAL_ERROR =
+            "{\"detail\":{\"code\":\"CREDENTIAL_REQUIRED\",\"message\":\"credential required\",\"retryable\":false}}";
+
+    @org.junit.jupiter.params.ParameterizedTest
+    @org.junit.jupiter.params.provider.ValueSource(ints = {401, 403})
+    void serviceAuthenticationFailureDoesNotExpirePlatformLogin(int status) throws Exception {
+        var server = server(new ArrayList<>(), status, CREDENTIAL_ERROR);
+        try {
+            assertThatThrownBy(() -> client(server).query(BUILD, null))
+                    .isInstanceOfSatisfying(
+                            BuildGateway.Failure.class,
+                            failure -> {
+                                assertThat(failure.status()).isEqualTo(502);
+                                assertThat(failure.error().code()).isEqualTo(SERVICE_AUTHENTICATION_FAILED);
+                                assertThat(failure.error().retryable()).isFalse();
+                            });
+        } finally {
+            server.stop(0);
+        }
+    }
+
     private static final UUID BUILD = UUID.fromString("12345678-1234-4234-8234-123456789abc");
     private final ObjectMapper mapper = new ObjectMapper().findAndRegisterModules();
 

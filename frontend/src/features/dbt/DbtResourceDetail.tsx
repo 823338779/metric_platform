@@ -5,6 +5,8 @@ import {
   FileTextOutlined,
   PlayCircleOutlined,
   FunctionOutlined,
+  TableOutlined,
+  CloseOutlined,
 } from '@ant-design/icons';
 import { useEffect, useRef, useState } from 'react';
 import { ApiProblem } from '../../api/httpClient';
@@ -44,6 +46,7 @@ const COPY = {
   retry: '重试',
   pinned: '定义、血缘与源码固定于同一发布版本',
   sourceLoading: '读取源码中…',
+  close: '关闭资源',
 };
 
 /** 同一详情内的产物、源码和血缘均固定在目录 buildId。 */
@@ -155,6 +158,7 @@ export function DbtResourceDetail({
   }, [api, projectId, buildId, resourceId, tab, retry]);
 
   const loadPreview = async () => {
+    setTab(DETAIL);
     const generation = previewGeneration.current;
     setPreviewBusy(true);
     try {
@@ -179,19 +183,31 @@ export function DbtResourceDetail({
           <FileTextOutlined /> {tabTitle ?? resourceName(resourceId)}
         </span>
         {onClose && (
-          <Button type="text" size="small" aria-label="关闭资源" onClick={onClose}>
-            ×
-          </Button>
+          <Button
+            type="text"
+            size="small"
+            aria-label={COPY.close}
+            onClick={onClose}
+            icon={<CloseOutlined aria-hidden />}
+          />
         )}
       </div>
       <header className="resource-detail-heading">
         <div className="resource-breadcrumb">
-          {projectId} <span>/</span> {presentation && RESOURCE_LABELS[presentation.kind]}{' '}
-          <span>/</span> {presentation?.title}
+          {projectId && (
+            <>
+              {projectId} <span>/</span>{' '}
+            </>
+          )}
+          {presentation && RESOURCE_LABELS[presentation.kind]} <span>/</span> {presentation?.title}
         </div>
         <div className="resource-heading-content">
           <div>
-            <FunctionOutlined className="resource-heading-icon" aria-hidden />
+            {presentation && physicalKinds.has(presentation.kind) ? (
+              <TableOutlined className="resource-heading-icon" aria-hidden />
+            ) : (
+              <FunctionOutlined className="resource-heading-icon" aria-hidden />
+            )}
             <div className="resource-title-line">
               <Typography.Title level={3}>{presentation?.title ?? COPY.title}</Typography.Title>
               {presentation && (
@@ -205,6 +221,16 @@ export function DbtResourceDetail({
             </p>
           </div>
           <Space>
+            {presentation?.queryable && physicalKinds.has(presentation.kind) && (
+              <Button
+                type="primary"
+                loading={previewBusy}
+                disabled={!queryAvailable || previewBusy}
+                onClick={() => void loadPreview()}
+              >
+                {COPY.preview}
+              </Button>
+            )}
             {presentation?.kind === 'METRIC' && presentation.queryable && onExplore && (
               <Button
                 type="primary"
@@ -297,15 +323,6 @@ export function DbtResourceDetail({
                     </Typography.Text>
                     <pre>{JSON.stringify(presentation.nativeDetails, null, 2)}</pre>
                   </details>
-                  {presentation.queryable && physicalKinds.has(presentation.kind) && (
-                    <Button
-                      loading={previewBusy}
-                      disabled={!queryAvailable || previewBusy}
-                      onClick={() => void loadPreview()}
-                    >
-                      {COPY.preview}
-                    </Button>
-                  )}
                   {preview && <DbtQueryResults result={preview} />}
                 </div>
               ),

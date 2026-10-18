@@ -1,6 +1,6 @@
 {
   "schemaVersion": 2,
-  "generatedAt": "2026-10-01T06:06:27.057461+00:00",
+  "generatedAt": "2026-10-18T08:15:38.429455+00:00",
   "title": "Design System: Metric Platform",
   "extensions": {
     "colorMeta": {
@@ -456,11 +456,11 @@
     "typographyMeta": {
       "headline": {
         "displayName": "资源主标题",
-        "purpose": "桌面详情资源名。"
+        "purpose": "legacy 桌面详情资源名。"
       },
       "headline-narrow": {
         "displayName": "窄屏资源标题",
-        "purpose": "不超过 760px 时的资源名。"
+        "purpose": "legacy 不超过 760px 时的资源名。"
       },
       "section": {
         "displayName": "内容区标题",
@@ -501,6 +501,22 @@
       "metric-name": {
         "displayName": "指标库名称",
         "purpose": "可选择指标条目的主名称。"
+      },
+      "catalog-heading": {
+        "displayName": "已发布目录资源标题",
+        "purpose": "三栏资源阅读区的紧凑标题。"
+      },
+      "catalog-heading-narrow": {
+        "displayName": "已发布目录窄屏标题",
+        "purpose": "不超过 760px 时的已发布资源名。"
+      },
+      "catalog-resource": {
+        "displayName": "两级目录资源名称",
+        "purpose": "资源树叶节点的主行。"
+      },
+      "catalog-resource-meta": {
+        "displayName": "两级目录辅助信息",
+        "purpose": "来源路径、文件目录或资源分类副行。"
       }
     },
     "shadows": [
@@ -548,6 +564,10 @@
       {
         "name": "analysis-compact",
         "value": "1200px"
+      },
+      {
+        "name": "catalog-context-sidebar",
+        "value": "1200px"
       }
     ]
   },
@@ -555,18 +575,17 @@
     {
       "name": "资源主操作",
       "kind": "button",
-      "refersTo": "button-primary",
-      "description": "资源标题区进入分析的主要操作。",
-      "html": "<button class=\"ds-primary\">开始分析</button>",
-      "css": ".ds-primary{font-family:Inter,'Segoe UI','Microsoft YaHei',sans-serif;height:42px;min-width:160px;font-size:16px;border:1px solid transparent;border-radius:5px;background:var(--workspace-accent,#315bc3);color:#fff;cursor:pointer}.ds-primary:hover{background:#557bcf}.ds-primary:active{background:#1f3e9c}.ds-primary:focus-visible{outline:2px solid var(--workspace-accent,#315bc3);outline-offset:3px;}"
+      "refersTo": "catalog-button-primary",
+      "description": "已发布目录的主要操作；物理资源预览数据，指标开始分析。预览切回概览展示结果。",
+      "html": "<button class=\"ds-primary\">预览数据</button>",
+      "css": ".ds-primary{font-family:Inter,'Segoe UI','Microsoft YaHei',sans-serif;height:34px;min-width:0;font-size:13px;border:1px solid transparent;border-radius:5px;background:var(--workspace-accent,#315bc3);color:#fff;cursor:pointer}.ds-primary:hover{background:#557bcf}.ds-primary:active{background:#1f3e9c}.ds-primary:focus-visible{outline:2px solid var(--workspace-accent,#315bc3);outline-offset:3px;}"
     },
     {
       "name": "资源次操作",
       "kind": "button",
-      "refersTo": "button-secondary",
-      "description": "与主操作并排的源码入口。",
+      "description": "已发布目录标题区与主操作并排的源码入口，高度与主操作一致。",
       "html": "<button class=\"ds-secondary\">查看源码</button>",
-      "css": ".ds-secondary{font-family:Inter,'Segoe UI','Microsoft YaHei',sans-serif;height:42px;min-width:142px;font-size:16px;border:1px solid #d9d9d9;border-radius:5px;background:#fff;color:var(--workspace-ink,#233247);cursor:pointer}.ds-secondary:hover{color:#557bcf;border-color:#557bcf}.ds-secondary:active{color:#1f3e9c;border-color:#1f3e9c}.ds-secondary:focus-visible{outline:2px solid var(--workspace-accent,#315bc3);outline-offset:3px;}"
+      "css": ".ds-secondary{font-family:Inter,'Segoe UI','Microsoft YaHei',sans-serif;height:34px;min-width:0;font-size:13px;border:1px solid #d9d9d9;border-radius:5px;background:#fff;color:var(--workspace-ink,#233247);cursor:pointer}.ds-secondary:hover{color:#557bcf;border-color:#557bcf}.ds-secondary:active{color:#1f3e9c;border-color:#1f3e9c}.ds-secondary:focus-visible{outline:2px solid var(--workspace-accent,#315bc3);outline-offset:3px;}"
     },
     {
       "name": "目录搜索输入",
@@ -635,12 +654,13 @@
   ],
   "narrative": {
     "northStar": "专业双工作台",
-    "overview": "深蓝窄导航、浅灰目录与白色阅读面构成稳定的工作环境。资源与分析共享项目、版本和当前资源上下文；视觉层级服务于长时间阅读、查找和操作。以用户批准的双工作台 B 为方向，具体尺寸以当前实现为准。\n\n本规范记录已实现的公共外壳、资源管理与分析探索。分析工作区让选择过程直接可见：搜索指标、点击加入、点选共同维度与时间粒度，再按需展开筛选排序。查询条件与真实结果位于同一连续画布，减少重复打开下拉菜单的操作。",
+    "overview": "深蓝窄导航、浅灰目录与白色阅读面构成稳定的工作环境。资源与分析共享项目、版本和当前资源上下文；视觉层级服务于长时间阅读、查找和操作。整体沿用专业双工作台；已发布资源目录采用用户批准的上下文侧栏 C，让资源阅读与版本核对同时可见，具体尺寸以当前实现为准。\n\n本规范记录已实现的公共外壳、资源管理与分析探索。分析工作区让选择过程直接可见：搜索指标、点击加入、点选共同维度与时间粒度，再按需展开筛选排序。查询条件与真实结果位于同一连续画布，减少重复打开下拉菜单的操作。",
     "keyCharacteristics": [
       "冷灰工作底与白色内容面，通过边界和间距区分职责。",
       "蓝色集中标识当前工作区、可执行操作与选中资源。",
       "中文保持自然阅读；资源标识、SQL 和 YAML 保留原始拼写。",
       "定义、来源和依赖形成阅读顺序，原始属性按需展开。",
+      "已发布目录以两级资源树、主体阅读面和可收起版本上下文分工，维持固定版本。",
       "分析候选项直接显示，已选指标明确可移除，复杂条件按需展开。"
     ],
     "rules": [

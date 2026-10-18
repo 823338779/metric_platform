@@ -50,6 +50,7 @@ public class HttpBuildGateway implements BuildGateway {
             ERROR_TYPE = "type",
             REQUEST_VALIDATION_ERROR = "REQUEST_VALIDATION_ERROR";
     private static final Set<String> VIEWS = Set.of(EMPTY, "source", "lineage", "native-details");
+    private static final String SERVICE_AUTHENTICATION_FAILED = "SERVICE_AUTHENTICATION_FAILED";
     private static final int MAX_BYTES = 8 * 1024 * 1024;
 
     /** 固定运行服务地址。 */
@@ -255,6 +256,17 @@ public class HttpBuildGateway implements BuildGateway {
             try (var stream = response.body()) {
                 byte[] bytes = stream.readNBytes(MAX_BYTES + 1);
                 if (bytes.length > MAX_BYTES) throw invalid();
+                // 服务凭据与平台登录身份独立，不能将上游认证失败透传为浏览器登录过期。
+                if (response.statusCode() == 401 || response.statusCode() == 403) {
+                    throw new Failure(
+                            502,
+                            new ErrorView(
+                                    SERVICE_AUTHENTICATION_FAILED,
+                                    "dbt-service 认证失败，请检查平台与服务的令牌配置",
+                                    false,
+                                    null,
+                                    null));
+                }
                 if (response.statusCode() < 200 || response.statusCode() >= 300) {
                     var node = mapper.readTree(bytes);
                     if (node.has(ERROR)) node = node.get(ERROR);

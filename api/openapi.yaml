@@ -2,7 +2,7 @@ openapi: 3.1.0
 info:
   title: 指标平台固定构建 BFF
   version: 4.0.0
-  description: 平台直接读取 dbt-service 的部署历史及固定 buildId 目录和查询，不依赖 Agent。
+  description: 平台直接读取 dbt-service 的部署历史及固定 buildId 目录和查询，不依赖 Agent。平台登录凭据无效返回 401；dbt-service 返回的 401/403 转换为 502，错误码为 SERVICE_AUTHENTICATION_FAILED、retryable 为 false，不代表用户登录过期。
 x-protocol-version: execution-snapshot
 x-supported-protocols:
   - execution-snapshot

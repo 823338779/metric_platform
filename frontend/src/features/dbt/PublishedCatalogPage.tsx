@@ -1,4 +1,12 @@
-import { Alert, Button } from 'antd';
+import { Alert, Button, Skeleton, Typography } from 'antd';
+import {
+  BranchesOutlined,
+  CloseOutlined,
+  DatabaseOutlined,
+  FolderOpenOutlined,
+  InfoCircleOutlined,
+  ReloadOutlined,
+} from '@ant-design/icons';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import {
@@ -12,6 +20,7 @@ import {
 import { publishedResourceAdapter } from './publishedResourceAdapter';
 import { DbtCatalogPage } from './DbtCatalogPage';
 import { BranchBuildPanel } from './BranchBuildPanel';
+import './catalog-page.css';
 
 const POLL_MS = 5000;
 const COPY = {
@@ -24,7 +33,26 @@ const COPY = {
   failed: '读取失败，请重试；已有固定版本保持不变。',
   moreBuilds: '加载更多构建历史',
   moreDeployments: '加载更多部署历史',
+  context: '版本上下文',
+  closeContext: '收起版本上下文',
+  details: '版本详情',
+  repository: '仓库',
+  branch: '分支',
+  environment: '环境',
+  pinned: '固定版本',
+  config: '配置版本',
+  commit: '提交 SHA',
+  refreshShort: '刷新',
+  fixedHint: '目录、定义、血缘与源码均来自此版本。',
+  projects: '选择项目版本',
+  loading: '读取版本信息',
 };
+const PROJECTS = '/dbt/projects';
+const CONTEXT_ID = 'catalog-version-context';
+const DESKTOP_CONTEXT = '(min-width: 1200px)';
+const MEDIA_CHANGE = 'change';
+const PATH_SEPARATOR = '/';
+const GIT_SUFFIX = /\.git$/;
 /** 构建页面只在初次无版本时解析部署，新部署只提示，不覆盖固定 buildId。 */
 export function PublishedCatalogPage({ api = buildCatalogApi }: { api?: BuildCatalogApi }) {
   const { buildId: routeBuildId } = useParams();
@@ -43,6 +71,21 @@ export function PublishedCatalogPage({ api = buildCatalogApi }: { api?: BuildCat
   const [error, setError] = useState('');
   const [refresh, setRefresh] = useState(0);
   const [busy, setBusy] = useState(false);
+  /** 版本侧栏在窄屏默认收起，用户可以通过工具栏随时展开。 */
+  const [contextOpen, setContextOpen] = useState(
+    () => window.matchMedia?.(DESKTOP_CONTEXT).matches ?? true,
+  );
+  const contextToggle = useRef<HTMLButtonElement>(null);
+  useEffect(() => {
+    const media = window.matchMedia?.(DESKTOP_CONTEXT);
+    if (!media) return;
+    const collapseOnNarrow = () => {
+      if (!media.matches) setContextOpen(false);
+    };
+    collapseOnNarrow();
+    media.addEventListener(MEDIA_CHANGE, collapseOnNarrow);
+    return () => media.removeEventListener(MEDIA_CHANGE, collapseOnNarrow);
+  }, []);
   const adapter = useMemo(() => publishedResourceAdapter(api), [api, buildId]);
   const repository = params.get('repository') ?? '';
   const branchName = params.get('branchName') ?? '';
@@ -155,21 +198,55 @@ export function PublishedCatalogPage({ api = buildCatalogApi }: { api?: BuildCat
   function selectBuild(id: string) {
     navigate(`/dbt/builds/${encodeURIComponent(id)}/catalog`);
   }
+  const repositoryName =
+    build?.repository.split(PATH_SEPARATOR).filter(Boolean).at(-1)?.replace(GIT_SUFFIX, '') ??
+    COPY.projects;
   return (
     <div className="published-catalog">
+      <header className="catalog-context-bar">
+        <div className="catalog-context-summary">
+          <Link className="catalog-project-link" to={PROJECTS} title={build?.repository}>
+            <FolderOpenOutlined aria-hidden /> <strong>{repositoryName}</strong>
+          </Link>
+          {build && (
+            <>
+              <span className="catalog-branch" title={build.branchName}>
+                <BranchesOutlined aria-hidden /> {build.branchName}
+              </span>
+              <Link
+                className="catalog-environment-link"
+                to={`/dbt/environments/${build.execution.environmentId}`}
+                title={`${build.execution.catalog} / ${build.execution.schema}`}
+              >
+                <DatabaseOutlined aria-hidden /> {build.execution.catalog} /{' '}
+                {build.execution.schema}
+              </Link>
+            </>
+          )}
+        </div>
+        <div className="catalog-context-actions">
+          <Button
+            type="text"
+            loading={busy}
+            aria-label={COPY.refresh}
+            icon={<ReloadOutlined aria-hidden />}
+            onClick={() => setRefresh((value) => value + 1)}
+          >
+            {COPY.refreshShort}
+          </Button>
+          <Button
+            ref={contextToggle}
+            type="text"
+            icon={<InfoCircleOutlined aria-hidden />}
+            aria-expanded={contextOpen}
+            aria-controls={CONTEXT_ID}
+            onClick={() => setContextOpen((value) => !value)}
+          >
+            {COPY.context}
+          </Button>
+        </div>
+      </header>
       {error && <Alert type="warning" title={error} />}
-      {build && (
-        <p>
-          仓库：{build.repository} · 分支：{build.branchName} · 环境：
-          {
-            <Link to={`/dbt/environments/${build.execution.environmentId}`}>
-              {build.execution.catalog} / {build.execution.schema} · 配置版本{' '}
-              {build.execution.configVersion}
-            </Link>
-          }{' '}
-          · buildId：{build.buildId} · SHA：{build.commitSha}
-        </p>
-      )}
       {current?.activeBuildId && buildId && current.activeBuildId !== buildId && (
         <Alert
           type="info"
@@ -189,41 +266,113 @@ export function PublishedCatalogPage({ api = buildCatalogApi }: { api?: BuildCat
           title={`查询不可用：${build.queryUnavailableReason ?? '环境暂不可用'}；目录与历史继续可读。`}
         />
       )}
-      <Button loading={busy} onClick={() => setRefresh((value) => value + 1)}>
-        {COPY.refresh}
-      </Button>
-      {history && (
-        <BranchBuildPanel
-          history={history}
-          deployments={deployments}
-          currentBuildId={buildId}
-          activeBuildId={current?.activeBuildId ?? null}
-          onSelect={selectBuild}
-        />
-      )}
-      {history?.nextCursor && (
-        <Button
-          loading={loadingBuilds}
-          disabled={loadingBuilds}
-          onClick={() => void loadHistory(false)}
-        >
-          {COPY.moreBuilds}
-        </Button>
-      )}
-      {deploymentCursor && (
-        <Button
-          loading={loadingDeployments}
-          disabled={loadingDeployments}
-          onClick={() => void loadHistory(true)}
-        >
-          {COPY.moreDeployments}
-        </Button>
-      )}
-      {build?.catalogAvailable ? (
-        <DbtCatalogPage key={buildId} api={adapter} queryAvailable={build.queryAvailable} />
-      ) : build && !busy ? (
-        <Alert type="info" title={COPY.unavailable} />
-      ) : null}
+      <div className={`published-catalog-body${contextOpen ? ' has-context' : ''}`}>
+        {build?.catalogAvailable ? (
+          <DbtCatalogPage key={buildId} api={adapter} queryAvailable={build.queryAvailable} />
+        ) : build && !busy ? (
+          <Alert type="info" title={COPY.unavailable} />
+        ) : busy ? (
+          <div className="catalog-page-loading" aria-label={COPY.loading}>
+            <Skeleton active />
+          </div>
+        ) : (
+          <div className="catalog-page-loading">
+            <Link to={PROJECTS}>{COPY.projects}</Link>
+          </div>
+        )}
+        {contextOpen && (
+          <aside className="catalog-context" id={CONTEXT_ID} aria-label={COPY.context}>
+            <div className="catalog-context-title">
+              <h2>{COPY.context}</h2>
+              <Button
+                type="text"
+                size="small"
+                aria-label={COPY.closeContext}
+                icon={<CloseOutlined aria-hidden />}
+                onClick={() => {
+                  setContextOpen(false);
+                  contextToggle.current?.focus();
+                }}
+              />
+            </div>
+            {build && (
+              <>
+                <dl className="catalog-context-fields">
+                  <div>
+                    <dt>{COPY.repository}</dt>
+                    <dd title={build.repository}>{repositoryName}</dd>
+                  </div>
+                  <div>
+                    <dt>{COPY.branch}</dt>
+                    <dd>{build.branchName}</dd>
+                  </div>
+                  <div>
+                    <dt>{COPY.environment}</dt>
+                    <dd>
+                      <Link to={`/dbt/environments/${build.execution.environmentId}`}>
+                        {build.execution.catalog} / {build.execution.schema}
+                      </Link>
+                    </dd>
+                  </div>
+                  <div>
+                    <dt>{COPY.pinned}</dt>
+                    <dd>
+                      <code title={build.buildId}>{build.buildId.slice(0, 8)}</code>
+                    </dd>
+                  </div>
+                </dl>
+                <p className="catalog-context-hint">{COPY.fixedHint}</p>
+                <details className="catalog-version-details">
+                  <summary>{COPY.details}</summary>
+                  <dl>
+                    <dt>{COPY.repository}</dt>
+                    <dd>
+                      <Typography.Text copyable>{build.repository}</Typography.Text>
+                    </dd>
+                    <dt>{COPY.pinned}</dt>
+                    <dd>
+                      <Typography.Text copyable>{build.buildId}</Typography.Text>
+                    </dd>
+                    <dt>{COPY.commit}</dt>
+                    <dd>
+                      <Typography.Text copyable>{build.commitSha}</Typography.Text>
+                    </dd>
+                    <dt>{COPY.config}</dt>
+                    <dd>{build.execution.configVersion}</dd>
+                  </dl>
+                </details>
+              </>
+            )}
+            {history && (
+              <BranchBuildPanel
+                history={history}
+                deployments={deployments}
+                currentBuildId={buildId}
+                activeBuildId={current?.activeBuildId ?? null}
+                onSelect={selectBuild}
+              />
+            )}
+            {history?.nextCursor && (
+              <Button
+                loading={loadingBuilds}
+                disabled={loadingBuilds}
+                onClick={() => void loadHistory(false)}
+              >
+                {COPY.moreBuilds}
+              </Button>
+            )}
+            {deploymentCursor && (
+              <Button
+                loading={loadingDeployments}
+                disabled={loadingDeployments}
+                onClick={() => void loadHistory(true)}
+              >
+                {COPY.moreDeployments}
+              </Button>
+            )}
+          </aside>
+        )}
+      </div>
     </div>
   );
 }

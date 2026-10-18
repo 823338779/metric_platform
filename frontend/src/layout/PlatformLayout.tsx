@@ -43,7 +43,7 @@ export function PlatformLayout() {
   const displayName = getAuthSession()?.identity.displayName;
   return (
     <div
-      className={`platform-layout ${buildId ? 'platform-workbench' : 'platform-projects'} ${queryPage ? 'platform-analysis' : ''}`}
+      className={`platform-layout ${buildId ? 'platform-workbench' : 'platform-projects'} ${queryPage ? 'platform-analysis' : 'platform-catalog'}`}
     >
       <nav className="platform-rail" aria-label={COPY.brand}>
         <Link className="platform-mark" to={ENVIRONMENTS} aria-label={COPY.brand}>

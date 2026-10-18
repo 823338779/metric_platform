@@ -18,6 +18,33 @@ beforeAll(() => {
 });
 afterEach(cleanup);
 
+it.each(['YAML 源码', '血缘'])('从%s发起预览后展示同一固定版本的结果', async (tab) => {
+  const client = api('TABLE');
+  client.previewDbtDataset.mockResolvedValue({
+    queryId: 'preview-navigation',
+    buildId: 'release-1',
+    status: 'SUCCEEDED',
+    mode: 'PREVIEW',
+    columns: [{ name: 'value', type: 'STRING' }],
+    rows: [['preview-result']],
+  });
+  render(
+    <DbtResourceDetail
+      projectId="demo"
+      buildId="release-1"
+      resourceId="r"
+      onSelect={vi.fn()}
+      api={client as never}
+    />,
+  );
+  await screen.findByText('TABLE title');
+  fireEvent.click(screen.getByRole('tab', { name: tab }));
+  fireEvent.click(screen.getByRole('button', { name: '预览数据' }));
+  expect(screen.getByRole('tab', { name: '概览' }).getAttribute('aria-selected')).toBe('true');
+  expect(await screen.findByText('preview-result')).toBeTruthy();
+  expect(client.previewDbtDataset).toHaveBeenCalledWith('demo', 'r', 'release-1', 20);
+});
+
 const presentation = (kind: string) => ({
   buildId: 'release-1',
   resourceId: 'r',

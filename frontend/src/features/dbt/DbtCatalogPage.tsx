@@ -1,4 +1,4 @@
-import { Alert, Button, Card, Input, Space, Tabs, Typography } from 'antd';
+import { Alert, Button, Input, Typography } from 'antd';
 import { ApartmentOutlined, FolderOpenOutlined, DownOutlined } from '@ant-design/icons';
 import { useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from 'react';
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
@@ -26,7 +26,21 @@ const COPY = {
   emptyHint: '展开左侧目录，查看资源的定义、血缘与源码。',
   more: '加载更多资源',
   noResources: '该版本没有可展示资源',
+  noMatches: '没有匹配的资源',
+  noMatchesHint: '尝试其他关键词，或切换资源类型。',
+  search: '搜索资源',
+  filters: '资源栏目',
+  all: '全部资源',
+  other: '其他资源',
+  retry: '重试',
+  browse: '浏览资源类型',
+  loading: '读取资源中…',
+  pinned: '定义、血缘与源码使用同一固定版本。',
 };
+const KIND_PARAM = 'kind';
+const FILTER_ID = 'catalog-kind-';
+const FILTER_PANEL = 'catalog-resources';
+const FILTER_KEYS = ['ArrowLeft', 'ArrowRight', 'Home', 'End'];
 const labels: Record<string, string> = {
   METRIC: '指标',
   DIMENSION: '维度',
@@ -34,6 +48,11 @@ const labels: Record<string, string> = {
   TABLE: '数据表',
   VIEW: '视图',
 };
+const filters = [
+  { key: ALL, label: COPY.all },
+  ...Object.entries(labels).map(([key, label]) => ({ key, label })),
+  { key: OTHER, label: COPY.other },
+];
 
 /** 目录按版本与筛选独立加载，URL 保存选中资源以支持历史导航和深链接。 */
 export function DbtCatalogPage({
@@ -69,6 +88,16 @@ export function DbtCatalogPage({
   const splitter = useRef<{ x: number; width: number } | undefined>(undefined);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  const changeKind = (value: string) => {
+    setPage(0);
+    setParams((current) => {
+      const next = new URLSearchParams(current);
+      next.delete(RESOURCE_PARAM);
+      if (value === ALL) next.delete(KIND_PARAM);
+      else next.set(KIND_PARAM, value);
+      return next;
+    });
+  };
   useEffect(() => {
     let active = true;
     // 浏览器历史也能改变筛选；新范围必须从第一页读取，不能合并旧范围的资源。
@@ -176,19 +205,29 @@ export function DbtCatalogPage({
     api.getDbtPresentation && api.getDbtSource && api.getDbtLineage && api.previewDbtDataset;
   return (
     <div className="catalog-page">
-      {error && <Alert type="error" title={error} />}
+      {error && (
+        <Alert
+          type="error"
+          title={error}
+          action={
+            <Button onClick={() => setLoadAttempt((value) => value + 1)}>{COPY.retry}</Button>
+          }
+        />
+      )}
       <div
         className="catalog-workspace"
         style={{ '--explorer-width': `${treeWidth}px` } as CSSProperties}
       >
         <aside className="catalog-explorer">
-          <Link className="explorer-project" to="/dbt/projects">
-            <span>
-              <small>项目</small>
-              <strong title={projectId}>{projectId}</strong>
-            </span>
-            <DownOutlined />
-          </Link>
+          {projectId && (
+            <Link className="explorer-project" to="/dbt/projects">
+              <span>
+                <small>项目</small>
+                <strong title={projectId}>{projectId}</strong>
+              </span>
+              <DownOutlined />
+            </Link>
+          )}
           <div className="catalog-explorer-header">
             <div className="catalog-explorer-title">
               <span>
@@ -197,7 +236,8 @@ export function DbtCatalogPage({
               <span className="resource-muted">{catalog?.total ?? 0}</span>
             </div>
             <Input.Search
-              placeholder="搜索资源"
+              placeholder={COPY.search}
+              aria-label={COPY.search}
               allowClear
               onSearch={(value) => {
                 setPage(0);
@@ -205,37 +245,61 @@ export function DbtCatalogPage({
                 setSelected('');
               }}
             />
-            <Tabs
-              aria-label="资源栏目"
-              activeKey={kind ?? ALL}
-              onChange={(value) => {
-                setPage(0);
-                setParams((current) => {
-                  const next = new URLSearchParams(current);
-                  next.delete(RESOURCE_PARAM);
-                  if (value === ALL) next.delete('kind');
-                  else next.set('kind', value);
-                  return next;
-                });
-              }}
-              items={[
-                { key: ALL, label: '全部资源' },
-                ...Object.entries(labels).map(([key, label]) => ({ key, label })),
-                { key: OTHER, label: '其他资源' },
-              ]}
-            />
+            <div className="catalog-kind-filters" role="tablist" aria-label={COPY.filters}>
+              {filters.map((filter, index) => (
+                <button
+                  key={filter.key}
+                  id={FILTER_ID + filter.key}
+                  type="button"
+                  role="tab"
+                  aria-selected={(kind ?? ALL) === filter.key}
+                  aria-controls={FILTER_PANEL}
+                  tabIndex={(kind ?? ALL) === filter.key ? 0 : -1}
+                  onClick={() => changeKind(filter.key)}
+                  onKeyDown={(event) => {
+                    if (!FILTER_KEYS.includes(event.key)) return;
+                    event.preventDefault();
+                    const nextIndex =
+                      event.key === 'Home'
+                        ? 0
+                        : event.key === 'End'
+                          ? filters.length - 1
+                          : (index + (event.key === 'ArrowRight' ? 1 : -1) + filters.length) %
+                            filters.length;
+                    changeKind(filters[nextIndex].key);
+                    document.getElementById(FILTER_ID + filters[nextIndex].key)?.focus();
+                  }}
+                >
+                  {filter.label}
+                </button>
+              ))}
+            </div>
           </div>
-          <ResourceTree
-            queryParameter={api.queryParameter}
-            resources={resources}
-            selected={selected}
-            onSelect={setSelected}
-            projectId={projectId}
-            buildId={requestedBuild}
-          />
+          <div
+            className="catalog-resource-panel"
+            id={FILTER_PANEL}
+            role="tabpanel"
+            aria-labelledby={FILTER_ID + (kind ?? ALL)}
+            aria-busy={loading}
+          >
+            <ResourceTree
+              loading={loading && !catalog}
+              queryParameter={api.queryParameter}
+              resources={resources}
+              selected={selected}
+              onSelect={setSelected}
+              projectId={projectId}
+              buildId={requestedBuild}
+            />
+            {catalog?.total === 0 && (
+              <p className="catalog-no-results">
+                {search || kind ? COPY.noMatches : COPY.noResources}
+              </p>
+            )}
+          </div>
           <div className="catalog-explorer-footer">
             {actions}
-            {requestedBuild && (
+            {projectId && requestedBuild && (
               <details className="explorer-release">
                 <summary>发布版本信息</summary>
                 <p title={requestedBuild}>buildId：{requestedBuild}</p>
@@ -254,9 +318,6 @@ export function DbtCatalogPage({
               >
                 {COPY.more}
               </Button>
-            )}
-            {catalog?.total === 0 && (
-              <Typography.Text type="secondary">{COPY.noResources}</Typography.Text>
             )}
           </div>
         </aside>
@@ -317,9 +378,20 @@ export function DbtCatalogPage({
         ) : (
           <div className="resource-empty">
             <ApartmentOutlined />
-            <h3>{COPY.empty}</h3>
-            <p>{COPY.emptyHint}</p>
-            {loading && <Typography.Text type="secondary">读取中…</Typography.Text>}
+            <h3>{search && catalog?.total === 0 ? COPY.noMatches : COPY.empty}</h3>
+            <p>{search && catalog?.total === 0 ? COPY.noMatchesHint : COPY.emptyHint}</p>
+            <div className="resource-start-actions" aria-label={COPY.browse}>
+              {Object.entries(labels)
+                .slice(0, 3)
+                .map(([key, label]) => (
+                  <Button key={key} onClick={() => changeKind(key)}>
+                    {label}
+                  </Button>
+                ))}
+            </div>
+            <Typography.Text type="secondary">
+              {loading ? COPY.loading : COPY.pinned}
+            </Typography.Text>
           </div>
         )}
       </div>
