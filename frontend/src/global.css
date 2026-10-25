@@ -278,6 +278,10 @@ button {
   display: grid;
   gap: 24px;
 }
+/* 日志长行只在终端内滚动，不参与环境页 Grid 列的最小宽度计算。 */
+.platform-content .environment-page {
+  grid-template-columns: minmax(0, 1fr);
+}
 .page-heading {
   display: flex;
   justify-content: space-between;
