@@ -46,6 +46,7 @@ const DETAIL_STYLE = {
   header: 'environment-detail-header',
   title: 'environment-detail-title',
   row: 'build-record-main',
+  summary: 'build-record-summary',
   source: 'build-record-source',
   status: 'build-record-status',
   time: 'build-record-time',
@@ -349,53 +350,55 @@ function SelectedEnvironment({
         {!page.items.length && <Empty description="暂无构建记录" />}
         {page.items.map((build) => (
           <article className="environment-build" key={build.buildId}>
-            <div className={DETAIL_STYLE.row}>
-              <div className={DETAIL_STYLE.source}>
-                <strong>
-                  <Link
-                    className={DETAIL_STYLE.entry}
-                    aria-label={`${COPY.enterBuild} ${build.buildId}`}
-                    to={`${BUILD_ROOT}${build.buildId}${build.catalogAvailable ? CATALOG_PATH : QUERY_PATH}`}
-                  >
-                    <BranchesOutlined aria-hidden /> {build.branchName}
-                  </Link>
-                </strong>
-                <code title={build.commitSha ?? undefined}>
-                  {build.commitSha?.slice(0, 8) ?? COPY.pendingCommit}
-                </code>
+            <div className={DETAIL_STYLE.summary}>
+              <div className={DETAIL_STYLE.row}>
+                <div className={DETAIL_STYLE.source}>
+                  <strong>
+                    <Link
+                      className={DETAIL_STYLE.entry}
+                      aria-label={`${COPY.enterBuild} ${build.buildId}`}
+                      to={`${BUILD_ROOT}${build.buildId}${build.catalogAvailable ? CATALOG_PATH : QUERY_PATH}`}
+                    >
+                      <BranchesOutlined aria-hidden /> {build.branchName}
+                    </Link>
+                  </strong>
+                  <code title={build.commitSha ?? undefined}>
+                    {build.commitSha?.slice(0, 8) ?? COPY.pendingCommit}
+                  </code>
+                </div>
+                <div className={DETAIL_STYLE.status}>
+                  <Tag color={STATUS_COLORS[build.buildStatus]}>{build.buildStatus}</Tag>
+                  {build.initialDeployment && <Tag>{build.initialDeployment.deploymentStatus}</Tag>}
+                </div>
+                <div className={DETAIL_STYLE.time}>
+                  <span>{COPY.created}</span>
+                  <time dateTime={build.createdAt} title={build.createdAt}>
+                    {build.createdAt
+                      ? new Date(build.createdAt).toLocaleString(DATE_LOCALE, DATE_OPTIONS)
+                      : COPY.noTime}
+                  </time>
+                </div>
+                {environment && (
+                  <RebuildAction
+                    build={build}
+                    environment={environment}
+                    api={api}
+                    commands={rebuildCommands.current}
+                    onSubmitted={() => setRefresh((value) => value + 1)}
+                  />
+                )}
               </div>
-              <div className={DETAIL_STYLE.status}>
-                <Tag color={STATUS_COLORS[build.buildStatus]}>{build.buildStatus}</Tag>
-                {build.initialDeployment && <Tag>{build.initialDeployment.deploymentStatus}</Tag>}
+              <div className={DETAIL_STYLE.actions}>
+                <Button
+                  type="link"
+                  aria-expanded={logBuild === build.buildId}
+                  onClick={() =>
+                    setLogBuild((current) => (current === build.buildId ? null : build.buildId))
+                  }
+                >
+                  {logBuild === build.buildId ? COPY.hideLogs : COPY.showLogs}
+                </Button>
               </div>
-              <div className={DETAIL_STYLE.time}>
-                <span>{COPY.created}</span>
-                <time dateTime={build.createdAt} title={build.createdAt}>
-                  {build.createdAt
-                    ? new Date(build.createdAt).toLocaleString(DATE_LOCALE, DATE_OPTIONS)
-                    : COPY.noTime}
-                </time>
-              </div>
-              {environment && (
-                <RebuildAction
-                  build={build}
-                  environment={environment}
-                  api={api}
-                  commands={rebuildCommands.current}
-                  onSubmitted={() => setRefresh((value) => value + 1)}
-                />
-              )}
-            </div>
-            <div className={DETAIL_STYLE.actions}>
-              <Button
-                type="link"
-                aria-expanded={logBuild === build.buildId}
-                onClick={() =>
-                  setLogBuild((current) => (current === build.buildId ? null : build.buildId))
-                }
-              >
-                {logBuild === build.buildId ? COPY.hideLogs : COPY.showLogs}
-              </Button>
             </div>
             <div className={DETAIL_STYLE.details}>
               <dl>

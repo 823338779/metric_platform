@@ -126,7 +126,7 @@ npm run test:e2e -- --config=playwright.publication.config.ts
 
 入口 `/dbt/environments`。环境仅保存连接实例、凭据引用、catalog/schema、并行度和业务时区；源码仓库由服务器全局绑定，每次构建从该仓库的实际分支中选择。修改配置须提交 `expectedConfigVersion`，旧配置、旧目标归属和已受理构建快照保留。多个环境不能占用同一实例/适配器/catalog/schema。
 
-`backend/metric-app/src/main/resources/application.yml` 的 `metric-platform.git.repository` 配置全局唯一构建仓库，默认 `http://127.0.0.1:3000/agent-admin/metrics.git`，可通过 `METRIC_GIT_REPOSITORY` 覆盖，修改后重启后端。浏览器只读展示仓库地址。`GET /api/dbt/repository/branches` 需要登录，使用服务器安装的 Git 读取远端分支，最长等待 15 秒；私有仓库的访问凭据由服务器 Git/SSH 配置管理，不放入仓库 URL。分支读取失败或没有分支时不能发起构建，支持刷新重试。构建提交的 `repository` 必须与当前服务器绑定地址一致，否则返回 422。历史记录继续保留原始仓库归属。
+`backend/metric-app/src/main/resources/application.yml` 的 `metric-platform.git.repository` 配置全局唯一构建仓库，默认 `https://github.com/823338779/metric_store.git`，直接访问 GitHub，不依赖本地 Forgejo。当前远端默认分支为 `master`，也可选择 `dbt-dev`；分支列表以远端实际返回为准。可通过 `METRIC_GIT_REPOSITORY` 覆盖仓库地址，修改后重启后端。浏览器只读展示仓库地址。`GET /api/dbt/repository/branches` 需要登录，使用服务器安装的 Git 读取远端分支，最长等待 15 秒；私有仓库的访问凭据由服务器 Git/SSH 配置管理，不放入仓库 URL。分支读取失败或没有分支时不能发起构建，支持刷新重试。构建提交的 `repository` 必须与当前服务器绑定地址一致，否则返回 422。历史记录继续保留原始仓库归属；切换前的 Forgejo 构建不支持直接重新构建，请在顶部为 GitHub 仓库选择分支并提交新构建。
 
 - `/api/dbt/environments`：环境列表（最多 200 项）和新增；`/{environmentId}`：读取和按期望版本更新。
 - `/{environmentId}/builds`：POST 提交；GET 按环境读取全部构建历史，可选仓库、分支、状态和游标。失败、排队、未部署构建也保留。
