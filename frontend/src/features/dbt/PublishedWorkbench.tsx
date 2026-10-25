@@ -9,7 +9,7 @@ import {
 import { AnalysisEmpty, ChoiceChips, MetricLibrary, TimeRange } from './AnalysisControls';
 import { QuerySelection, ASCENDING, type QueryDirection } from './QuerySelection';
 import { DbtQueryResults } from './DbtQueryResults';
-import { manifestResources, publishedResult } from './publishedResourceAdapter';
+import { catalogResources, publishedResult } from './publishedResourceAdapter';
 import { businessTimeToIso } from './businessTime';
 import { useEffect, useRef, useState } from 'react';
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
@@ -172,8 +172,8 @@ function FixedPublishedWorkbench({ api }: { api: BuildCatalogApi }) {
     const load = async () => {
       try {
         {
-          const manifest = await api.catalog(buildId);
-          const all = manifestResources(manifest).filter((item) => item.kind === 'METRIC');
+          const catalog = await api.catalog(buildId);
+          const all = catalogResources(catalog).filter((item) => item.kind === 'METRIC');
           if (turn !== generation.current) return;
           setMetrics(all);
           setSelected((previous) =>

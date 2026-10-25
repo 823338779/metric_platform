@@ -3,6 +3,47 @@ import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-libra
 import { afterEach, expect, it, vi } from 'vitest';
 import { ExecutionLogs } from './ExecutionLogs';
 afterEach(cleanup);
+
+it('保持在底部可切换，开启时跟随新日志，关闭后保留阅读位置', async () => {
+  const followLabel = '保持在底部';
+  const refreshLabel = '刷新日志';
+  const logRole = 'log';
+  const buttonRole = 'button';
+  const pressedAttribute = 'aria-pressed';
+  const heightProperty = 'scrollHeight';
+  const messages = ['第一条日志', '第二条日志', '第三条日志'];
+  const logs = vi.fn();
+  messages.forEach((message, index) =>
+    logs.mockResolvedValueOnce({
+      items: [{ logId: String(index), message }],
+      hasMore: false,
+    }),
+  );
+  const api = { logs, getBuild: vi.fn().mockResolvedValue({ buildStatus: 'SUCCEEDED' }) };
+  render(<ExecutionLogs buildId="build" api={api as never} />);
+  await screen.findByText(messages[0]);
+  const terminal = screen.getByRole(logRole);
+  const follow = screen.getByRole(buttonRole, { name: followLabel });
+  Object.defineProperty(terminal, heightProperty, { configurable: true, value: 600 });
+  terminal.scrollTop = 80;
+  terminal.scrollLeft = 30;
+  expect(follow).toHaveAttribute(pressedAttribute, String(false));
+  fireEvent.click(follow);
+  expect(follow).toHaveAttribute(pressedAttribute, String(true));
+  expect(terminal.scrollTop).toBe(600);
+  expect(terminal.scrollLeft).toBe(30);
+  Object.defineProperty(terminal, heightProperty, { configurable: true, value: 900 });
+  fireEvent.click(screen.getByRole(buttonRole, { name: refreshLabel }));
+  await screen.findByText(messages[1]);
+  expect(terminal.scrollTop).toBe(900);
+  fireEvent.click(follow);
+  terminal.scrollTop = 120;
+  fireEvent.click(screen.getByRole(buttonRole, { name: refreshLabel }));
+  await screen.findByText(messages[2]);
+  expect(follow).toHaveAttribute(pressedAttribute, String(false));
+  expect(terminal.scrollTop).toBe(120);
+});
+
 it('串行追加结构化日志，以字符串 ID 去重且保留空页游标', async () => {
   const logs = vi
     .fn()

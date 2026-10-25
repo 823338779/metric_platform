@@ -5,10 +5,23 @@
 
 .execution-logs-toolbar {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   justify-content: space-between;
   gap: 16px;
   margin-bottom: 8px;
+}
+
+.execution-logs-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.execution-logs-actions button[aria-pressed='true'] {
+  color: var(--ant-color-primary);
+  border-color: var(--ant-color-primary);
+  background: var(--ant-color-primary-bg);
 }
 
 /* 日志共用终端画布，保留原始缩进和换行；长行在区域内部滚动。 */

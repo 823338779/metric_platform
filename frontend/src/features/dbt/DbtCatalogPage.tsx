@@ -119,7 +119,7 @@ export function DbtCatalogPage({
         active = false;
       };
     }
-    // 展示适配器对固定 Manifest 本地分页；其他资源遍历后筛选，避免漏掉后续页。
+    // 展示适配器对固定资源列表本地分页；其他资源遍历后筛选，避免漏掉后续页。
     setLoading(true);
     const loadCatalog = async () => {
       if (kind !== OTHER)

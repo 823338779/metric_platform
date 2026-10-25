@@ -71,12 +71,12 @@ class BuildApiContractTest {
                 .thenReturn(
                         new com.fasterxml.jackson.databind.ObjectMapper()
                                 .readTree(
-                                        "{\"metadata\":{},\"metrics\":{},\"nodes\":{},\"semantic_models\":{}}"));
+                                        "[{\"unique_id\":\"model.shop.orders\",\"resource_type\":\"model\"}]"));
         mvc.perform(
                         get(ROOT + "/builds/" + build + "/catalog")
                                 .header("Authorization", "Bearer " + TOKEN))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.metadata").isMap());
+                .andExpect(jsonPath("$[0].unique_id").value("model.shop.orders"));
         when(environmentBuilds.getBuild(build))
                 .thenThrow(
                         new BuildGateway.Failure(

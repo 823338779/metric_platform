@@ -761,7 +761,7 @@ paths:
         - bearerAuth: []
   /api/dbt/builds/{buildId}/catalog:
     get:
-      summary: 读取固定构建的原生 Manifest
+      summary: 读取固定构建的原生资源列表
       operationId: catalog_builds__build_id__catalog_get
       parameters:
       - name: buildId
@@ -777,7 +777,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Manifest'
+                $ref: '#/components/schemas/NativeCatalog'
         '422':
           description: 平台错误包装保留服务业务诊断
           content:
@@ -1892,10 +1892,22 @@ components:
       - items
       - nextCursor
       - hasMore
-    Manifest:
-      type: object
-      additionalProperties: true
-      description: dbt 原生 Manifest，完整保留 nodes、sources、metrics、semantic_models 等字段；无平台分页、筛选或资源包装
+    NativeCatalog:
+      type: array
+      description: dbt ls 原生资源列表，包含模型、指标、语义模型等资源；无平台分页或包装
+      items:
+        type: object
+        additionalProperties: true
+        required:
+        - unique_id
+        - resource_type
+        properties:
+          unique_id:
+            type: string
+            description: dbt 原生资源唯一标识
+          resource_type:
+            type: string
+            description: dbt 原生资源类型
     DimensionOption:
       type: object
       additionalProperties: false

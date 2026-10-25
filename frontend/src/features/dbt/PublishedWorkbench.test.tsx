@@ -37,11 +37,11 @@ it.each([false, true])(
       current: refreshFails
         ? vi.fn().mockRejectedValue(new Error('offline'))
         : vi.fn().mockResolvedValue({ activeBuildId: 'A' }),
-      catalog: vi.fn().mockResolvedValue({
-        metrics: {
-          ['M']: { unique_id: 'M', resource_type: 'metric', name: 'M', label: '指标 M' },
-        },
-      }),
+      catalog: vi
+        .fn()
+        .mockResolvedValue([
+          { unique_id: 'M', resource_type: 'metric', name: 'M', label: '指标 M' },
+        ]),
       availableDimensions: vi
         .fn()
         .mockResolvedValue({ buildId: 'A', state: 'SUCCEEDED', dimensions: [] }),
@@ -103,16 +103,14 @@ it('queries with native metric names and refreshes without requesting publicatio
     }),
     current: vi.fn().mockResolvedValue({ activeBuildId: 'A' }),
     publication: vi.fn().mockResolvedValue({ projectId: 'p', activePublication: { buildId: 'A' } }),
-    catalog: vi.fn().mockResolvedValue({
-      metrics: {
-        ['metric.p.revenue']: {
-          unique_id: 'metric.p.revenue',
-          resource_type: 'metric',
-          name: 'revenue',
-          label: '销售额',
-        },
+    catalog: vi.fn().mockResolvedValue([
+      {
+        unique_id: 'metric.p.revenue',
+        resource_type: 'metric',
+        name: 'revenue',
+        label: '销售额',
       },
-    }),
+    ]),
     availableDimensions: vi.fn().mockResolvedValue({
       state: 'SUCCEEDED',
       buildId: 'A',

@@ -20,15 +20,13 @@ it('展示适配器只调用固定build资源接口，源码与native详情保�
   expect((await api.getDbtSource('agent-project', 'x', B)).content).toBe('unknown: true');
   expect(fetcher.mock.calls.map(([url]) => url)).toEqual([`/api/dbt/builds/${B}/resources/x`]);
 });
-it('原生目录在本地分页筛选，同一固定构建只读取一次 Manifest', async () => {
+it('原生目录在本地分页筛选，同一固定构建只读取一次资源数组', async () => {
   const fetcher = vi.fn().mockResolvedValue(
     new Response(
-      JSON.stringify({
-        metrics: {
-          a: { resource_type: 'metric', name: 'alpha' },
-          b: { resource_type: 'metric', name: 'beta' },
-        },
-      }),
+      JSON.stringify([
+        { unique_id: 'a', resource_type: 'metric', name: 'alpha' },
+        { unique_id: 'b', resource_type: 'metric', name: 'beta' },
+      ]),
     ),
   );
   const api = createMetricPlatformApi(fetcher);

@@ -100,12 +100,7 @@ export type NativeNode = Record<string, unknown> & {
   config?: { materialized?: string };
   depends_on?: { nodes?: string[] };
 };
-export type NativeManifest = {
-  nodes?: Record<string, NativeNode>;
-  sources?: Record<string, NativeNode>;
-  metrics?: Record<string, NativeNode>;
-  semantic_models?: Record<string, NativeNode>;
-};
+export type NativeCatalog = (NativeNode & { unique_id: string })[];
 export type ResourceView = {
   buildId: string;
   resourceId: string;
@@ -171,7 +166,7 @@ export function createBuildCatalogApi(fetcher?: Fetcher) {
       request<{ items: DeploymentAttempt[]; nextCursor: string | null }>(
         `/deployments?${query({ ...key, cursor, limit: 50 })}`,
       ),
-    catalog: (id: string) => request<NativeManifest>(`${build(id)}/catalog`),
+    catalog: (id: string) => request<NativeCatalog>(`${build(id)}/catalog`),
     resource: (id: string, rid: string) => request<ResourceView>(resource(id, rid)),
     lineage: (id: string, selector: string) =>
       request<NativeNode[]>(`${build(id)}/lineage?${query({ selector })}`),

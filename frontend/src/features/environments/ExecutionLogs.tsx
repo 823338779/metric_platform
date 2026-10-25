@@ -9,6 +9,7 @@ const RETRY_MS = 3000;
 const COPY = {
   title: '构建日志',
   refresh: '刷新日志',
+  follow: '保持在底部',
   loading: '正在加载日志',
   empty: '暂无日志',
   failed: '日志读取失败',
@@ -16,6 +17,7 @@ const COPY = {
 const STYLE = {
   root: 'execution-logs',
   toolbar: 'execution-logs-toolbar',
+  actions: 'execution-logs-actions',
   terminal: 'execution-logs-terminal',
   row: 'execution-logs-row',
   time: 'execution-logs-time',
@@ -30,7 +32,13 @@ export function ExecutionLogs({ buildId, api }: { buildId: string; api: Environm
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(true);
   const [refresh, setRefresh] = useState(0);
+  const [follow, setFollow] = useState(false);
+  const terminal = useRef<HTMLDivElement>(null);
   const cursor = useRef<string | undefined>(undefined);
+  useEffect(() => {
+    // 只移动日志容器的纵向位置，避免带动整页或重置横向阅读位置。
+    if (follow && terminal.current) terminal.current.scrollTop = terminal.current.scrollHeight;
+  }, [follow, items.length, loading]);
   useEffect(() => {
     const controller = new AbortController();
     let timer: ReturnType<typeof setTimeout> | undefined;
@@ -76,10 +84,21 @@ export function ExecutionLogs({ buildId, api }: { buildId: string; api: Environm
     <section className={STYLE.root} aria-label={COPY.title} aria-busy={loading}>
       <div className={STYLE.toolbar}>
         <strong>{COPY.title}</strong>
-        <Button onClick={() => setRefresh((value) => value + 1)}>{COPY.refresh}</Button>
+        <div className={STYLE.actions}>
+          <Button aria-pressed={follow} onClick={() => setFollow((value) => !value)}>
+            {COPY.follow}
+          </Button>
+          <Button onClick={() => setRefresh((value) => value + 1)}>{COPY.refresh}</Button>
+        </div>
       </div>
       {error && <Alert type="error" title={error} />}
-      <div className={STYLE.terminal} role="log" aria-label={COPY.title} tabIndex={0}>
+      <div
+        ref={terminal}
+        className={STYLE.terminal}
+        role="log"
+        aria-label={COPY.title}
+        tabIndex={0}
+      >
         {loading && <p role="status">{COPY.loading}</p>}
         {!loading && !items.length && <p role="status">{COPY.empty}</p>}
         {items.map((row) => (

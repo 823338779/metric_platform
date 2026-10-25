@@ -60,7 +60,7 @@ npm run dev
 
 固定 buildId 固定指标定义和构建身份，不等于历史数据快照：当前服务在同一 schema 覆盖同名表，历史版本可能读取当前物理数据。
 
-目录接口 `GET /api/dbt/builds/{buildId}/catalog` 返回完整 dbt Manifest，保留 `nodes`、`sources`、`metrics`、`semantic_models` 等原生字段，不接收筛选或分页参数。界面在本地筛选、展示；原生目录没有独立维度资源 ID。资源详情 `/resources/{resourceId}` 使用 dbt `unique_id`，返回 `{buildId, resourceId, resource, source}`，其中 `resource` 为完整节点，`source` 为 `{path, content}` 或 null。血缘改为 `GET /api/dbt/builds/{buildId}/lineage?selector=…`，返回原生节点数组；selector 中的加号必须编码为 `%2B`。旧 `/resources/{resourceId}/{view}` 接口已移除。
+目录接口 `GET /api/dbt/builds/{buildId}/catalog` 返回 dbt ls 原生资源数组，每项保留 `unique_id`、`resource_type`、`name`、`config` 等字段，不接收筛选或分页参数。界面在本地筛选、展示；原生目录没有独立维度资源 ID。资源详情 `/resources/{resourceId}` 使用 dbt `unique_id`，返回 `{buildId, resourceId, resource, source}`，其中 `resource` 为完整节点，`source` 为 `{path, content}` 或 null。血缘改为 `GET /api/dbt/builds/{buildId}/lineage?selector=…`，返回原生节点数组；selector 中的加号必须编码为 `%2B`。旧 `/resources/{resourceId}/{view}` 接口已移除。
 
 可用维度与四种查询模式均同步完成。平台保留 `/builds/{buildId}/available-dimensions` 与 `/builds/{buildId}/queries` 门面；适配层分别调用 `/query/available-dimensions?build_id=…` 和 `/query?build_id=…`。可用维度请求为 `{"metrics":["revenue"]}`，返回 `{buildId, metrics, dimensions}`；指标使用名称，不能传旧资源 ID。维度保留 optionId、dimensionType、granularities 和 operators，不再返回 valueType。
 

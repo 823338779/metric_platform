@@ -4,26 +4,19 @@ import { publishedResourceAdapter } from './publishedResourceAdapter';
 
 const BUILD = 'build';
 const ID = 'metric.shop.revenue';
-const MANIFEST = {
-  metrics: {
-    [ID]: {
-      unique_id: ID,
-      resource_type: 'metric',
-      name: 'revenue',
-      label: '收入',
-      type: 'simple',
-    },
-  },
-  nodes: {},
-  semantic_models: {},
-};
-it('原生 Manifest 在本地转换目录，不向目录接口发送分页或类型参数', async () => {
+const CATALOG = [
+  { unique_id: ID, resource_type: 'metric', name: 'revenue' },
+  { unique_id: 'model.shop.orders', resource_type: 'model', name: 'orders' },
+  { unique_id: 'semantic_model.shop.orders', resource_type: 'semantic_model', name: 'orders' },
+  { unique_id: 'test.shop.orders', resource_type: 'test', name: 'orders_test' },
+];
+it('原生资源数组在本地转换目录，不向目录接口发送分页或类型参数', async () => {
   const fetcher = vi.fn(
-    async (_input: RequestInfo | URL, _init?: RequestInit) =>
-      new Response(JSON.stringify(MANIFEST)),
+    async (_input: RequestInfo | URL, _init?: RequestInit) => new Response(JSON.stringify(CATALOG)),
   );
   const adapter = publishedResourceAdapter(createBuildCatalogApi(fetcher));
   const page = await adapter.getDbtCatalog('', BUILD, '', 0, 20, 'METRIC');
+  expect((await adapter.getDbtCatalog('', BUILD)).total).toBe(3);
   expect(fetcher.mock.calls[0][0]).toBe('/api/dbt/builds/build/catalog');
   expect(page.resources).toEqual([
     expect.objectContaining({ resourceId: ID, name: 'revenue', kind: 'METRIC' }),
@@ -35,7 +28,7 @@ it('血缘使用 selector 编码保留加号，并从原生节点建立依赖', 
       new Response(
         JSON.stringify(
           String(input).includes('/resources/')
-            ? { buildId: BUILD, resourceId: ID, resource: MANIFEST.metrics[ID], source: null }
+            ? { buildId: BUILD, resourceId: ID, resource: CATALOG[0], source: null }
             : [
                 {
                   unique_id: ID,
@@ -69,7 +62,7 @@ it('资源详情同时提供原生节点和封存源码，预览不发送指标�
           resourceId: String(input).includes('model.shop.orders') ? 'model.shop.orders' : ID,
           resource: String(input).includes('model.shop.orders')
             ? { name: 'orders', resource_type: 'model', fqn: ['shop', 'orders'] }
-            : MANIFEST.metrics[ID],
+            : CATALOG[0],
           source: { path: 'models/metrics.yml', content: 'metrics: []' },
         }),
       ),

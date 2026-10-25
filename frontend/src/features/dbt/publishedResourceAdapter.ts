@@ -1,6 +1,6 @@
 import type {
   BuildCatalogApi,
-  NativeManifest,
+  NativeCatalog,
   NativeNode,
   PublishedResource,
   PublishedResult,
@@ -105,24 +105,19 @@ export function nativeResource(id: string, node: NativeNode): PublishedResource 
     nativeDetails: node,
   };
 }
-export function manifestResources(manifest: NativeManifest): PublishedResource[] {
-  return Object.entries({
-    ...manifest.nodes,
-    ...manifest.sources,
-    ...manifest.metrics,
-    ...manifest.semantic_models,
-  })
-    .filter(([, node]) =>
+export function catalogResources(catalog: NativeCatalog): PublishedResource[] {
+  return catalog
+    .filter((node) =>
       [METRIC, MODEL, SOURCE, SEED, SNAPSHOT, NATIVE_SEMANTIC_MODEL].includes(
         node.resource_type ?? '',
       ),
     )
-    .map(([id, node]) => nativeResource(id, node));
+    .map((node) => nativeResource(node.unique_id, node));
 }
 
-/** 原生协议在展示边界转换；缓存固定构建的不可变 Manifest 和资源，避免重复拉取。 */
+/** 原生协议在展示边界转换；缓存固定构建的不可变资源列表 和资源，避免重复拉取。 */
 export function publishedResourceAdapter(api: BuildCatalogApi) {
-  const manifests = new Map<string, Promise<NativeManifest>>();
+  const catalogs = new Map<string, Promise<NativeCatalog>>();
   const resources = new Map<string, ReturnType<BuildCatalogApi['resource']>>();
   const resource = async (_project: string, id: string, buildId: string) => {
     const key = JSON.stringify([buildId, id]);
@@ -146,13 +141,13 @@ export function publishedResourceAdapter(api: BuildCatalogApi) {
       size = 20,
       kind?: string,
     ) {
-      let pending = manifests.get(buildId);
+      let pending = catalogs.get(buildId);
       if (!pending) {
         pending = api.catalog(buildId);
-        manifests.set(buildId, pending);
-        pending.catch(() => manifests.delete(buildId));
+        catalogs.set(buildId, pending);
+        pending.catch(() => catalogs.delete(buildId));
       }
-      const all = manifestResources(await pending).filter(
+      const all = catalogResources(await pending).filter(
         (item) =>
           (!kind || item.kind === kind) &&
           (!search ||

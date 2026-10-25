@@ -50,14 +50,10 @@ public class HttpBuildGateway implements BuildGateway {
     private static final String SERVICE_AUTHENTICATION_FAILED = "SERVICE_AUTHENTICATION_FAILED";
     private static final String CATALOG = "/catalog",
             RESOURCES = "/resources/",
-            LINEAGE = "/lineage",
-            METADATA = "metadata",
-            NODES = "nodes",
-            METRICS = "metrics",
-            SEMANTIC_MODELS = "semantic_models";
+            LINEAGE = "/lineage";
     private static final int MAX_BYTES = 8 * 1024 * 1024;
 
-    /** 原生 Manifest 和源码不分页，读取边界与服务默认单产物上限一致。 */
+    /** 原生资源列表和源码不分页，读取边界与服务默认单产物上限一致。 */
     private static final int MAX_ARTIFACT_BYTES = 64 * 1024 * 1024;
 
     /** 固定运行服务地址。 */
@@ -175,13 +171,9 @@ public class HttpBuildGateway implements BuildGateway {
     }
 
     public JsonNode catalog(UUID id) {
-        // Manifest 没有 buildId 包装；版本由请求 URL 固定，完整保留原生结构。
+        // dbt ls 返回资源数组；版本由请求 URL 固定，完整保留原生字段。
         var result = call(GET, BUILDS + SLASH + id + CATALOG, null, JsonNode.class);
-        if (!result.isObject()
-                || !result.path(METADATA).isObject()
-                || !result.path(NODES).isObject()
-                || !result.path(METRICS).isObject()
-                || !result.path(SEMANTIC_MODELS).isObject()) throw invalid();
+        if (!result.isArray()) throw invalid();
         return result;
     }
 

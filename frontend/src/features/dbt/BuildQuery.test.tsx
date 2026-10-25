@@ -43,16 +43,14 @@ function fixture() {
       },
     }),
     current: vi.fn().mockResolvedValue({ activeBuildId: B2 }),
-    catalog: vi.fn().mockResolvedValue({
-      metrics: {
-        ['metric']: {
-          unique_id: 'metric',
-          resource_type: 'metric',
-          name: 'metric',
-          label: '销售额',
-        },
+    catalog: vi.fn().mockResolvedValue([
+      {
+        unique_id: 'metric',
+        resource_type: 'metric',
+        name: 'metric',
+        label: '销售额',
       },
-    }),
+    ]),
     availableDimensions: vi
       .fn()
       .mockResolvedValue({ buildId: B1, metrics: ['metric'], dimensions: [] }),

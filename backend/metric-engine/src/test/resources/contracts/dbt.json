@@ -258,23 +258,24 @@
     },
     {
       "name": "catalog",
-      "model": "Manifest",
-      "value": {
-        "metadata": {},
-        "metrics": {
-          "metric.revenue": {}
+      "model": "NativeCatalog",
+      "value": [
+        {
+          "unique_id": "metric.revenue",
+          "resource_type": "metric",
+          "name": "revenue"
         },
-        "semantic_models": {
-          "semantic_model.orders": {}
+        {
+          "unique_id": "semantic_model.orders",
+          "resource_type": "semantic_model",
+          "name": "orders"
         },
-        "nodes": {
-          "model.orders": {},
-          "model.order_view": {}
-        },
-        "sources": {},
-        "parent_map": {},
-        "child_map": {}
-      }
+        {
+          "unique_id": "model.orders",
+          "resource_type": "model",
+          "name": "orders"
+        }
+      ]
     },
     {
       "name": "resource",

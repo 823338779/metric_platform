@@ -15,6 +15,7 @@ class OpenApiContractTest {
                         .readTree(Files.readString(Path.of("..", "..", "api", "openapi.yaml")));
         assertThat(api.path("openapi").asText()).isEqualTo("3.1.0");
         assertThat(api.path("x-protocol-version").asText()).isEqualTo("execution-snapshot");
+        assertThat(api.at("/components/schemas/NativeCatalog/type").asText()).isEqualTo("array");
         for (var path :
                 java.util.List.of(
                         "/api/v1/auth/token",

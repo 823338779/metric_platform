@@ -36,16 +36,14 @@ function page(timeLabel = '下单时间', granularities = ['day', 'month']) {
       },
     }),
     current: vi.fn().mockResolvedValue({ activeBuildId: 'A' }),
-    catalog: vi.fn().mockResolvedValue({
-      metrics: {
-        ['metric-id']: {
-          unique_id: 'metric-id',
-          resource_type: 'metric',
-          name: 'revenue',
-          label: '销售额',
-        },
+    catalog: vi.fn().mockResolvedValue([
+      {
+        unique_id: 'metric-id',
+        resource_type: 'metric',
+        name: 'revenue',
+        label: '销售额',
       },
-    }),
+    ]),
     availableDimensions: vi.fn().mockResolvedValue({
       state: 'SUCCEEDED',
       buildId: 'A',

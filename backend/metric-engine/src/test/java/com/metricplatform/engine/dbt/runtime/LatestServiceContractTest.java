@@ -1,9 +1,11 @@
 package com.metricplatform.engine.dbt.runtime;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.metricplatform.catalog.BuildContracts.*;
+import com.metricplatform.catalog.BuildGateway;
 import com.sun.net.httpserver.HttpServer;
 import java.net.InetSocketAddress;
 import java.net.URI;
@@ -71,35 +73,49 @@ class LatestServiceContractTest {
     }
 
     @Test
-    void nativeManifestKeepsUnknownFieldsWithoutInventingPagination() throws Exception {
+    void nativeCatalogKeepsUnknownFieldsWithoutInventingPagination() throws Exception {
         var path = new AtomicReference<String>();
         var server =
                 server(
-                        "{\"metadata\":{},\"metrics\":{},\"semantic_models\":{},\"nodes\":{},\"extension\":{\"enabled\":true}}",
+                        "[{\"unique_id\":\"metric.shop.revenue\",\"resource_type\":\"metric\",\"extension\":{\"enabled\":true}}]",
                         new AtomicReference<>(),
                         path);
         try {
             var manifest = client(server).catalog(BUILD);
             assertThat(path.get()).isEqualTo("/builds/" + BUILD + "/catalog");
-            assertThat(manifest.path("extension").path("enabled").asBoolean()).isTrue();
-            assertThat(manifest.has("items")).isFalse();
+            assertThat(manifest.get(0).path("extension").path("enabled").asBoolean()).isTrue();
+            assertThat(manifest.isArray()).isTrue();
         } finally {
             server.stop(0);
         }
     }
 
     @Test
-    void nativeManifestCanExceedTheQueryResultLimit() throws Exception {
+    void nativeCatalogAcceptsEmptyListAndRejectsOldObject() throws Exception {
+        var empty = server("[]", new AtomicReference<>(), new AtomicReference<>());
+        var old = server("{}", new AtomicReference<>(), new AtomicReference<>());
+        try {
+            assertThat(client(empty).catalog(BUILD).isEmpty()).isTrue();
+            assertThatThrownBy(() -> client(old).catalog(BUILD))
+                    .isInstanceOf(BuildGateway.Failure.class);
+        } finally {
+            empty.stop(0);
+            old.stop(0);
+        }
+    }
+
+    @Test
+    void nativeCatalogCanExceedTheQueryResultLimit() throws Exception {
         String description = "x".repeat(8 * 1024 * 1024);
         var server =
                 server(
-                        "{\"metadata\":{},\"metrics\":{},\"semantic_models\":{},\"nodes\":{},\"description\":\""
+                        "[{\"unique_id\":\"model.shop.orders\",\"resource_type\":\"model\",\"description\":\""
                                 + description
-                                + "\"}",
+                                + "\"}]",
                         new AtomicReference<>(),
                         new AtomicReference<>());
         try {
-            assertThat(client(server).catalog(BUILD).path("description").asText())
+            assertThat(client(server).catalog(BUILD).get(0).path("description").asText())
                     .isEqualTo(description);
         } finally {
             server.stop(0);
