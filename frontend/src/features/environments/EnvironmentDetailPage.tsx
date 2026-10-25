@@ -5,25 +5,67 @@ import {
   environmentApi,
   type EnvironmentApi,
   type EnvironmentBuildPage,
+  type BuildCommand,
+  type EnvironmentBuild,
   type EnvironmentInput,
   type ExecutionEnvironment,
 } from '../../api/environmentApi';
 import { EnvironmentForm } from './EnvironmentForm';
 import { ExecutionLogs } from './ExecutionLogs';
 import { BuildSubmissionForm } from './BuildSubmissionForm';
+import './environment-detail.css';
 import {
   ArrowLeftOutlined,
   ReloadOutlined,
   SettingOutlined,
   BuildOutlined,
+  BranchesOutlined,
 } from '@ant-design/icons';
 
 const COPY = {
   cancel: '收起配置',
-  historyHint: '构建与部署状态分别记录，选择固定版本查看资源或分析数据。',
+  historyHint: '查看固定版本的目录与查询。重新构建使用原仓库、原分支的最新提交与当前环境配置。',
   target: '执行目标',
   config: '配置版本',
   timezone: '业务时区',
+  buildId: '构建 ID',
+  repository: '仓库',
+  commit: '完整提交',
+  pendingCommit: '等待固定提交',
+  showLogs: '查看日志',
+  hideLogs: '收起日志',
+  rebuild: '重新构建',
+  retry: '重试提交',
+  rebuildError: '提交结果未知，请重试本次提交',
+  created: '提交时间',
+  noTime: '时间未提供',
+  enterBuild: '进入构建',
+};
+const DETAIL_STYLE = {
+  page: 'environment-page environment-detail',
+  header: 'environment-detail-header',
+  title: 'environment-detail-title',
+  row: 'build-record-main',
+  source: 'build-record-source',
+  status: 'build-record-status',
+  time: 'build-record-time',
+  actions: 'build-record-actions',
+  details: 'build-record-details',
+  rebuild: 'build-record-rebuild',
+  entry: 'build-record-entry',
+};
+const BUILD_ROOT = '/dbt/builds/';
+const CATALOG_PATH = '/catalog';
+const QUERY_PATH = '/query';
+const DEPLOY_ON_SUCCESS = 'ON_SUCCESS';
+const DATE_LOCALE = 'zh-CN';
+const DATE_OPTIONS: Intl.DateTimeFormatOptions = {
+  year: 'numeric',
+  month: '2-digit',
+  day: '2-digit',
+  hour: '2-digit',
+  minute: '2-digit',
+  hour12: false,
 };
 const STATUS_COLORS: Record<string, string> = {
   SUCCEEDED: 'success',
@@ -38,6 +80,57 @@ export function EnvironmentDetailPage({ api = environmentApi }: { api?: Environm
   const { environmentId = '' } = useParams();
   // 环境切换重建状态，历史刷新保留尚未确定结果的提交键。
   return <SelectedEnvironment key={environmentId} api={api} environmentId={environmentId} />;
+}
+
+function RebuildAction({
+  build,
+  environment,
+  api,
+  onSubmitted,
+  commands,
+}: {
+  build: EnvironmentBuild;
+  environment: ExecutionEnvironment;
+  api: EnvironmentApi;
+  onSubmitted: () => void;
+  commands: Map<string, BuildCommand>;
+}) {
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState('');
+  const submitting = useRef(false);
+  async function submit() {
+    if (submitting.current) return;
+    submitting.current = true;
+    // 重建跟随历史仓库与分支的最新提交；响应未知时保留完整命令和幂等键。
+    const command = commands.get(build.buildId) ?? {
+      repository: build.repository,
+      branchName: build.branchName,
+      expectedConfigVersion: environment.configVersion,
+      deploymentPolicy: DEPLOY_ON_SUCCESS,
+      idempotencyKey: crypto.randomUUID(),
+    };
+    commands.set(build.buildId, command);
+    setBusy(true);
+    setError('');
+    try {
+      await api.submitBuild(environment.environmentId, command);
+      commands.delete(build.buildId);
+      onSubmitted();
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : COPY.rebuildError);
+    } finally {
+      submitting.current = false;
+      setBusy(false);
+    }
+  }
+  return (
+    <div className={DETAIL_STYLE.rebuild}>
+      <Button icon={<ReloadOutlined aria-hidden />} loading={busy} onClick={() => void submit()}>
+        {commands.has(build.buildId) && !busy ? COPY.retry : COPY.rebuild}
+      </Button>
+      {error && <Alert type="error" title={error} />}
+    </div>
+  );
 }
 function SelectedEnvironment({
   api,
@@ -56,6 +149,8 @@ function SelectedEnvironment({
   const [logBuild, setLogBuild] = useState<string | null>(null);
   const generation = useRef(0);
   const paging = useRef(false);
+  // 历史筛选和刷新会卸载记录，未确认提交的幂等键因此由环境页保留。
+  const rebuildCommands = useRef(new Map<string, BuildCommand>());
   const repository = params.get('repository') || undefined;
   const branchName = params.get('branchName') || undefined;
   const buildStatus = params.get('buildStatus') || undefined;
@@ -126,38 +221,40 @@ function SelectedEnvironment({
     }
   }
   return (
-    <section className="environment-page">
+    <section className={DETAIL_STYLE.page}>
       <Link className="back-link" to="/dbt/environments">
         <ArrowLeftOutlined aria-hidden /> 返回环境列表
       </Link>
       {error && <Alert type="error" title={error} />}
       {environment && (
         <>
-          <header className="page-heading">
-            <div>
-              <h2>{environment.name}</h2>
-              <p>{environment.execution.connection.instanceId}</p>
+          <header className={DETAIL_STYLE.header}>
+            <div className={DETAIL_STYLE.title}>
+              <div>
+                <h2>{environment.name}</h2>
+                <p>{environment.execution.connection.instanceId}</p>
+              </div>
+              <Button icon={<SettingOutlined aria-hidden />} onClick={() => setEditing(!editing)}>
+                {editing ? COPY.cancel : '编辑配置'}
+              </Button>
             </div>
-            <Button icon={<SettingOutlined aria-hidden />} onClick={() => setEditing(!editing)}>
-              {editing ? COPY.cancel : '编辑配置'}
-            </Button>
+            <dl className="environment-summary">
+              <div>
+                <dt>{COPY.target}</dt>
+                <dd>
+                  {environment.execution.catalog} / {environment.execution.schema}
+                </dd>
+              </div>
+              <div>
+                <dt>{COPY.config}</dt>
+                <dd>v{environment.configVersion}</dd>
+              </div>
+              <div>
+                <dt>{COPY.timezone}</dt>
+                <dd>{environment.execution.businessTimezone}</dd>
+              </div>
+            </dl>
           </header>
-          <dl className="environment-summary">
-            <div>
-              <dt>{COPY.target}</dt>
-              <dd>
-                {environment.execution.catalog} / {environment.execution.schema}
-              </dd>
-            </div>
-            <div>
-              <dt>{COPY.config}</dt>
-              <dd>v{environment.configVersion}</dd>
-            </div>
-            <div>
-              <dt>{COPY.timezone}</dt>
-              <dd>{environment.execution.businessTimezone}</dd>
-            </div>
-          </dl>
           {editing && (
             <Card className="environment-editor" title="环境配置">
               <EnvironmentForm
@@ -252,28 +349,79 @@ function SelectedEnvironment({
         {!page.items.length && <Empty description="暂无构建记录" />}
         {page.items.map((build) => (
           <article className="environment-build" key={build.buildId}>
-            <p>
-              <Tag color={STATUS_COLORS[build.buildStatus]}>{build.buildStatus}</Tag>
-              {build.initialDeployment && (
-                <Tag>{build.initialDeployment.deploymentStatus}</Tag>
-              )}{' '}
-              <code>{build.buildId}</code>
-            </p>
-            <p>
-              {build.repository} · {build.branchName} · {build.commitSha ?? '等待固定提交'}
-            </p>
-            <p>
-              {build.execution?.catalog} / {build.execution?.schema} · 配置版本{' '}
-              {build.execution.configVersion} · {build.createdAt}
-            </p>
-            <div className="environment-actions">
-              {build.catalogAvailable && (
-                <Link to={`/dbt/builds/${build.buildId}/catalog`}>查看目录</Link>
+            <div className={DETAIL_STYLE.row}>
+              <div className={DETAIL_STYLE.source}>
+                <strong>
+                  <Link
+                    className={DETAIL_STYLE.entry}
+                    aria-label={`${COPY.enterBuild} ${build.buildId}`}
+                    to={`${BUILD_ROOT}${build.buildId}${build.catalogAvailable ? CATALOG_PATH : QUERY_PATH}`}
+                  >
+                    <BranchesOutlined aria-hidden /> {build.branchName}
+                  </Link>
+                </strong>
+                <code title={build.commitSha ?? undefined}>
+                  {build.commitSha?.slice(0, 8) ?? COPY.pendingCommit}
+                </code>
+              </div>
+              <div className={DETAIL_STYLE.status}>
+                <Tag color={STATUS_COLORS[build.buildStatus]}>{build.buildStatus}</Tag>
+                {build.initialDeployment && <Tag>{build.initialDeployment.deploymentStatus}</Tag>}
+              </div>
+              <div className={DETAIL_STYLE.time}>
+                <span>{COPY.created}</span>
+                <time dateTime={build.createdAt} title={build.createdAt}>
+                  {build.createdAt
+                    ? new Date(build.createdAt).toLocaleString(DATE_LOCALE, DATE_OPTIONS)
+                    : COPY.noTime}
+                </time>
+              </div>
+              {environment && (
+                <RebuildAction
+                  build={build}
+                  environment={environment}
+                  api={api}
+                  commands={rebuildCommands.current}
+                  onSubmitted={() => setRefresh((value) => value + 1)}
+                />
               )}
-              {<Link to={`/dbt/builds/${build.buildId}/query`}>查询此构建</Link>}
-              <Button type="link" onClick={() => setLogBuild(build.buildId)}>
-                查看日志
+            </div>
+            <div className={DETAIL_STYLE.actions}>
+              <Button
+                type="link"
+                aria-expanded={logBuild === build.buildId}
+                onClick={() =>
+                  setLogBuild((current) => (current === build.buildId ? null : build.buildId))
+                }
+              >
+                {logBuild === build.buildId ? COPY.hideLogs : COPY.showLogs}
               </Button>
+            </div>
+            <div className={DETAIL_STYLE.details}>
+              <dl>
+                <div>
+                  <dt>{COPY.buildId}</dt>
+                  <dd>
+                    <code>{build.buildId}</code>
+                  </dd>
+                </div>
+                <div>
+                  <dt>{COPY.repository}</dt>
+                  <dd>{build.repository}</dd>
+                </div>
+                <div>
+                  <dt>{COPY.commit}</dt>
+                  <dd>
+                    <code>{build.commitSha ?? COPY.pendingCommit}</code>
+                  </dd>
+                </div>
+                <div>
+                  <dt>{COPY.target}</dt>
+                  <dd>
+                    {build.execution?.catalog} / {build.execution?.schema}
+                  </dd>
+                </div>
+              </dl>
             </div>
             {logBuild === build.buildId && (
               <ExecutionLogs key={logBuild} buildId={logBuild} api={api} />

@@ -7,17 +7,19 @@ colors:
   primary-active: "#183e9e"
   ink: "#202d40"
   heading: "#18263d"
-  muted: "#58677b"
-  placeholder: "#66758b"
+  muted: "#4f5f73"
+  placeholder: "#5e6c7e"
   rail: "#172638"
   rail-hover: "#24374e"
   rail-text: "#c5d0df"
-  ground: "#f5f6f8"
-  surface: "#ffffff"
-  line: "#e2e7ee"
+  ground: "#e5e8ec"
+  surface: "#f0f2f4"
+  line: "#c4ccd6"
+  header: "#dbe2ea"
+  control: "#f7f8fa"
   control-border: "#d9d9d9"
   secondary-border: "#e7ecf3"
-  inset: "#f8fafc"
+  inset: "#e1e6ec"
   native-inset: "#f6f8fb"
   library: "#f1f3f7"
   rail-selected: "#2a4263"
@@ -68,7 +70,7 @@ typography:
     fontSize: "20px"
   body:
     fontFamily: "'Segoe UI', 'Microsoft YaHei', sans-serif"
-    fontSize: "14px"
+    fontSize: "15px"
     lineHeight: 1.5714285714285714
   description:
     fontSize: "16px"
@@ -77,7 +79,7 @@ typography:
     fontFamily: "'Segoe UI', 'Microsoft YaHei', sans-serif"
     fontSize: "14px"
   label:
-    fontSize: "12px"
+    fontSize: "14px"
   code:
     fontFamily: "Consolas, 'Microsoft YaHei', monospace"
     fontSize: "13px"
@@ -225,7 +227,7 @@ components:
 
 - **深蓝导航**（`rail`）：全局可收起侧栏；正文深墨色使用 `ink`，不能把栏底色当作正文 token。
 - **冷灰工作底**（`ground`）与 **白色阅读面**（`surface`）：分别容纳目录、工具及主体内容。
-- **正文灰**（`muted`）与 **提示灰**（`placeholder`）：分别用于辅助说明与可用输入框占位文字；提示灰对白底的对比度约为 4.69:1。
+- **正文灰**（`muted`）与 **提示灰**（`placeholder`）：分别用于辅助说明与可用输入框占位文字；灰色底面上继续保持正文级别的可读对比度。
 - **边界灰**（`line`）：区域分隔；表单边框使用控件主题 token，避免凭装饰需要强化所有边线。
 - **查询画布灰**（`analysis-canvas`）：衬托白色条件面；搜索与日期字段采用 `analysis-search-border`、`analysis-field-border`，保留清楚的可编辑边界。
 
@@ -333,7 +335,7 @@ legacy 资源阅读面以内容内边距（30px）展开：编辑页签、资源
 
 ### Cards / Containers
 
-管理面板和主题卡片为白底、细边框及 `panel` 圆角；环境与部署以对齐记录呈现，配置按用途分组，构建历史保留日志和操作入口。资源详情主体直接位于阅读面；定义以分隔线和字段行组织，不为每个值套一层卡片。
+管理页面使用灰蓝底色（`ground`）、浅灰内容面（`surface`）、稍深的顶部栏（`header`）及分区标题（`inset`），减少大面积近白色的连续亮度。输入区域使用略亮的 `control`，只读内容使用 `inset`；工作蓝只强调操作、焦点和选中态，状态颜色保留原有语义。主题卡片保留细边框及 `panel` 圆角；环境与部署以对齐记录呈现，配置按用途分组，构建历史保留日志和操作入口。资源详情主体直接位于阅读面；定义以分隔线和字段行组织，不为每个值套一层卡片。
 
 ### Dependency / Source
 

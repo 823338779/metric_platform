@@ -85,6 +85,81 @@ function mountLogs(logs: unknown) {
   });
 }
 
+it('历史记录直接展示四项身份信息、不展示配置版本，日志支持就地收起', async () => {
+  const showLogsLabel = '查看日志';
+  const hideLogsLabel = '收起日志';
+  const recordSelector = 'article';
+  const detailsSelector = 'details';
+  const configurationLabel = '配置版本';
+  const labels = ['构建 ID', '仓库', '完整提交', '执行目标'];
+  const logMessage = '验证日志';
+  mountLogs(
+    vi.fn().mockResolvedValue({
+      items: [{ logId: '1', message: logMessage }],
+      nextCursor: 'end',
+      hasMore: false,
+    }),
+  );
+  const identity = await screen.findByText(BUILD);
+  const record = identity.closest(recordSelector)!;
+  expect(record.querySelector(detailsSelector)).toBeNull();
+  expect(identity).toBeVisible();
+  for (const label of labels) expect(within(record).getByText(label)).toBeVisible();
+  expect(within(record).queryByText(configurationLabel)).not.toBeInTheDocument();
+  fireEvent.click(screen.getAllByRole('button', { name: showLogsLabel })[0]);
+  expect(await screen.findByText(logMessage)).toBeInTheDocument();
+  fireEvent.click(screen.getByRole('button', { name: hideLogsLabel }));
+  expect(screen.queryByRole('log')).not.toBeInTheDocument();
+});
+
+it('历史重建使用该记录的仓库分支和当前配置，失败重试沿用提交键', async () => {
+  const oldRepository = 'https://example.test/previous.git';
+  const oldBranch = 'release/previous';
+  const failure = '响应未知';
+  const rebuildLabel = '重新构建';
+  const retryLabel = '重试提交';
+  const refreshLabel = '刷新历史';
+  const api = {
+    get: vi.fn().mockResolvedValue(environment),
+    builds: vi.fn().mockResolvedValue({
+      items: [
+        {
+          buildId: BUILD,
+          repository: oldRepository,
+          branchName: oldBranch,
+          commitSha: 'old-fixed-sha',
+          buildStatus: 'SUCCEEDED',
+          execution: { ...environment.execution, configVersion: 0 },
+        },
+      ],
+      nextCursor: null,
+    }),
+    submitBuild: vi
+      .fn()
+      .mockRejectedValueOnce(new Error(failure))
+      .mockResolvedValue({ buildId: BUILD }),
+  };
+  mount(api);
+  fireEvent.click(await screen.findByRole('button', { name: rebuildLabel }));
+  await screen.findByText(failure);
+  expect(api.submitBuild.mock.calls[0]).toEqual([
+    ID,
+    {
+      repository: oldRepository,
+      branchName: oldBranch,
+      expectedConfigVersion: environment.configVersion,
+      deploymentPolicy: 'ON_SUCCESS',
+      idempotencyKey: expect.any(String),
+    },
+  ]);
+  fireEvent.click(screen.getByRole('button', { name: refreshLabel }));
+  await waitFor(() => expect(api.builds).toHaveBeenCalledTimes(2));
+  fireEvent.click(await screen.findByRole('button', { name: retryLabel }));
+  await waitFor(() => expect(api.submitBuild).toHaveBeenCalledTimes(2));
+  expect(api.submitBuild.mock.calls[1]).toEqual(api.submitBuild.mock.calls[0]);
+  await waitFor(() => expect(api.builds).toHaveBeenCalledTimes(3));
+});
+
 it('点击日志立即在当前构建下显示加载反馈，空结果也有提示', async () => {
   let resolveLogs!: (value: {
     items: { logId: string; message: string }[];
@@ -158,7 +233,7 @@ it('切换查看的构建后忽略晚返回的旧日志', async () => {
   expect(screen.queryByText('旧构建日志')).not.toBeInTheDocument();
 });
 
-it('完整构建历史展示失败和未部署版本，查询使用固定 build', async () => {
+it('构建卡片只有一个固定版本入口，有目录时进入目录，否则进入查询工作区', async () => {
   const api = {
     get: vi.fn().mockResolvedValue(environment),
     builds: vi.fn().mockResolvedValue({
@@ -185,10 +260,16 @@ it('完整构建历史展示失败和未部署版本，查询使用固定 build'
   };
   mount(api);
   expect(await screen.findByText('FAILED')).toBeInTheDocument();
-  expect(screen.getAllByRole('link', { name: '查询此构建' })[0]).toHaveAttribute(
+  expect(screen.getByRole('link', { name: `进入构建 ${BUILD}` })).toHaveAttribute(
     'href',
-    `/dbt/builds/${BUILD}/query`,
+    `/dbt/builds/${BUILD}/catalog`,
   );
+  expect(screen.getByRole('link', { name: '进入构建 failed-build' })).toHaveAttribute(
+    'href',
+    '/dbt/builds/failed-build/query',
+  );
+  expect(screen.queryByRole('link', { name: '查看目录' })).not.toBeInTheDocument();
+  expect(screen.queryByRole('link', { name: '查询此构建' })).not.toBeInTheDocument();
   expect(api.builds.mock.calls[0][0]).toBe(ID);
 });
 

@@ -2,10 +2,14 @@
 :root {
   --workspace-accent: #2859c5;
   --workspace-ink: #202d40;
-  --workspace-muted: #58677b;
-  --workspace-line: #e2e7ee;
-  --workspace-ground: #f5f6f8;
-  --workspace-inset: #f8fafc;
+  --workspace-muted: #4f5f73;
+  --workspace-line: #c4ccd6;
+  --workspace-ground: #e5e8ec;
+  --workspace-surface: #f0f2f4;
+  --workspace-inset: #e1e6ec;
+  --workspace-header: #dbe2ea;
+  --workspace-control: #f7f8fa;
+  --workspace-placeholder: #5e6c7e;
   --workspace-explorer: 268px;
   color: var(--workspace-ink);
   font-family: 'Segoe UI', 'Microsoft YaHei', sans-serif;
@@ -23,7 +27,7 @@ body,
 }
 body {
   background: var(--workspace-ground);
-  font-size: 14px;
+  font-size: 15px;
   line-height: 1.6;
 }
 ::selection {
@@ -43,6 +47,11 @@ textarea {
 input,
 textarea {
   caret-color: var(--workspace-accent);
+}
+input::placeholder,
+textarea::placeholder {
+  color: var(--workspace-placeholder);
+  opacity: 1;
 }
 a {
   color: var(--workspace-accent);
@@ -195,11 +204,11 @@ button {
   align-items: center;
   gap: 20px;
   padding: 0 24px;
-  background: white;
+  background: var(--workspace-header);
   border-bottom: 1px solid var(--workspace-line);
 }
 .platform-header-label {
-  font-size: 13px;
+  font-size: 15px;
   color: var(--workspace-muted);
 }
 .platform-nav-toggle.ant-btn {
@@ -314,7 +323,7 @@ button {
 .management-panel {
   border: 1px solid var(--workspace-line);
   border-radius: 12px;
-  background: white;
+  background: var(--workspace-surface);
   overflow: hidden;
   min-width: 0;
 }
@@ -447,7 +456,7 @@ button {
 .deployment-filter input:not(.ant-input),
 .deployment-filter select {
   border: 1px solid #cbd4df;
-  background: white;
+  background: var(--workspace-control);
   border-radius: 6px;
   min-height: 36px;
   padding: 6px 10px;
