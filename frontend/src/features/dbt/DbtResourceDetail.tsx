@@ -199,7 +199,7 @@ export function DbtResourceDetail({
               {projectId} <span>/</span>{' '}
             </>
           )}
-          {presentation && RESOURCE_LABELS[presentation.kind]} <span>/</span> {presentation?.title}
+          {presentation && RESOURCE_LABELS[presentation.kind]}
         </div>
         <div className="resource-heading-content">
           <div>

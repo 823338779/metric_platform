@@ -10,6 +10,28 @@ afterEach(() => {
 });
 
 describe('PlatformLayout', () => {
+  it('collapses navigation without losing fixed build destinations', () => {
+    render(
+      <MemoryRouter initialEntries={['/dbt/builds/build-123/query?resourceId=metric-1']}>
+        <Routes>
+          <Route path="/dbt/builds/:buildId/query" element={<PlatformLayout />} />
+        </Routes>
+      </MemoryRouter>,
+    );
+    fireEvent.click(screen.getByRole('button', { name: '收起导航' }));
+    expect(screen.getByRole('button', { name: '展开导航' }).getAttribute('aria-expanded')).toBe(
+      'false',
+    );
+    expect(screen.getAllByRole('link', { name: '资源管理' })[0].getAttribute('href')).toBe(
+      '/dbt/builds/build-123/catalog?resourceId=metric-1',
+    );
+    expect(screen.getByRole('link', { name: '执行环境' })).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: '展开导航' }));
+    expect(screen.getByRole('button', { name: '收起导航' }).getAttribute('aria-expanded')).toBe(
+      'true',
+    );
+  });
+
   it('shows deployment version navigation', () => {
     render(
       <MemoryRouter>

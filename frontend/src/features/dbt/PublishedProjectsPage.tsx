@@ -1,4 +1,5 @@
-import { Alert, Button, Card, Empty, Input, Tag } from 'antd';
+import { Alert, Button, Empty, Input, Tag, Skeleton } from 'antd';
+import { ReloadOutlined, SearchOutlined } from '@ant-design/icons';
 import { useEffect, useRef, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import {
@@ -33,6 +34,13 @@ const COPY = {
   version: '部署序号',
   created: '提交时间',
   deployed: '部署时间',
+  description: '追踪每次部署，回到任一固定版本理解与分析数据。',
+  history: '部署历史',
+  build: '构建版本',
+  status: '状态',
+  action: '操作',
+  filter: '定位部署范围',
+  loading: '正在读取部署历史',
 };
 type DeploymentPage = { items: DeploymentAttempt[]; nextCursor: string | null };
 
@@ -121,86 +129,148 @@ export function PublishedProjectsPage({ api = buildCatalogApi }: { api?: BuildCa
   }
   return (
     <section className="projects-page">
-      <header className="projects-heading">
-        <h2>{COPY.title}</h2>
-        <Button onClick={() => setRefresh((value) => value + 1)}>{COPY.refresh}</Button>
-      </header>
-      <form
-        className="deployment-filter"
-        onSubmit={(event) => {
-          event.preventDefault();
-          setParams({
-            [REPOSITORY]: draftRepository.trim(),
-            [BRANCH]: draftBranch.trim(),
-            [ENVIRONMENT]: draftEnvironment,
-          });
-          setRefresh((value) => value + 1);
-        }}
-      >
-        <label>
-          {COPY.repository}
-          <Input
-            aria-label={COPY.repository}
-            required
-            value={draftRepository}
-            onChange={(event) => setDraftRepository(event.target.value)}
-          />
-        </label>
-        <label>
-          {COPY.branch}
-          <Input
-            aria-label={COPY.branch}
-            required
-            value={draftBranch}
-            onChange={(event) => setDraftBranch(event.target.value)}
-          />
-        </label>
-        <label>
-          {COPY.environment}
-          <Input
-            aria-label={COPY.environment}
-            required
-            value={draftEnvironment}
-            onChange={(event) => setDraftEnvironment(event.target.value)}
-          />
-        </label>
+      <header className="page-heading">
+        <div>
+          <h2>{COPY.title}</h2>
+          <p>{COPY.description}</p>
+        </div>
         <Button
-          htmlType="submit"
-          loading={loading}
-          disabled={!draftRepository.trim() || !draftBranch.trim() || !draftEnvironment.trim()}
+          icon={<ReloadOutlined aria-hidden />}
+          onClick={() => setRefresh((value) => value + 1)}
         >
-          {COPY.submit}
+          {COPY.refresh}
         </Button>
-      </form>
+      </header>
+      <section className="management-panel deployment-scope">
+        <header className="panel-heading">
+          <h3>{COPY.filter}</h3>
+        </header>
+        <form
+          className="deployment-filter"
+          onSubmit={(event) => {
+            event.preventDefault();
+            setParams({
+              [REPOSITORY]: draftRepository.trim(),
+              [BRANCH]: draftBranch.trim(),
+              [ENVIRONMENT]: draftEnvironment,
+            });
+            setRefresh((value) => value + 1);
+          }}
+        >
+          <label>
+            {COPY.repository}
+            <Input
+              aria-label={COPY.repository}
+              required
+              value={draftRepository}
+              onChange={(event) => setDraftRepository(event.target.value)}
+            />
+          </label>
+          <label>
+            {COPY.branch}
+            <Input
+              aria-label={COPY.branch}
+              required
+              value={draftBranch}
+              onChange={(event) => setDraftBranch(event.target.value)}
+            />
+          </label>
+          <label>
+            {COPY.environment}
+            <Input
+              aria-label={COPY.environment}
+              required
+              value={draftEnvironment}
+              onChange={(event) => setDraftEnvironment(event.target.value)}
+            />
+          </label>
+          <Button
+            type="primary"
+            icon={<SearchOutlined aria-hidden />}
+            htmlType="submit"
+            loading={loading}
+            disabled={!draftRepository.trim() || !draftBranch.trim() || !draftEnvironment.trim()}
+          >
+            {COPY.submit}
+          </Button>
+        </form>
+      </section>
       {error && <Alert type="error" title={error} />}
       {currentError && <Alert type="warning" title={COPY.currentFailure} />}
       {(!repository || !environmentId) && <Empty description={COPY.required} />}
+      {loading && (
+        <div className="management-panel panel-loading" aria-label={COPY.loading}>
+          <Skeleton active />
+        </div>
+      )}
       {history && (
-        <section aria-label={COPY.title}>
-          <p>{COPY.source}</p>
+        <section className="management-panel" aria-label={COPY.title}>
+          <header className="panel-heading">
+            <h3>{COPY.history}</h3>
+            <span>{COPY.source}</span>
+          </header>
           {!history.items.length && <Empty description={COPY.empty} />}
-          {history.items.map((deployment) => (
-            <Card key={deployment.generation} title={`${COPY.version} ${deployment.generation}`}>
-              <Tag>{deployment.deploymentStatus}</Tag>
-              {deployment.buildId === activeBuild && <Tag color="green">{COPY.active}</Tag>}
-              <p>
-                <code>{deployment.buildId}</code>
-              </p>
-              <p>
-                {COPY.created}：{deployment.createdAt} · {COPY.deployed}：
-                {deployment.deployedAt ?? EMPTY}
-              </p>
-              {deployment.reason && <p>{deployment.reason}</p>}
-              <Link to={`/dbt/builds/${encodeURIComponent(deployment.buildId)}/catalog`}>
-                {COPY.catalog}
-              </Link>{' '}
-              {deployment.deploymentStatus === DEPLOYED && (
-                <Link to={`/dbt/builds/${encodeURIComponent(deployment.buildId)}/query`}>
-                  {COPY.query}
-                </Link>
-              )}
-            </Card>
-          ))}
+          {!!history.items.length && (
+            <div className="management-table-scroll">
+              <table className="management-table deployment-table">
+                <thead>
+                  <tr>
+                    <th>{COPY.version}</th>
+                    <th>{COPY.build}</th>
+                    <th>{COPY.status}</th>
+                    <th>{COPY.created}</th>
+                    <th>{COPY.deployed}</th>
+                    <th>{COPY.action}</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {history.items.map((deployment) => (
+                    <tr key={deployment.generation}>
+                      <td>
+                        <strong>#{deployment.generation}</strong>
+                      </td>
+                      <td>
+                        <code>{deployment.buildId}</code>
+                        {deployment.reason && <small>{deployment.reason}</small>}
+                      </td>
+                      <td>
+                        <Tag
+                          color={deployment.deploymentStatus === DEPLOYED ? 'success' : 'default'}
+                        >
+                          {deployment.deploymentStatus}
+                        </Tag>
+                        {deployment.buildId === activeBuild && (
+                          <Tag color="green">{COPY.active}</Tag>
+                        )}
+                      </td>
+                      <td>
+                        <time>{deployment.createdAt}</time>
+                      </td>
+                      <td>
+                        <time>{deployment.deployedAt ?? EMPTY}</time>
+                      </td>
+                      <td>
+                        <div className="table-actions">
+                          <Link
+                            to={`/dbt/builds/${encodeURIComponent(deployment.buildId)}/catalog`}
+                          >
+                            {COPY.catalog}
+                          </Link>{' '}
+                          {deployment.deploymentStatus === DEPLOYED && (
+                            <Link
+                              to={`/dbt/builds/${encodeURIComponent(deployment.buildId)}/query`}
+                            >
+                              {COPY.query}
+                            </Link>
+                          )}
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
           {history.nextCursor && (
             <Button loading={loadingMore} onClick={() => void loadMore()}>
               {COPY.more}

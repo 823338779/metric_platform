@@ -85,6 +85,38 @@ function mount(api: unknown) {
     </MemoryRouter>,
   );
 }
+it('版本详情折叠时仍展示身份读取失败的原因', async () => {
+  const api = fixture();
+  api.build.mockRejectedValue(new Error('identity unavailable'));
+  mount(api);
+  expect(await screen.findByText('分支身份详情读取失败，查询目标仍为上述固定 ID。')).toBeVisible();
+  expect(screen.getByRole('button', { name: '查询' })).toBeDisabled();
+});
+
+it('条件变化标记旧结果，执行期间的修改不会被误标为已更新', async () => {
+  const api = fixture();
+  mount(api);
+  fireEvent.click(await screen.findByRole('checkbox', { name: '销售额' }));
+  await waitFor(() => expect(screen.getByRole('button', { name: '查询' })).toBeEnabled());
+  fireEvent.click(screen.getByRole('button', { name: '查询' }));
+  await screen.findByText(/9007199254740993.01/);
+  expect(screen.getByText('结果与当前条件一致')).toBeInTheDocument();
+  fireEvent.change(screen.getByLabelText('行数'), { target: { value: '500' } });
+  expect(screen.getByText('条件已修改，运行查询以更新结果')).toBeInTheDocument();
+  let finish!: (value: unknown) => void;
+  api.submit.mockImplementationOnce(
+    () =>
+      new Promise((resolve) => {
+        finish = resolve;
+      }),
+  );
+  fireEvent.click(screen.getByRole('button', { name: '查询' }));
+  fireEvent.change(screen.getByLabelText('行数'), { target: { value: '200' } });
+  finish({ buildId: B1, columns: [{ name: 'value', type: 'DECIMAL' }], rows: [['123.45']] });
+  await screen.findByText(/123.45/);
+  expect(screen.getByText('条件已修改，运行查询以更新结果')).toBeInTheDocument();
+});
+
 it('同步选项响应前禁查询，新部署不替换选项和查询 buildId', async () => {
   const api = fixture();
   mount(api);

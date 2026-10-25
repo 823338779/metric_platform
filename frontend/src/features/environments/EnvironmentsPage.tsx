@@ -1,4 +1,5 @@
-import { Alert, Button, Card, Empty } from 'antd';
+import { Alert, Button, Empty, Skeleton } from 'antd';
+import { ArrowRightOutlined, PlusOutlined, DatabaseOutlined } from '@ant-design/icons';
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import {
@@ -9,11 +10,32 @@ import {
 } from '../../api/environmentApi';
 import { EnvironmentForm } from './EnvironmentForm';
 
+const COPY = {
+  description: '管理构建的执行目标，从这里发布并探索你的指标。',
+  list: '环境列表',
+  name: '环境名称',
+  adapter: '数据库',
+  target: '执行目标',
+  version: '配置版本',
+  action: '操作',
+  enter: '查看构建',
+  cancel: '取消新建',
+  loading: '正在加载环境',
+  empty: '新建一个执行环境，连接构建与指标分析。',
+  history: '查看部署版本',
+};
+const ADAPTER_NAMES: Record<string, string> = {
+  starrocks: 'StarRocks',
+  postgres: 'PostgreSQL',
+  duckdb: 'DuckDB',
+};
+
 export function EnvironmentsPage({ api = environmentApi }: { api?: EnvironmentApi }) {
   const [items, setItems] = useState<ExecutionEnvironment[]>([]);
   const [editing, setEditing] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
+  const [loading, setLoading] = useState(true);
   useEffect(() => {
     let active = true;
     api
@@ -23,6 +45,9 @@ export function EnvironmentsPage({ api = environmentApi }: { api?: EnvironmentAp
       })
       .catch((reason) => {
         if (active) setError(String(reason.message));
+      })
+      .finally(() => {
+        if (active) setLoading(false);
       });
     return () => {
       active = false;
@@ -43,35 +68,94 @@ export function EnvironmentsPage({ api = environmentApi }: { api?: EnvironmentAp
   }
   return (
     <section className="environment-page">
-      <header>
+      <header className="page-heading">
         <div>
           <h2>执行环境</h2>
-          <p>环境决定构建的物理落点；仓库由服务器统一配置，每次构建选择分支。</p>
+          <p>{COPY.description}</p>
         </div>
-        <Button type="primary" onClick={() => setEditing(!editing)}>
+        <Button type="primary" icon={<PlusOutlined aria-hidden />} onClick={() => setEditing(true)}>
           新建环境
         </Button>
       </header>
       {error && <Alert type="error" title={error} />}
       {editing && (
-        <Card title="新建执行环境">
+        <section className="management-panel environment-editor">
+          <header className="panel-heading">
+            <h3>新建执行环境</h3>
+            <Button type="text" onClick={() => setEditing(false)}>
+              {COPY.cancel}
+            </Button>
+          </header>
           <EnvironmentForm busy={busy} onSave={(input) => void save(input)} />
-        </Card>
+        </section>
       )}
-      {!items.length && !editing && <Empty description="尚未配置执行环境" />}
-      {items.map((item) => (
-        <Card
-          key={item.environmentId}
-          title={<Link to={`/dbt/environments/${item.environmentId}`}>{item.name}</Link>}
-        >
-          <p>
-            {item.execution.connection.instanceId} / {item.execution.catalog} /{' '}
-            {item.execution.schema}
-          </p>
-          <span>配置版本 {item.configVersion}</span>
-        </Card>
-      ))}
-      <Link to="/dbt/projects">查看旧版部署记录</Link>
+      <section className="management-panel">
+        <header className="panel-heading">
+          <h3>
+            {COPY.list}
+            <span className="count-label">{items.length}</span>
+          </h3>
+          <Link to="/dbt/projects">
+            {COPY.history} <ArrowRightOutlined aria-hidden />
+          </Link>
+        </header>
+        {loading ? (
+          <div className="panel-loading" aria-label={COPY.loading}>
+            <Skeleton active />
+          </div>
+        ) : !items.length ? (
+          <Empty description={COPY.empty} />
+        ) : (
+          <div className="management-table-scroll">
+            <table className="management-table">
+              <thead>
+                <tr>
+                  <th>{COPY.name}</th>
+                  <th>{COPY.adapter}</th>
+                  <th>{COPY.target}</th>
+                  <th>{COPY.version}</th>
+                  <th>{COPY.action}</th>
+                </tr>
+              </thead>
+              <tbody>
+                {items.map((item) => (
+                  <tr key={item.environmentId}>
+                    <td>
+                      <Link
+                        className="environment-name"
+                        to={`/dbt/environments/${item.environmentId}`}
+                      >
+                        <DatabaseOutlined aria-hidden />
+                        {item.name}
+                      </Link>
+                      <small>{item.execution.connection.instanceId}</small>
+                    </td>
+                    <td>
+                      {ADAPTER_NAMES[item.execution.connection.type] ??
+                        item.execution.connection.type}
+                    </td>
+                    <td>
+                      <span>{item.execution.catalog}</span>
+                      <small>{item.execution.schema}</small>
+                    </td>
+                    <td>
+                      <span className="neutral-badge">v{item.configVersion}</span>
+                    </td>
+                    <td>
+                      <Link
+                        to={`/dbt/environments/${item.environmentId}`}
+                        aria-label={`${COPY.enter}：${item.name}`}
+                      >
+                        {COPY.enter} <ArrowRightOutlined aria-hidden />
+                      </Link>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </section>
     </section>
   );
 }

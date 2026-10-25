@@ -15,10 +15,10 @@
   align-items: center;
   justify-content: space-between;
   gap: 16px;
-  min-height: 64px;
-  padding: 12px 20px;
+  min-height: 54px;
+  padding: 10px 24px;
   border-bottom: 1px solid var(--workspace-line);
-  background: var(--workspace-ground);
+  background: #fff;
 }
 .catalog-context-summary,
 .catalog-context-actions {
@@ -65,7 +65,7 @@
   min-height: 0;
 }
 .published-catalog-body.has-context {
-  grid-template-columns: minmax(0, 1fr) 260px;
+  grid-template-columns: minmax(0, 1fr) 232px;
 }
 .published-catalog .catalog-page {
   display: flex;
@@ -82,7 +82,7 @@
 .published-catalog .catalog-explorer {
   min-height: 0;
   overflow: hidden;
-  background: #f6f8fb;
+  background: #f1f3f7;
 }
 .catalog-page .explorer-project {
   margin-top: 0;
@@ -232,10 +232,10 @@
 }
 .published-catalog .resource-editor-tabs {
   height: auto;
-  min-height: 40px;
+  min-height: 36px;
   padding: 6px 24px;
   justify-content: space-between;
-  background: #fff;
+  background: #f8fafc;
 }
 .published-catalog .resource-editor-tabs > span {
   height: auto;
@@ -248,17 +248,18 @@
   white-space: nowrap;
 }
 .published-catalog .resource-detail-heading {
-  padding: 24px 28px 12px;
+  padding: 28px 32px 12px;
 }
 .published-catalog .resource-breadcrumb {
-  margin-bottom: 16px;
+  margin-bottom: 8px;
+  font-size: 11px;
 }
 .published-catalog .resource-heading-content {
   gap: 20px;
   flex-wrap: wrap;
 }
 .published-catalog .resource-title-line h3.ant-typography {
-  font-size: 26px;
+  font-size: 28px;
   line-height: 1.35;
 }
 .published-catalog .resource-heading-icon {
@@ -322,9 +323,9 @@
   min-width: 0;
   min-height: 0;
   overflow: auto;
-  padding: 22px 20px;
+  padding: 20px 18px;
   border-left: 1px solid var(--workspace-line);
-  background: #f6f8fb;
+  background: #f8fafc;
   overscroll-behavior: contain;
 }
 .catalog-context-title {
@@ -335,7 +336,7 @@
 }
 .catalog-context-title h2 {
   margin: 0;
-  font-size: 17px;
+  font-size: 14px;
   font-weight: 600;
 }
 .catalog-context-fields {

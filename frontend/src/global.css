@@ -1,15 +1,19 @@
+/* 公共工作台：浅色工作面与带文字的深色导航。 */
 :root {
-  --workspace-accent: #315bc3;
-  --workspace-ink: #233247;
-  --workspace-muted: #5b6b82;
-  --workspace-line: #e0e6ef;
-  --workspace-ground: #f3f5f8;
-  --workspace-explorer: 296px;
+  --workspace-accent: #2859c5;
+  --workspace-ink: #202d40;
+  --workspace-muted: #58677b;
+  --workspace-line: #e2e7ee;
+  --workspace-ground: #f5f6f8;
+  --workspace-inset: #f8fafc;
+  --workspace-explorer: 268px;
   color: var(--workspace-ink);
   font-family: 'Segoe UI', 'Microsoft YaHei', sans-serif;
 }
 * {
   box-sizing: border-box;
+  scrollbar-width: thin;
+  scrollbar-color: #bdc6d3 transparent;
 }
 html,
 body,
@@ -20,6 +24,7 @@ body,
 body {
   background: var(--workspace-ground);
   font-size: 14px;
+  line-height: 1.6;
 }
 ::selection {
   background: #dce7ff;
@@ -29,75 +34,157 @@ body {
   outline: 2px solid var(--workspace-accent);
   outline-offset: 3px;
 }
+button,
+input,
+select,
+textarea {
+  font: inherit;
+}
 input,
 textarea {
   caret-color: var(--workspace-accent);
 }
-* {
-  scrollbar-width: thin;
-  scrollbar-color: #b5bfce transparent;
-}
-button,
-input,
-select {
-  font: inherit;
-}
 a {
   color: var(--workspace-accent);
+  text-decoration: none;
   text-underline-offset: 3px;
 }
+a:hover {
+  text-decoration: underline;
+}
+code,
+pre {
+  font-family: Consolas, 'SFMono-Regular', monospace;
+}
+button {
+  cursor: pointer;
+}
+/* 收起导航不影响固定构建地址和键盘访问。 */
 .platform-layout {
+  --nav-width: 192px;
   display: grid;
-  grid-template-columns: 64px minmax(0, 1fr);
-  min-height: 100vh;
+  grid-template-columns: var(--nav-width) minmax(0, 1fr);
+  min-height: 100dvh;
+}
+.platform-layout.nav-collapsed {
+  --nav-width: 64px;
 }
 .platform-rail {
-  background: var(--workspace-ink);
-  color: white;
   position: sticky;
   top: 0;
-  height: 100vh;
+  height: 100dvh;
   display: flex;
-  align-items: center;
   flex-direction: column;
-  gap: 12px;
-  padding: 14px 8px;
-  z-index: 5;
+  gap: 6px;
+  padding: 20px 12px 16px;
+  background: #172638;
+  color: #d0d9e5;
+  z-index: 10;
 }
 .platform-rail > a {
-  color: #dce4ef;
-  display: grid;
-  place-items: center;
-  width: 46px;
-  height: 46px;
+  min-height: 42px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 12px;
+  color: #c5d0df;
   border-radius: 7px;
-  font-size: 21px;
+  font-size: 13px;
+  white-space: nowrap;
 }
 .platform-rail > a:hover {
-  background: #344862;
   color: white;
+  background: #24374e;
+  text-decoration: none;
 }
 .platform-rail > a.is-active {
-  background: var(--workspace-accent);
+  background: #2a4263;
   color: white;
+  font-weight: 600;
+}
+.platform-rail > a > .anticon {
+  flex: none;
+  font-size: 18px;
 }
 .platform-rail > .platform-mark {
-  font-size: 23px;
-  font-weight: 700;
+  padding: 0 7px;
+  margin-bottom: 30px;
+  gap: 12px;
   color: white;
-  margin-bottom: 12px;
+}
+.platform-rail > .platform-mark:hover {
+  background: transparent;
+}
+.platform-monogram {
+  font-size: 30px;
+  font-weight: 750;
+  line-height: 1;
+  letter-spacing: -1px;
+}
+.platform-monogram > span {
+  color: #82aaff;
+}
+.platform-brand {
+  font-size: 16px;
+  font-weight: 650;
+  line-height: 1.25;
+}
+.platform-brand > span {
+  display: block;
+  color: #a6b6cb;
+  font-size: 11px;
+  font-weight: 400;
+  margin-top: 3px;
+}
+.platform-nav-label {
+  font-size: 11px;
+  color: #a6b6cb;
+  padding: 18px 12px 6px;
+}
+.platform-nav-label:first-of-type {
+  padding-top: 0;
 }
 .platform-rail-bottom {
   margin-top: auto;
+  padding: 20px 6px 0;
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  align-items: center;
+  border-top: 1px solid #314157;
+  font-size: 12px;
+}
+.platform-nav-hint {
+  color: #a6b6cb;
+  font-size: 12px;
+  margin: 0 0 18px;
+  line-height: 1.8;
 }
 .platform-avatar {
-  width: 34px;
-  height: 34px;
+  width: 28px;
+  height: 28px;
   display: grid;
   place-items: center;
-  border-radius: 50%;
-  background: #435972;
-  color: white;
+  flex: none;
+  border-radius: 7px;
+  background: #314762;
+  color: #e3ebf8;
+}
+.nav-collapsed .platform-rail {
+  padding-inline: 8px;
+}
+.nav-collapsed .platform-rail > a {
+  justify-content: center;
+  padding-inline: 0;
+}
+.nav-collapsed .platform-nav-text,
+.nav-collapsed .platform-brand,
+.nav-collapsed .platform-nav-label,
+.nav-collapsed .platform-nav-hint {
+  display: none;
+}
+.nav-collapsed .platform-mark {
+  margin-bottom: 24px;
 }
 .platform-main {
   min-width: 0;
@@ -106,43 +193,43 @@ a {
   height: 56px;
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  border-bottom: 1px solid var(--workspace-line);
-  padding: 0 20px;
+  gap: 20px;
+  padding: 0 24px;
   background: white;
-  gap: 16px;
+  border-bottom: 1px solid var(--workspace-line);
 }
-.platform-header h1 {
-  font-size: 17px;
-  margin: 0;
+.platform-header-label {
+  font-size: 13px;
+  color: var(--workspace-muted);
 }
-.platform-workbench:not(.platform-analysis) .platform-header {
-  padding-left: calc(var(--workspace-explorer) + 24px);
+.platform-nav-toggle.ant-btn {
+  color: var(--workspace-muted);
+  flex: none;
 }
 .workspace-tabs {
   display: flex;
-  gap: 30px;
-  height: 100%;
-  align-items: stretch;
+  align-self: stretch;
+  gap: 28px;
   white-space: nowrap;
 }
 .workspace-tabs a {
   display: flex;
   align-items: center;
-  border-bottom: 2px solid transparent;
   color: var(--workspace-muted);
-  font-size: 15px;
-  padding: 0 4px;
+  border-bottom: 2px solid transparent;
+  font-size: 13px;
+  text-decoration: none;
 }
 .workspace-tabs a[aria-current] {
-  border-color: var(--workspace-accent);
   color: var(--workspace-accent);
+  border-bottom-color: var(--workspace-accent);
   font-weight: 600;
 }
 .platform-session {
+  margin-left: auto;
   display: flex;
-  gap: 16px;
   align-items: center;
+  gap: 16px;
   min-width: 0;
   font-size: 12px;
 }
@@ -151,16 +238,20 @@ a {
   white-space: nowrap;
 }
 .platform-version code {
-  padding-left: 6px;
+  margin-left: 6px;
+  background: var(--workspace-inset);
+  padding: 3px 7px;
+  border-radius: 4px;
 }
 .platform-user {
-  max-width: 120px;
+  max-width: 140px;
   overflow: hidden;
   text-overflow: ellipsis;
+  white-space: nowrap;
 }
 .platform-content {
   min-width: 0;
-  padding: 28px 32px;
+  padding: 36px 40px;
 }
 .platform-workbench .platform-content {
   padding: 0;
@@ -170,78 +261,571 @@ a {
   font-variant-numeric: tabular-nums;
 }
 .platform-content .ant-table-thead > tr > th {
-  background: #f6f8fb;
+  background: var(--workspace-inset);
   color: var(--workspace-muted);
+  font-size: 12px;
+}
+.platform-content .ant-card {
+  border-color: var(--workspace-line);
+  box-shadow: none;
+}
+/* 管理页以对齐记录呈现，表单按业务用途分组。 */
+.platform-content .environment-page,
+.platform-content .projects-page {
+  max-width: 1400px;
+  margin: auto;
+  padding: 0;
+  display: grid;
+  gap: 24px;
+}
+.page-heading {
+  display: flex;
+  justify-content: space-between;
+  gap: 20px;
+  align-items: center;
+}
+.page-heading h2 {
+  margin: 0;
+  font-size: 27px;
+  font-weight: 650;
+  letter-spacing: -0.5px;
+  line-height: 1.35;
+}
+.page-heading p {
+  margin: 8px 0 0;
+  font-size: 13px;
+  color: var(--workspace-muted);
+}
+.page-heading > .ant-btn {
+  flex: none;
+}
+.back-link {
+  width: fit-content;
+  font-size: 12px;
+  color: var(--workspace-muted);
+}
+.back-link .anticon {
+  margin-right: 6px;
+}
+.management-panel {
+  border: 1px solid var(--workspace-line);
+  border-radius: 12px;
+  background: white;
+  overflow: hidden;
+  min-width: 0;
+}
+.panel-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  min-height: 64px;
+  padding: 16px 24px;
+  border-bottom: 1px solid var(--workspace-line);
+}
+.panel-heading h3 {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 600;
+}
+.panel-heading > span,
+.panel-heading > a {
+  color: var(--workspace-muted);
+  font-size: 12px;
+}
+.panel-heading > a:hover {
+  color: var(--workspace-accent);
+}
+.count-label {
+  font-size: 12px;
+  font-weight: 400;
+  color: var(--workspace-muted);
+  margin-left: 12px;
+}
+.panel-loading {
+  padding: 24px;
+}
+.management-panel > .ant-empty {
+  padding: 48px 20px;
+}
+.management-table-scroll {
+  overflow-x: auto;
+}
+.management-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+  text-align: left;
+}
+.management-table th {
+  background: var(--workspace-inset);
+  color: var(--workspace-muted);
+  font-weight: 500;
+  font-size: 12px;
+  padding: 12px 24px;
+  white-space: nowrap;
+}
+.management-table td {
+  padding: 22px 24px;
+  vertical-align: middle;
+  border-top: 1px solid var(--workspace-line);
+  overflow-wrap: anywhere;
+  min-width: 110px;
+}
+.management-table tr:hover td {
+  background: #fbfcfe;
+}
+.management-table small {
+  display: block;
+  color: var(--workspace-muted);
+  font-size: 12px;
+  margin-top: 5px;
+}
+.management-table code {
+  font-size: 11px;
+}
+.management-table time {
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+.environment-name {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--workspace-ink);
+}
+.environment-name .anticon {
+  color: var(--workspace-accent);
+}
+.neutral-badge {
+  display: inline-block;
+  padding: 2px 8px;
+  background: #eef1f5;
+  border-radius: 4px;
+  color: #4e5e74;
+  font-size: 12px;
+}
+.table-actions {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  min-width: 100px;
+}
+.table-actions a {
+  font-size: 12px;
+  white-space: nowrap;
+}
+.deployment-scope .deployment-filter {
+  padding: 20px 24px;
+  margin: 0;
+}
+.deployment-table td {
+  padding: 18px 20px;
+}
+.deployment-table th {
+  padding-inline: 20px;
+}
+.deployment-table td:nth-child(2) {
+  max-width: 220px;
+}
+.management-panel > .ant-btn {
+  margin: 16px 24px;
+}
+.platform-content .deployment-filter {
+  gap: 14px;
+}
+.deployment-filter label {
+  color: var(--workspace-muted);
+  font-size: 12px;
+}
+.deployment-filter input:not(.ant-input),
+.deployment-filter select {
+  border: 1px solid #cbd4df;
+  background: white;
+  border-radius: 6px;
+  min-height: 36px;
+  padding: 6px 10px;
+  width: 100%;
+  color: var(--workspace-ink);
+}
+.platform-content .environment-form {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 16px;
+}
+.environment-editor > .environment-form {
+  padding: 24px;
+}
+.environment-form fieldset {
+  grid-column: 1 / -1;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 18px;
+  border: 0;
+  border-bottom: 1px solid var(--workspace-line);
+  padding: 0 0 24px;
+  margin: 0 0 6px;
+  min-width: 0;
+}
+.environment-form legend {
+  font-size: 13px;
+  font-weight: 600;
+  margin-bottom: 16px;
+  padding: 0;
+}
+.platform-content .environment-form label {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--workspace-muted);
+  min-width: 0;
+}
+.platform-content .environment-form input,
+.platform-content .environment-form select {
+  border-color: #cbd4df;
+  height: 38px;
+  color: var(--workspace-ink);
   font-size: 13px;
 }
-.platform-projects .ant-card {
-  border-color: var(--workspace-line);
+.environment-form input[readonly] {
+  background: var(--workspace-inset);
+  color: var(--workspace-muted);
 }
-.login-page,
-.authentication-loading {
-  min-height: 100vh;
-  display: grid;
-  place-items: center;
-  padding: 32px 20px;
-  background: var(--workspace-ground);
+.form-help,
+.section-description {
+  font-size: 12px;
+  color: var(--workspace-muted);
+  margin: 0;
 }
-.login-card {
-  width: min(100%, 420px);
-  border-radius: 12px;
+.form-actions {
+  grid-column: 1 / -1;
+  display: flex;
+  justify-content: flex-end;
 }
-.login-brand {
-  margin-bottom: 28px;
-  text-align: center;
+.environment-summary {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 24px 56px;
+  margin: 0;
+  padding: 20px 24px;
+  background: #edf1f6;
+  border-radius: 8px;
 }
-.login-brand .ant-typography {
+.environment-summary dt {
+  font-size: 11px;
+  color: var(--workspace-muted);
   margin-bottom: 4px;
 }
-.login-alert {
+.environment-summary dd {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 500;
+  overflow-wrap: anywhere;
+}
+.build-submission-panel .ant-card-body,
+.build-history-panel .ant-card-body {
+  padding: 24px;
+}
+.build-history-panel .section-description {
   margin-bottom: 20px;
 }
+/* 构建分支与提交操作同处一行，提示和失败信息另起一行。 */
+.build-submission-panel .environment-form {
+  grid-template-columns: minmax(0, 1.5fr) minmax(160px, 1fr) auto auto;
+}
+.build-submission-panel .environment-form > .ant-btn {
+  justify-self: start;
+}
+.build-submission-panel .environment-form > .ant-btn-primary {
+  grid-column: 4;
+  grid-row: 1;
+}
+.build-submission-panel .environment-form > p {
+  margin: 0;
+  font-size: 12px;
+  color: var(--workspace-muted);
+}
+@media (max-width: 900px) {
+  .build-submission-panel .environment-form {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .build-submission-panel .environment-form > .ant-btn-primary {
+    grid-column: auto;
+    grid-row: auto;
+  }
+}
+.platform-content .environment-build {
+  padding: 20px 0;
+  border-bottom-color: var(--workspace-line);
+  font-size: 13px;
+}
+.environment-build > p {
+  margin: 0 0 8px;
+}
+.environment-build > p:nth-child(3) {
+  font-size: 12px;
+  color: var(--workspace-muted);
+}
+.environment-build code {
+  color: var(--workspace-muted);
+  font-size: 12px;
+}
+.environment-build .environment-actions {
+  margin-top: 14px;
+  font-size: 12px;
+  gap: 18px;
+}
+.environment-build pre {
+  padding: 20px;
+  background: #172638;
+  color: #dbe5f4;
+  border-radius: 8px;
+  font-size: 12px;
+}
+/* 登录表单和产品说明分区，所有介绍对应现有能力。 */
+.login-page {
+  min-height: 100dvh;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  background: white;
+}
+.login-introduction {
+  background: #172638;
+  color: #f1f5fb;
+  padding: 48px 64px;
+  display: flex;
+  flex-direction: column;
+}
+.login-wordmark {
+  display: flex;
+  gap: 14px;
+  align-items: center;
+  font-size: 16px;
+  font-weight: 600;
+}
+.login-story {
+  margin: auto 0;
+  padding: 64px 0;
+}
+.login-story > h1 {
+  font-size: 42px;
+  font-weight: 600;
+  line-height: 1.4;
+  letter-spacing: -0.03em;
+  max-width: 12em;
+  text-wrap: balance;
+  margin: 0 0 20px;
+}
+.login-story > p {
+  font-size: 15px;
+  color: #b9c7d9;
+  max-width: 27em;
+  line-height: 1.9;
+  margin-bottom: 48px;
+}
+.login-capability {
+  display: flex;
+  gap: 16px;
+  align-items: start;
+  margin: 24px 0;
+}
+.login-capability > .anticon {
+  margin-top: 5px;
+  font-size: 21px;
+  color: #a2bcf0;
+}
+.login-capability h2 {
+  font-size: 14px;
+  font-weight: 500;
+  margin: 0 0 6px;
+}
+.login-capability p {
+  font-size: 12px;
+  color: #aabbd1;
+  margin: 0;
+}
+.login-footer {
+  font-size: 11px;
+  color: #aabbd1;
+}
+.login-form-panel {
+  display: grid;
+  place-items: center;
+  padding: 48px;
+}
+.login-form-panel .login-card {
+  width: min(100%, 420px);
+  border: 0;
+  box-shadow: none;
+  background: transparent;
+}
+.login-card .ant-card-body {
+  padding: 0;
+}
+.login-brand {
+  margin-bottom: 36px;
+  text-align: left;
+}
+.login-brand h2.ant-typography {
+  font-size: 28px;
+  margin-bottom: 10px;
+  font-weight: 600;
+}
+.login-brand .ant-typography-secondary {
+  font-size: 13px;
+}
+.login-card .ant-form-item {
+  margin-bottom: 24px;
+}
+.login-card .ant-form-item-label label {
+  font-size: 13px;
+}
+.login-card .ant-input-affix-wrapper {
+  padding: 12px;
+}
+.login-card .ant-btn {
+  margin-top: 8px;
+  height: 46px;
+}
+.login-alert {
+  margin-bottom: 24px;
+}
+.authentication-loading {
+  min-height: 100dvh;
+  display: grid;
+  place-items: center;
+  background: var(--workspace-ground);
+}
 .authentication-loading-content {
-  display: block;
   width: 160px;
   height: 48px;
+  display: block;
 }
-@media (max-width: 1100px) {
+/* 小屏保留可见文字导航的语义，宽表格独立滚动。 */
+@media (max-width: 1199px) {
+  .platform-content {
+    padding: 28px;
+  }
   .platform-user {
     display: none;
   }
-  .platform-session {
-    gap: 6px;
-  }
 }
 @media (max-width: 760px) {
-  .platform-layout {
-    grid-template-columns: 48px minmax(0, 1fr);
+  .platform-layout,
+  .platform-layout.nav-collapsed {
+    --nav-width: 48px;
   }
   .platform-rail {
-    padding: 12px 4px;
+    padding: 16px 4px;
   }
   .platform-rail > a {
-    width: 38px;
-    height: 40px;
-    font-size: 19px;
+    min-height: 40px;
+    justify-content: center;
+    padding-inline: 0;
+  }
+  .platform-nav-text,
+  .platform-brand,
+  .platform-nav-label,
+  .platform-nav-hint {
+    display: none;
   }
   .platform-rail > .platform-mark {
-    font-size: 19px;
+    padding: 0;
   }
-  .platform-header,
-  .platform-workbench:not(.platform-analysis) .platform-header {
+  .platform-monogram {
+    font-size: 25px;
+  }
+  .platform-rail-bottom {
+    padding-inline: 2px;
+  }
+  .platform-header {
     padding: 0 12px;
+    gap: 12px;
   }
-  .workspace-tabs {
-    gap: 14px;
+  .platform-nav-toggle.ant-btn {
+    display: none;
   }
-  .workspace-tabs a {
-    font-size: 13px;
+  .platform-session {
+    gap: 4px;
   }
   .platform-version {
     display: none;
   }
+  .workspace-tabs {
+    gap: 20px;
+  }
   .platform-content {
+    padding: 24px 16px;
+  }
+  .platform-content .environment-page,
+  .platform-content .projects-page {
+    gap: 20px;
+  }
+  .page-heading {
+    align-items: start;
+    flex-wrap: wrap;
+    gap: 16px;
+  }
+  .page-heading h2 {
+    font-size: 23px;
+  }
+  .panel-heading {
     padding: 16px;
+    flex-wrap: wrap;
+  }
+  .panel-heading > span {
+    max-width: 100%;
+    overflow-wrap: anywhere;
+  }
+  .management-table th,
+  .management-table td {
+    padding: 14px 16px;
+  }
+  .environment-form fieldset {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .environment-editor > .environment-form,
+  .build-submission-panel .ant-card-body,
+  .build-history-panel .ant-card-body {
+    padding: 16px;
+  }
+  .environment-summary {
+    gap: 16px 28px;
+    padding: 16px;
+  }
+  .deployment-scope .deployment-filter {
+    padding: 16px;
+  }
+  .platform-content .deployment-filter label,
+  .platform-content .deployment-filter label:first-child {
+    flex: 1 1 100%;
+  }
+  .login-page {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .login-introduction {
+    padding: 28px;
+  }
+  .login-story {
+    padding: 32px 0 8px;
+  }
+  .login-story > h1 {
+    font-size: 30px;
+    max-width: none;
+  }
+  .login-story > p {
+    margin-bottom: 0;
+  }
+  .login-capability,
+  .login-footer {
+    display: none;
+  }
+  .login-form-panel {
+    padding: 40px 28px;
+  }
+  .login-brand h2.ant-typography {
+    font-size: 24px;
   }
 }
 @media (prefers-reduced-motion: reduce) {

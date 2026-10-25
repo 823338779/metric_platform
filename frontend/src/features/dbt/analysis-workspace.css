@@ -574,3 +574,241 @@
     transition: none;
   }
 }
+
+/* 分析页的条件区保持紧凑，运行与反馈靠近同一工作位置。 */
+.platform-analysis .analysis-heading {
+  padding: 20px 28px;
+  align-items: center;
+}
+.platform-analysis .analysis-heading > div:first-child {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 4px 16px;
+}
+.platform-analysis .analysis-heading h1 {
+  font-size: 24px;
+  grid-column: 1;
+  grid-row: 1;
+}
+.platform-analysis .analysis-heading > div:first-child > a {
+  grid-column: 2;
+  grid-row: 1;
+  align-self: center;
+  font-size: 12px;
+}
+.platform-analysis .analysis-heading p {
+  grid-column: 1 / -1;
+  margin: 0;
+  font-size: 12px;
+  color: var(--workspace-muted);
+}
+.platform-analysis .query-context {
+  display: block;
+  padding: 10px 28px;
+  margin: 0;
+  border-bottom: 1px solid var(--workspace-line);
+  background: white;
+  font-size: 12px;
+  overflow-wrap: anywhere;
+}
+.platform-analysis .query-context summary {
+  cursor: pointer;
+  color: var(--workspace-muted);
+}
+.platform-analysis .query-context summary > span {
+  margin-left: 20px;
+  color: var(--workspace-ink);
+}
+.platform-analysis .query-context p {
+  margin: 10px 0 4px;
+}
+.platform-analysis .analysis-studio {
+  grid-template-columns: 236px minmax(0, 1fr);
+  min-height: calc(100dvh - 180px);
+}
+.platform-analysis .analysis-library {
+  background: #f1f3f7;
+  padding: 22px 14px;
+}
+.platform-analysis .analysis-library header {
+  margin-bottom: 14px;
+}
+.platform-analysis .analysis-library-hint {
+  margin: 10px 2px 14px;
+  font-size: 11px;
+}
+.platform-analysis .analysis-metric-item {
+  padding: 11px 8px;
+}
+.platform-analysis .analysis-metric-item.is-selected {
+  background: white;
+  border-color: #c5d3eb;
+  color: #234c9f;
+}
+.platform-analysis .analysis-canvas {
+  background: var(--workspace-ground);
+  padding: 24px 28px 40px;
+}
+.platform-analysis .analysis-builder {
+  border-radius: 12px;
+}
+.platform-analysis .analysis-builder > header {
+  padding: 18px 22px 12px;
+}
+.platform-analysis .analysis-builder h2,
+.platform-analysis .analysis-result h2 {
+  font-size: 16px;
+}
+.platform-analysis .analysis-builder-row {
+  grid-template-columns: 72px minmax(0, 1fr);
+  gap: 16px;
+  padding: 12px 22px;
+}
+.platform-analysis .analysis-builder-row h3 {
+  font-size: 12px;
+  margin-top: 8px;
+}
+.platform-analysis .analysis-date-inputs {
+  margin-top: 10px;
+  gap: 10px 18px;
+}
+.platform-analysis .analysis-time > .analysis-library-hint {
+  display: block;
+  margin: 0 0 8px;
+}
+.platform-analysis .analysis-time > .analysis-library-hint:last-child {
+  margin: 8px 0 0;
+}
+.platform-analysis .analysis-advanced {
+  margin-top: 10px;
+}
+.platform-analysis .analysis-advanced summary {
+  padding: 11px 22px;
+  font-size: 12px;
+  background: #fafbfd;
+}
+.platform-analysis .analysis-advanced .analysis-builder-row {
+  padding-block: 9px;
+}
+.platform-analysis .analysis-advanced .analysis-builder-row:last-child {
+  padding-bottom: 18px;
+}
+.platform-analysis .analysis-runbar {
+  position: static;
+  padding: 14px 22px;
+  background: white;
+  border-radius: 0 0 12px 12px;
+}
+.platform-analysis .analysis-result {
+  margin-top: 26px;
+}
+.platform-analysis .analysis-result > header {
+  margin-bottom: 8px;
+}
+.result-freshness {
+  color: #47624e;
+  font-size: 12px;
+  margin: 0 0 16px;
+}
+.result-freshness.is-stale {
+  color: #8b561b;
+}
+.platform-analysis .analysis-empty {
+  min-height: 190px;
+  border: 1px dashed #cbd4e1;
+  border-radius: 12px;
+  background: transparent;
+}
+.platform-analysis .query-tag {
+  border-color: #cad6e9;
+  background: #f5f8fe;
+  border-radius: 6px;
+}
+.platform-analysis .analysis-result .ant-card-head {
+  min-height: 52px;
+}
+@media (max-width: 1100px) {
+  .platform-analysis .analysis-studio {
+    grid-template-columns: 208px minmax(0, 1fr);
+  }
+  .platform-analysis .analysis-canvas {
+    padding: 20px;
+  }
+  .platform-analysis .analysis-runbar {
+    flex-wrap: wrap;
+  }
+}
+@media (max-width: 760px) {
+  .platform-analysis .analysis-heading {
+    flex-wrap: wrap;
+    padding: 18px 16px;
+    gap: 14px;
+  }
+  .platform-analysis .analysis-heading > div:first-child {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px 16px;
+  }
+  .platform-analysis .analysis-heading h1 {
+    font-size: 22px;
+  }
+  .platform-analysis .analysis-heading p {
+    flex-basis: 100%;
+  }
+  .platform-analysis .query-context {
+    padding: 12px 16px;
+  }
+  .platform-analysis .query-context summary > span {
+    display: block;
+    margin: 4px 0 0;
+  }
+  .platform-analysis .analysis-studio {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .platform-analysis .analysis-library {
+    border-right: 0;
+    border-bottom: 1px solid var(--workspace-line);
+    padding: 18px 16px;
+  }
+  .platform-analysis .analysis-metric-list {
+    max-height: 220px;
+    overflow-y: auto;
+  }
+  .platform-analysis .analysis-library footer {
+    padding-top: 12px;
+  }
+  .platform-analysis .analysis-canvas {
+    padding: 20px 12px;
+  }
+  .platform-analysis .analysis-builder-row {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 9px;
+    padding: 12px 16px;
+  }
+  .platform-analysis .analysis-builder > header {
+    padding: 16px;
+    flex-wrap: wrap;
+  }
+  .platform-analysis .analysis-advanced summary {
+    padding-inline: 16px;
+  }
+  .platform-analysis .analysis-runbar {
+    padding: 12px 16px;
+    gap: 12px;
+  }
+  .platform-analysis .analysis-runbar > div {
+    width: 100%;
+    gap: 6px;
+  }
+  .platform-analysis .analysis-runbar .ant-btn {
+    font-size: 12px;
+    padding-inline: 9px;
+  }
+  .platform-analysis .analysis-result > header {
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+  .platform-analysis .analysis-result > header > span {
+    font-size: 10px;
+  }
+}

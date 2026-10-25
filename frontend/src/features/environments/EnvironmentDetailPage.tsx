@@ -10,6 +10,28 @@ import {
 } from '../../api/environmentApi';
 import { EnvironmentForm } from './EnvironmentForm';
 import { BuildSubmissionForm } from './BuildSubmissionForm';
+import {
+  ArrowLeftOutlined,
+  ReloadOutlined,
+  SettingOutlined,
+  BuildOutlined,
+} from '@ant-design/icons';
+
+const COPY = {
+  cancel: '收起配置',
+  historyHint: '构建与部署状态分别记录，选择固定版本查看资源或分析数据。',
+  target: '执行目标',
+  config: '配置版本',
+  timezone: '业务时区',
+};
+const STATUS_COLORS: Record<string, string> = {
+  SUCCEEDED: 'success',
+  FAILED: 'error',
+  RUNNING: 'processing',
+  QUEUED: 'default',
+  CANCELLED: 'default',
+  OUTCOME_UNKNOWN: 'warning',
+};
 
 export function EnvironmentDetailPage({ api = environmentApi }: { api?: EnvironmentApi }) {
   const { environmentId = '' } = useParams();
@@ -128,22 +150,39 @@ function SelectedEnvironment({
   }
   return (
     <section className="environment-page">
-      <Link to="/dbt/environments">返回环境列表</Link>
+      <Link className="back-link" to="/dbt/environments">
+        <ArrowLeftOutlined aria-hidden /> 返回环境列表
+      </Link>
       {error && <Alert type="error" title={error} />}
       {environment && (
         <>
-          <header>
+          <header className="page-heading">
             <div>
               <h2>{environment.name}</h2>
-              <p>
-                {environment.execution.connection.instanceId} / {environment.execution.catalog} /{' '}
-                {environment.execution.schema} · 配置版本 {environment.configVersion}
-              </p>
+              <p>{environment.execution.connection.instanceId}</p>
             </div>
-            <Button onClick={() => setEditing(!editing)}>编辑配置</Button>
+            <Button icon={<SettingOutlined aria-hidden />} onClick={() => setEditing(!editing)}>
+              {editing ? COPY.cancel : '编辑配置'}
+            </Button>
           </header>
+          <dl className="environment-summary">
+            <div>
+              <dt>{COPY.target}</dt>
+              <dd>
+                {environment.execution.catalog} / {environment.execution.schema}
+              </dd>
+            </div>
+            <div>
+              <dt>{COPY.config}</dt>
+              <dd>v{environment.configVersion}</dd>
+            </div>
+            <div>
+              <dt>{COPY.timezone}</dt>
+              <dd>{environment.execution.businessTimezone}</dd>
+            </div>
+          </dl>
           {editing && (
-            <Card title="环境配置">
+            <Card className="environment-editor" title="环境配置">
               <EnvironmentForm
                 key={environment.configVersion}
                 initial={{
@@ -160,7 +199,14 @@ function SelectedEnvironment({
               />
             </Card>
           )}
-          <Card title="发起构建">
+          <Card
+            className="build-submission-panel"
+            title={
+              <span>
+                <BuildOutlined aria-hidden /> 发起构建
+              </span>
+            }
+          >
             <BuildSubmissionForm
               key={environmentId}
               environment={environment}
@@ -171,9 +217,18 @@ function SelectedEnvironment({
         </>
       )}
       <Card
+        className="build-history-panel"
         title="构建历史"
-        extra={<Button onClick={() => setRefresh((value) => value + 1)}>刷新历史</Button>}
+        extra={
+          <Button
+            icon={<ReloadOutlined aria-hidden />}
+            onClick={() => setRefresh((value) => value + 1)}
+          >
+            刷新历史
+          </Button>
+        }
       >
+        <p className="section-description">{COPY.historyHint}</p>
         <form
           className="deployment-filter"
           onSubmit={(event) => {
@@ -186,33 +241,42 @@ function SelectedEnvironment({
             setParams(next);
           }}
         >
-          <input
-            aria-label="筛选仓库"
-            name="repository"
-            placeholder="全部仓库"
-            defaultValue={repository}
-          />
-          <input
-            aria-label="筛选分支"
-            name="branchName"
-            placeholder="全部分支"
-            defaultValue={branchName}
-          />
-          <select aria-label="筛选状态" name="buildStatus" defaultValue={buildStatus ?? ''}>
-            <option value="">全部状态</option>
-            {['QUEUED', 'RUNNING', 'SUCCEEDED', 'FAILED', 'CANCELLED', 'OUTCOME_UNKNOWN'].map(
-              (status) => (
-                <option key={status}>{status}</option>
-              ),
-            )}
-          </select>
+          <label>
+            仓库
+            <input
+              aria-label="筛选仓库"
+              name="repository"
+              placeholder="全部仓库"
+              defaultValue={repository}
+            />
+          </label>
+          <label>
+            分支
+            <input
+              aria-label="筛选分支"
+              name="branchName"
+              placeholder="全部分支"
+              defaultValue={branchName}
+            />
+          </label>
+          <label>
+            状态
+            <select aria-label="筛选状态" name="buildStatus" defaultValue={buildStatus ?? ''}>
+              <option value="">全部状态</option>
+              {['QUEUED', 'RUNNING', 'SUCCEEDED', 'FAILED', 'CANCELLED', 'OUTCOME_UNKNOWN'].map(
+                (status) => (
+                  <option key={status}>{status}</option>
+                ),
+              )}
+            </select>
+          </label>
           <Button htmlType="submit">筛选</Button>
         </form>
         {!page.items.length && <Empty description="暂无构建记录" />}
         {page.items.map((build) => (
           <article className="environment-build" key={build.buildId}>
             <p>
-              <Tag>{build.buildStatus}</Tag>
+              <Tag color={STATUS_COLORS[build.buildStatus]}>{build.buildStatus}</Tag>
               {build.initialDeployment && (
                 <Tag>{build.initialDeployment.deploymentStatus}</Tag>
               )}{' '}

@@ -1,6 +1,6 @@
 {
   "schemaVersion": 2,
-  "generatedAt": "2026-10-18T08:15:38.429455+00:00",
+  "generatedAt": "2026-10-25T07:37:41.250Z",
   "title": "Design System: Metric Platform",
   "extensions": {
     "colorMeta": {
@@ -8,56 +8,56 @@
         "role": "primary",
         "displayName": "工作蓝",
         "tonalRamp": [
-          "oklch(15.00% 0.16969 264.47)",
-          "oklch(26.43% 0.16969 264.47)",
-          "oklch(37.86% 0.16969 264.47)",
-          "oklch(49.29% 0.16969 264.47)",
-          "oklch(60.71% 0.16969 264.47)",
-          "oklch(72.14% 0.16969 264.47)",
-          "oklch(83.57% 0.16969 264.47)",
-          "oklch(95.00% 0.16969 264.47)"
+          "oklch(15.00% 0.17724 263.11)",
+          "oklch(26.43% 0.17724 263.11)",
+          "oklch(37.86% 0.17724 263.11)",
+          "oklch(49.29% 0.17724 263.11)",
+          "oklch(60.71% 0.17724 263.11)",
+          "oklch(72.14% 0.17724 263.11)",
+          "oklch(83.57% 0.17724 263.11)",
+          "oklch(95.00% 0.17724 263.11)"
         ]
       },
       "primary-hover": {
         "role": "primary",
         "displayName": "悬停蓝",
         "tonalRamp": [
-          "oklch(15.00% 0.13568 264.32)",
-          "oklch(26.43% 0.13568 264.32)",
-          "oklch(37.86% 0.13568 264.32)",
-          "oklch(49.29% 0.13568 264.32)",
-          "oklch(60.71% 0.13568 264.32)",
-          "oklch(72.14% 0.13568 264.32)",
-          "oklch(83.57% 0.13568 264.32)",
-          "oklch(95.00% 0.13568 264.32)"
+          "oklch(15.00% 0.14320 261.63)",
+          "oklch(26.43% 0.14320 261.63)",
+          "oklch(37.86% 0.14320 261.63)",
+          "oklch(49.29% 0.14320 261.63)",
+          "oklch(60.71% 0.14320 261.63)",
+          "oklch(72.14% 0.14320 261.63)",
+          "oklch(83.57% 0.14320 261.63)",
+          "oklch(95.00% 0.14320 261.63)"
         ]
       },
       "primary-active": {
         "role": "primary",
         "displayName": "按下蓝",
         "tonalRamp": [
-          "oklch(15.00% 0.15755 265.63)",
-          "oklch(26.43% 0.15755 265.63)",
-          "oklch(37.86% 0.15755 265.63)",
-          "oklch(49.29% 0.15755 265.63)",
-          "oklch(60.71% 0.15755 265.63)",
-          "oklch(72.14% 0.15755 265.63)",
-          "oklch(83.57% 0.15755 265.63)",
-          "oklch(95.00% 0.15755 265.63)"
+          "oklch(15.00% 0.16203 263.99)",
+          "oklch(26.43% 0.16203 263.99)",
+          "oklch(37.86% 0.16203 263.99)",
+          "oklch(49.29% 0.16203 263.99)",
+          "oklch(60.71% 0.16203 263.99)",
+          "oklch(72.14% 0.16203 263.99)",
+          "oklch(83.57% 0.16203 263.99)",
+          "oklch(95.00% 0.16203 263.99)"
         ]
       },
       "ink": {
         "role": "neutral",
         "displayName": "正文深墨",
         "tonalRamp": [
-          "oklch(15.00% 0.04295 256.88)",
-          "oklch(26.43% 0.04295 256.88)",
-          "oklch(37.86% 0.04295 256.88)",
-          "oklch(49.29% 0.04295 256.88)",
-          "oklch(60.71% 0.04295 256.88)",
-          "oklch(72.14% 0.04295 256.88)",
-          "oklch(83.57% 0.04295 256.88)",
-          "oklch(95.00% 0.04295 256.88)"
+          "oklch(15.00% 0.03917 257.77)",
+          "oklch(26.43% 0.03917 257.77)",
+          "oklch(37.86% 0.03917 257.77)",
+          "oklch(49.29% 0.03917 257.77)",
+          "oklch(60.71% 0.03917 257.77)",
+          "oklch(72.14% 0.03917 257.77)",
+          "oklch(83.57% 0.03917 257.77)",
+          "oklch(95.00% 0.03917 257.77)"
         ]
       },
       "heading": {
@@ -78,14 +78,14 @@
         "role": "neutral",
         "displayName": "辅助正文灰",
         "tonalRamp": [
-          "oklch(15.00% 0.04131 257.42)",
-          "oklch(26.43% 0.04131 257.42)",
-          "oklch(37.86% 0.04131 257.42)",
-          "oklch(49.29% 0.04131 257.42)",
-          "oklch(60.71% 0.04131 257.42)",
-          "oklch(72.14% 0.04131 257.42)",
-          "oklch(83.57% 0.04131 257.42)",
-          "oklch(95.00% 0.04131 257.42)"
+          "oklch(15.00% 0.03680 255.69)",
+          "oklch(26.43% 0.03680 255.69)",
+          "oklch(37.86% 0.03680 255.69)",
+          "oklch(49.29% 0.03680 255.69)",
+          "oklch(60.71% 0.03680 255.69)",
+          "oklch(72.14% 0.03680 255.69)",
+          "oklch(83.57% 0.03680 255.69)",
+          "oklch(95.00% 0.03680 255.69)"
         ]
       },
       "placeholder": {
@@ -106,56 +106,56 @@
         "role": "neutral",
         "displayName": "深蓝导航",
         "tonalRamp": [
-          "oklch(15.00% 0.06033 263.32)",
-          "oklch(26.43% 0.06033 263.32)",
-          "oklch(37.86% 0.06033 263.32)",
-          "oklch(49.29% 0.06033 263.32)",
-          "oklch(60.71% 0.06033 263.32)",
-          "oklch(72.14% 0.06033 263.32)",
-          "oklch(83.57% 0.06033 263.32)",
-          "oklch(95.00% 0.06033 263.32)"
+          "oklch(15.00% 0.03966 253.64)",
+          "oklch(26.43% 0.03966 253.64)",
+          "oklch(37.86% 0.03966 253.64)",
+          "oklch(49.29% 0.03966 253.64)",
+          "oklch(60.71% 0.03966 253.64)",
+          "oklch(72.14% 0.03966 253.64)",
+          "oklch(83.57% 0.03966 253.64)",
+          "oklch(95.00% 0.03966 253.64)"
         ]
       },
       "rail-hover": {
         "role": "neutral",
         "displayName": "导航悬停",
         "tonalRamp": [
-          "oklch(15.00% 0.05101 255.27)",
-          "oklch(26.43% 0.05101 255.27)",
-          "oklch(37.86% 0.05101 255.27)",
-          "oklch(49.29% 0.05101 255.27)",
-          "oklch(60.71% 0.05101 255.27)",
-          "oklch(72.14% 0.05101 255.27)",
-          "oklch(83.57% 0.05101 255.27)",
-          "oklch(95.00% 0.05101 255.27)"
+          "oklch(15.00% 0.04785 253.79)",
+          "oklch(26.43% 0.04785 253.79)",
+          "oklch(37.86% 0.04785 253.79)",
+          "oklch(49.29% 0.04785 253.79)",
+          "oklch(60.71% 0.04785 253.79)",
+          "oklch(72.14% 0.04785 253.79)",
+          "oklch(83.57% 0.04785 253.79)",
+          "oklch(95.00% 0.04785 253.79)"
         ]
       },
       "rail-text": {
         "role": "neutral",
         "displayName": "导航浅字",
         "tonalRamp": [
-          "oklch(15.00% 0.01729 256.28)",
-          "oklch(26.43% 0.01729 256.28)",
-          "oklch(37.86% 0.01729 256.28)",
-          "oklch(49.29% 0.01729 256.28)",
-          "oklch(60.71% 0.01729 256.28)",
-          "oklch(72.14% 0.01729 256.28)",
-          "oklch(83.57% 0.01729 256.28)",
-          "oklch(95.00% 0.01729 256.28)"
+          "oklch(15.00% 0.02407 256.11)",
+          "oklch(26.43% 0.02407 256.11)",
+          "oklch(37.86% 0.02407 256.11)",
+          "oklch(49.29% 0.02407 256.11)",
+          "oklch(60.71% 0.02407 256.11)",
+          "oklch(72.14% 0.02407 256.11)",
+          "oklch(83.57% 0.02407 256.11)",
+          "oklch(95.00% 0.02407 256.11)"
         ]
       },
       "ground": {
         "role": "neutral",
         "displayName": "冷灰工作底",
         "tonalRamp": [
-          "oklch(15.00% 0.00454 258.32)",
-          "oklch(26.43% 0.00454 258.32)",
-          "oklch(37.86% 0.00454 258.32)",
-          "oklch(49.29% 0.00454 258.32)",
-          "oklch(60.71% 0.00454 258.32)",
-          "oklch(72.14% 0.00454 258.32)",
-          "oklch(83.57% 0.00454 258.32)",
-          "oklch(95.00% 0.00454 258.32)"
+          "oklch(15.00% 0.00287 264.54)",
+          "oklch(26.43% 0.00287 264.54)",
+          "oklch(37.86% 0.00287 264.54)",
+          "oklch(49.29% 0.00287 264.54)",
+          "oklch(60.71% 0.00287 264.54)",
+          "oklch(72.14% 0.00287 264.54)",
+          "oklch(83.57% 0.00287 264.54)",
+          "oklch(95.00% 0.00287 264.54)"
         ]
       },
       "surface": {
@@ -176,14 +176,14 @@
         "role": "neutral",
         "displayName": "工作区边界",
         "tonalRamp": [
-          "oklch(15.00% 0.01382 258.35)",
-          "oklch(26.43% 0.01382 258.35)",
-          "oklch(37.86% 0.01382 258.35)",
-          "oklch(49.29% 0.01382 258.35)",
-          "oklch(60.71% 0.01382 258.35)",
-          "oklch(72.14% 0.01382 258.35)",
-          "oklch(83.57% 0.01382 258.35)",
-          "oklch(95.00% 0.01382 258.35)"
+          "oklch(15.00% 0.01091 256.70)",
+          "oklch(26.43% 0.01091 256.70)",
+          "oklch(37.86% 0.01091 256.70)",
+          "oklch(49.29% 0.01091 256.70)",
+          "oklch(60.71% 0.01091 256.70)",
+          "oklch(72.14% 0.01091 256.70)",
+          "oklch(83.57% 0.01091 256.70)",
+          "oklch(95.00% 0.01091 256.70)"
         ]
       },
       "control-border": {
@@ -218,14 +218,14 @@
         "role": "neutral",
         "displayName": "嵌入浅灰",
         "tonalRamp": [
-          "oklch(15.00% 0.00453 258.32)",
-          "oklch(26.43% 0.00453 258.32)",
-          "oklch(37.86% 0.00453 258.32)",
-          "oklch(49.29% 0.00453 258.32)",
-          "oklch(60.71% 0.00453 258.32)",
-          "oklch(72.14% 0.00453 258.32)",
-          "oklch(83.57% 0.00453 258.32)",
-          "oklch(95.00% 0.00453 258.32)"
+          "oklch(15.00% 0.00341 247.86)",
+          "oklch(26.43% 0.00341 247.86)",
+          "oklch(37.86% 0.00341 247.86)",
+          "oklch(49.29% 0.00341 247.86)",
+          "oklch(60.71% 0.00341 247.86)",
+          "oklch(72.14% 0.00341 247.86)",
+          "oklch(83.57% 0.00341 247.86)",
+          "oklch(95.00% 0.00341 247.86)"
         ]
       },
       "tree-selected": {
@@ -451,6 +451,48 @@
           "oklch(83.57% 0.00862 264.52)",
           "oklch(95.00% 0.00862 264.52)"
         ]
+      },
+      "native-inset": {
+        "role": "neutral",
+        "displayName": "原始属性浅灰",
+        "tonalRamp": [
+          "oklch(15.00% 0.00453 258.32)",
+          "oklch(26.43% 0.00453 258.32)",
+          "oklch(37.86% 0.00453 258.32)",
+          "oklch(49.29% 0.00453 258.32)",
+          "oklch(60.71% 0.00453 258.32)",
+          "oklch(72.14% 0.00453 258.32)",
+          "oklch(83.57% 0.00453 258.32)",
+          "oklch(95.00% 0.00453 258.32)"
+        ]
+      },
+      "library": {
+        "role": "neutral",
+        "displayName": "目录工具面",
+        "tonalRamp": [
+          "oklch(15.00% 0.00576 264.53)",
+          "oklch(26.43% 0.00576 264.53)",
+          "oklch(37.86% 0.00576 264.53)",
+          "oklch(49.29% 0.00576 264.53)",
+          "oklch(60.71% 0.00576 264.53)",
+          "oklch(72.14% 0.00576 264.53)",
+          "oklch(83.57% 0.00576 264.53)",
+          "oklch(95.00% 0.00576 264.53)"
+        ]
+      },
+      "rail-selected": {
+        "role": "neutral",
+        "displayName": "导航选中面",
+        "tonalRamp": [
+          "oklch(15.00% 0.06442 256.59)",
+          "oklch(26.43% 0.06442 256.59)",
+          "oklch(37.86% 0.06442 256.59)",
+          "oklch(49.29% 0.06442 256.59)",
+          "oklch(60.71% 0.06442 256.59)",
+          "oklch(72.14% 0.06442 256.59)",
+          "oklch(83.57% 0.06442 256.59)",
+          "oklch(95.00% 0.06442 256.59)"
+        ]
       }
     },
     "typographyMeta": {
@@ -517,6 +559,10 @@
       "catalog-resource-meta": {
         "displayName": "两级目录辅助信息",
         "purpose": "来源路径、文件目录或资源分类副行。"
+      },
+      "management-heading": {
+        "displayName": "管理页标题",
+        "purpose": "执行环境、部署版本与环境详情页标题。"
       }
     },
     "shadows": [
@@ -562,12 +608,16 @@
         "value": "1001px"
       },
       {
-        "name": "analysis-compact",
+        "name": "catalog-context-sidebar",
         "value": "1200px"
       },
       {
-        "name": "catalog-context-sidebar",
-        "value": "1200px"
+        "name": "management-compact",
+        "value": "1199px"
+      },
+      {
+        "name": "build-form-stack",
+        "value": "900px"
       }
     ]
   },
@@ -578,14 +628,14 @@
       "refersTo": "catalog-button-primary",
       "description": "已发布目录的主要操作；物理资源预览数据，指标开始分析。预览切回概览展示结果。",
       "html": "<button class=\"ds-primary\">预览数据</button>",
-      "css": ".ds-primary{font-family:Inter,'Segoe UI','Microsoft YaHei',sans-serif;height:34px;min-width:0;font-size:13px;border:1px solid transparent;border-radius:5px;background:var(--workspace-accent,#315bc3);color:#fff;cursor:pointer}.ds-primary:hover{background:#557bcf}.ds-primary:active{background:#1f3e9c}.ds-primary:focus-visible{outline:2px solid var(--workspace-accent,#315bc3);outline-offset:3px;}"
+      "css": ".ds-primary{font-family:'Segoe UI','Microsoft YaHei',sans-serif;height:34px;min-width:0;font-size:13px;border:1px solid transparent;border-radius:5px;background:var(--workspace-accent,#2859c5);color:#fff;cursor:pointer}.ds-primary:hover{background:#4b7ad1}.ds-primary:active{background:#183e9e}.ds-primary:focus-visible{outline:2px solid var(--workspace-accent,#2859c5);outline-offset:3px;}"
     },
     {
       "name": "资源次操作",
       "kind": "button",
       "description": "已发布目录标题区与主操作并排的源码入口，高度与主操作一致。",
       "html": "<button class=\"ds-secondary\">查看源码</button>",
-      "css": ".ds-secondary{font-family:Inter,'Segoe UI','Microsoft YaHei',sans-serif;height:34px;min-width:0;font-size:13px;border:1px solid #d9d9d9;border-radius:5px;background:#fff;color:var(--workspace-ink,#233247);cursor:pointer}.ds-secondary:hover{color:#557bcf;border-color:#557bcf}.ds-secondary:active{color:#1f3e9c;border-color:#1f3e9c}.ds-secondary:focus-visible{outline:2px solid var(--workspace-accent,#315bc3);outline-offset:3px;}"
+      "css": ".ds-secondary{font-family:'Segoe UI','Microsoft YaHei',sans-serif;height:34px;min-width:0;font-size:13px;border:1px solid #d9d9d9;border-radius:5px;background:#fff;color:var(--workspace-ink,#202d40);cursor:pointer}.ds-secondary:hover{color:#4b7ad1;border-color:#4b7ad1}.ds-secondary:active{color:#183e9e;border-color:#183e9e}.ds-secondary:focus-visible{outline:2px solid var(--workspace-accent,#2859c5);outline-offset:3px;}"
     },
     {
       "name": "目录搜索输入",
@@ -593,7 +643,7 @@
       "refersTo": "input",
       "description": "提示文字保持可读，搜索真实目录。",
       "html": "<input class=\"ds-input\" aria-label=\"搜索资源\" placeholder=\"搜索资源\" />",
-      "css": ".ds-input{font-family:Inter,'Segoe UI','Microsoft YaHei',sans-serif;height:34px;width:210px;padding-inline:11px;font-size:15px;background:#fff;color:var(--workspace-ink,#233247);border:1px solid #d9d9d9;border-radius:8px;caret-color:var(--workspace-accent,#315bc3)}.ds-input::placeholder{color:#66758b}.ds-input:hover{border-color:#557bcf}.ds-input:focus-visible{outline:2px solid var(--workspace-accent,#315bc3);outline-offset:3px;border-color:var(--workspace-accent,#315bc3)}"
+      "css": ".ds-input{font-family:'Segoe UI','Microsoft YaHei',sans-serif;height:36px;width:210px;padding-inline:11px;font-size:14px;background:#fff;color:var(--workspace-ink,#202d40);border:1px solid #d9d9d9;border-radius:6px;caret-color:var(--workspace-accent,#2859c5)}.ds-input::placeholder{color:#66758b}.ds-input:hover{border-color:#4b7ad1}.ds-input:focus-visible{outline:2px solid var(--workspace-accent,#2859c5);outline-offset:3px;border-color:var(--workspace-accent,#2859c5)}"
     },
     {
       "name": "同级工作区标签",
@@ -601,7 +651,7 @@
       "refersTo": "workspace-tab",
       "description": "入口等权，以当前状态建立层级。",
       "html": "<nav class=\"ds-tabs\" aria-label=\"工作区\"><a href=\"#resources\" aria-current=\"page\">资源管理</a><a href=\"#analysis\">分析探索</a></nav>",
-      "css": ".ds-tabs{font-family:Inter,'Segoe UI','Microsoft YaHei',sans-serif;display:flex;gap:30px;height:56px;background:#fff;align-items:stretch}.ds-tabs a{display:flex;align-items:center;padding:0 4px;font-size:15px;text-decoration:none;color:var(--workspace-muted,#5b6b82);border-bottom:2px solid transparent}.ds-tabs a[aria-current]{color:var(--workspace-accent,#315bc3);border-color:var(--workspace-accent,#315bc3);font-weight:600}.ds-tabs a:hover{color:#557bcf}.ds-tabs a:focus-visible{outline:2px solid var(--workspace-accent,#315bc3);outline-offset:3px;}"
+      "css": ".ds-tabs{font-family:'Segoe UI','Microsoft YaHei',sans-serif;display:flex;gap:28px;height:56px;background:#fff;align-items:stretch}.ds-tabs a{display:flex;align-items:center;padding:0;font-size:13px;text-decoration:none;color:var(--workspace-muted,#58677b);border-bottom:2px solid transparent}.ds-tabs a[aria-current]{color:var(--workspace-accent,#2859c5);border-color:var(--workspace-accent,#2859c5);font-weight:600}.ds-tabs a:hover{color:#4b7ad1}.ds-tabs a:focus-visible{outline:2px solid var(--workspace-accent,#2859c5);outline-offset:3px;}"
     },
     {
       "name": "资源类型标签",
@@ -609,15 +659,15 @@
       "refersTo": "type-chip",
       "description": "标示业务分类，与真实数据类型分开。",
       "html": "<span class=\"ds-chip\">维度</span>",
-      "css": ".ds-chip{font-family:Inter,'Segoe UI','Microsoft YaHei',sans-serif;display:inline-block;font-size:11px;line-height:20px;padding:0 7px;background:#e6f4ff;color:#0958d9;border:0;border-radius:6px}"
+      "css": ".ds-chip{font-family:'Segoe UI','Microsoft YaHei',sans-serif;display:inline-block;font-size:11px;line-height:20px;padding:0 7px;background:#e6f4ff;color:#0958d9;border:0;border-radius:6px}"
     },
     {
-      "name": "项目容器",
+      "name": "管理内容面",
       "kind": "card",
       "refersTo": "project-card",
-      "description": "项目内容采用白面、细边框与适度圆角。",
-      "html": "<article class=\"ds-card\"><strong>语义项目</strong><p>从已发布版本进入资源管理。</p></article>",
-      "css": ".ds-card{font-family:Inter,'Segoe UI','Microsoft YaHei',sans-serif;background:#fff;color:var(--workspace-ink,#233247);border:1px solid var(--workspace-line,#e0e6ef);border-radius:8px;padding:24px;font-size:15px}.ds-card p{color:var(--workspace-muted,#5b6b82);line-height:1.5333333333333334}"
+      "description": "环境、部署与构建内容使用白面、细边框和适度圆角。",
+      "html": "<article class=\"ds-card\"><strong>构建历史</strong><p>查看当前环境的构建记录与日志。</p></article>",
+      "css": ".ds-card{font-family:'Segoe UI','Microsoft YaHei',sans-serif;background:#fff;color:var(--workspace-ink,#202d40);border:1px solid var(--workspace-line,#e2e7ee);border-radius:12px;padding:24px;font-size:14px}.ds-card p{color:var(--workspace-muted,#58677b);line-height:1.5714285714285714}"
     },
     {
       "name": "依赖摘要节点",
@@ -625,7 +675,7 @@
       "refersTo": "dependency-node",
       "description": "以浅蓝标题面和白色说明面组织真实依赖资源。",
       "html": "<button class=\"ds-dependency\"><span class=\"ds-dependency-head\"><strong>category</strong></span><span class=\"ds-dependency-foot\">维度</span></button>",
-      "css": ".ds-dependency{font-family:Inter,'Segoe UI','Microsoft YaHei',sans-serif;display:flex;flex-direction:column;align-items:stretch;text-align:left;min-height:140px;width:260px;padding:0;gap:0;border:1px solid #cbd9f1;border-radius:7px;background:#fff;color:var(--workspace-ink,#233247);font-size:16px;cursor:pointer;transition:background 150ms ease-out,border-color 150ms ease-out}.ds-dependency-head{display:flex;align-items:center;gap:18px;min-height:80px;padding:18px 22px;background:#eef4fe;border-radius:6px 6px 0 0}.ds-dependency strong{font-weight:600;overflow-wrap:anywhere}.ds-dependency-foot{display:flex;justify-content:space-between;gap:8px;padding:17px 22px;font-size:14px}.ds-dependency:hover{border-color:var(--workspace-accent,#315bc3);background:#eaf0fc}.ds-dependency:focus-visible{outline:2px solid var(--workspace-accent,#315bc3);outline-offset:3px;}@media(prefers-reduced-motion:reduce){.ds-dependency{transition:none}}"
+      "css": ".ds-dependency{font-family:'Segoe UI','Microsoft YaHei',sans-serif;display:flex;flex-direction:column;align-items:stretch;text-align:left;min-height:140px;width:260px;padding:0;gap:0;border:1px solid #cbd9f1;border-radius:7px;background:#fff;color:var(--workspace-ink,#202d40);font-size:16px;cursor:pointer;transition:background 150ms ease-out,border-color 150ms ease-out}.ds-dependency-head{display:flex;align-items:center;gap:18px;min-height:80px;padding:18px 22px;background:#eef4fe;border-radius:6px 6px 0 0}.ds-dependency strong{font-weight:600;overflow-wrap:anywhere}.ds-dependency-foot{display:flex;justify-content:space-between;gap:8px;padding:17px 22px;font-size:14px}.ds-dependency:hover{border-color:var(--workspace-accent,#2859c5);background:#eaf0fc}.ds-dependency:focus-visible{outline:2px solid var(--workspace-accent,#2859c5);outline-offset:3px;}@media(prefers-reduced-motion:reduce){.ds-dependency{transition:none}}"
     },
     {
       "name": "原始属性折叠",
@@ -633,7 +683,7 @@
       "refersTo": "native-disclosure",
       "description": "正文完成业务解释后，再提供按需展开的原始属性。",
       "html": "<details class=\"ds-native\"><summary>原始属性</summary><pre>{\n  \"name\": \"category\"\n}</pre></details>",
-      "css": ".ds-native{font-family:Inter,'Segoe UI','Microsoft YaHei',sans-serif;background:#f6f8fb;border:1px solid var(--workspace-line,#e0e6ef);border-radius:6px;color:var(--workspace-ink,#233247)}.ds-native summary{padding:14px 16px;color:#69778b;cursor:pointer}.ds-native summary:focus-visible{outline:2px solid var(--workspace-accent,#315bc3);outline-offset:3px;}.ds-native pre{margin:0;background:#f7f9fc;border-top:1px solid #e1e7ef;padding:16px;max-height:440px;overflow:auto;white-space:pre-wrap;overflow-wrap:anywhere;font:12px/1.8 Consolas,monospace}"
+      "css": ".ds-native{font-family:'Segoe UI','Microsoft YaHei',sans-serif;background:#f6f8fb;border:1px solid var(--workspace-line,#e2e7ee);border-radius:6px;color:var(--workspace-ink,#202d40)}.ds-native summary{padding:14px 16px;color:#69778b;cursor:pointer}.ds-native summary:focus-visible{outline:2px solid var(--workspace-accent,#2859c5);outline-offset:3px;}.ds-native pre{margin:0;background:#f7f9fc;border-top:1px solid #e1e7ef;padding:16px;max-height:440px;overflow:auto;white-space:pre-wrap;overflow-wrap:anywhere;font:12px/1.8 Consolas,monospace}"
     },
     {
       "name": "直接点选条件",
@@ -641,27 +691,27 @@
       "refersTo": "analysis-chip",
       "description": "维度、粒度、时间预设与图表字段复用同一选择语法；选中状态有文字、标记和浅蓝面。",
       "html": "<div class=\"ds-choices\" role=\"group\" aria-label=\"分组维度\"><button type=\"button\" aria-pressed=\"true\"><svg width=\"14\" height=\"14\" viewBox=\"0 0 1024 1024\" fill=\"currentColor\" aria-hidden=\"true\"><path d=\"M912 172H840c-10.1 0-19.7 4.9-25.6 13.2L385.4 780 209.6 536.2A32 32 0 0 0 183.7 523H112c-6.5 0-10.3 7.4-6.5 12.7l254 352.2c12.8 17.7 39.2 17.7 51.9 0l507-703.2c3.9-5.3.1-12.7-6.4-12.7z\"/></svg> category</button><button type=\"button\" aria-pressed=\"false\">brand</button></div>",
-      "css": ".ds-choices{font-family:Inter,'Segoe UI','Microsoft YaHei',sans-serif;display:flex;gap:8px;flex-wrap:wrap}.ds-choices button{min-height:34px;padding:6px 12px;border:1px solid #d7dfeb;border-radius:5px;background:#fff;color:#4b5c76;font:inherit;font-size:13px;cursor:pointer;overflow-wrap:anywhere;transition:background 150ms ease-out,border-color 150ms ease-out}.ds-choices button:hover:not(:disabled){border-color:#809cce;background:#f4f7fd}.ds-choices button[aria-pressed=\"true\"]{color:#244b9f;background:#edf2ff;border-color:#9fb7e8}.ds-choices button:disabled{opacity:.55;cursor:not-allowed}.ds-choices button:focus-visible{outline:2px solid var(--workspace-accent,#315bc3);outline-offset:3px;}@media(prefers-reduced-motion:reduce){.ds-choices button{transition:none}}"
+      "css": ".ds-choices{font-family:'Segoe UI','Microsoft YaHei',sans-serif;display:flex;gap:8px;flex-wrap:wrap}.ds-choices button{min-height:34px;padding:6px 12px;border:1px solid #d7dfeb;border-radius:5px;background:#fff;color:#4b5c76;font:inherit;font-size:13px;cursor:pointer;overflow-wrap:anywhere;transition:background 150ms ease-out,border-color 150ms ease-out}.ds-choices button:hover:not(:disabled){border-color:#809cce;background:#f4f7fd}.ds-choices button[aria-pressed=\"true\"]{color:#244b9f;background:#edf2ff;border-color:#9fb7e8}.ds-choices button:disabled{opacity:.55;cursor:not-allowed}.ds-choices button:focus-visible{outline:2px solid var(--workspace-accent,#2859c5);outline-offset:3px;}@media(prefers-reduced-motion:reduce){.ds-choices button{transition:none}}"
     },
     {
       "name": "指标选择与移除",
       "kind": "custom",
       "refersTo": "analysis-metric-item",
-      "description": "指标库行以 checkbox 语义呈现；已选指标以带移除名称的标签呈现。",
+      "description": "当前指标库行以 checkbox 语义和白色选中面呈现；下方为旧查询页保留的可移除标签。",
       "html": "<div class=\"ds-metric-preview\"><button type=\"button\" class=\"ds-metric\" role=\"checkbox\" aria-checked=\"true\" aria-label=\"order_count\"><span><strong>order_count</strong></span><span class=\"ds-check\"><svg width=\"14\" height=\"14\" viewBox=\"0 0 1024 1024\" fill=\"currentColor\" aria-hidden=\"true\"><path d=\"M912 172H840c-10.1 0-19.7 4.9-25.6 13.2L385.4 780 209.6 536.2A32 32 0 0 0 183.7 523H112c-6.5 0-10.3 7.4-6.5 12.7l254 352.2c12.8 17.7 39.2 17.7 51.9 0l507-703.2c3.9-5.3.1-12.7-6.4-12.7z\"/></svg></span></button><div class=\"ds-selected\"><button type=\"button\" aria-label=\"移除指标 order_count\"><span>order_count</span><svg width=\"12\" height=\"12\" viewBox=\"0 0 1024 1024\" fill=\"currentColor\" aria-hidden=\"true\"><path d=\"M563.8 512l262.5-312.9a7.95 7.95 0 0 0-6.1-13.1h-79.8c-4.7 0-9.2 2.1-12.2 5.7L511.6 449.9 295 191.7a15.97 15.97 0 0 0-12.2-5.7H203a7.95 7.95 0 0 0-6.1 13.1L459.4 512 196.9 824.9a7.95 7.95 0 0 0 6.1 13.1h79.8c4.7 0 9.2-2.1 12.2-5.7l216.6-258.2 216.6 258.2c3 3.6 7.5 5.7 12.2 5.7h79.8a7.95 7.95 0 0 0 6.1-13.1L563.8 512z\"/></svg></button></div></div>",
-      "css": ".ds-metric-preview{font-family:Inter,'Segoe UI','Microsoft YaHei',sans-serif;max-width:300px;background:var(--workspace-ground,#f3f5f8);padding:16px}.ds-metric{width:100%;display:flex;align-items:flex-start;gap:10px;text-align:left;padding:13px 10px;border:1px solid transparent;border-radius:6px;color:var(--workspace-ink,#233247);background:transparent;cursor:pointer;font:inherit;transition:background 150ms ease-out,border-color 150ms ease-out}.ds-metric>span:first-child{flex:1;min-width:0}.ds-metric strong{display:block;overflow-wrap:anywhere;font-size:14px;font-weight:550;line-height:1.5}.ds-metric:hover{background:#e9edf4}.ds-metric[aria-checked=\"true\"]{background:#e7eefc;border-color:#c4d3f3;color:#244b9f}.ds-check{flex:none;width:16px;height:16px;margin-top:2px;border:1px solid #a5b2c5;border-radius:3px;color:#fff;display:grid;place-items:center}.ds-metric[aria-checked=\"true\"] .ds-check{background:var(--workspace-accent,#315bc3);border-color:var(--workspace-accent,#315bc3)}.ds-selected{display:flex;flex-wrap:wrap;gap:8px;margin-top:16px}.ds-selected button{display:flex;align-items:center;gap:9px;padding:9px 12px;max-width:100%;border:1px solid #c4d3f3;background:#edf2ff;color:#244b9f;border-radius:5px;font:inherit;font-size:14px;cursor:pointer}.ds-selected button span{overflow-wrap:anywhere}.ds-selected button:hover{background:#dfe9ff}.ds-metric:focus-visible,.ds-selected button:focus-visible{outline:2px solid var(--workspace-accent,#315bc3);outline-offset:3px;}@media(prefers-reduced-motion:reduce){.ds-metric{transition:none}}"
+      "css": ".ds-metric-preview{font-family:'Segoe UI','Microsoft YaHei',sans-serif;max-width:300px;background:#f1f3f7;padding:16px}.ds-metric{width:100%;display:flex;align-items:flex-start;gap:10px;text-align:left;padding:11px 8px;border:1px solid transparent;border-radius:6px;color:var(--workspace-ink,#202d40);background:transparent;cursor:pointer;font:inherit;transition:background 150ms ease-out,border-color 150ms ease-out}.ds-metric>span:first-child{flex:1;min-width:0}.ds-metric strong{display:block;overflow-wrap:anywhere;font-size:14px;font-weight:550;line-height:1.5}.ds-metric:hover{background:#e9edf4}.ds-metric[aria-checked=\"true\"]{background:#fff;border-color:#c5d3eb;color:#234c9f}.ds-check{flex:none;width:16px;height:16px;margin-top:2px;border:1px solid #a5b2c5;border-radius:3px;color:#fff;display:grid;place-items:center}.ds-metric[aria-checked=\"true\"] .ds-check{background:var(--workspace-accent,#2859c5);border-color:var(--workspace-accent,#2859c5)}.ds-selected{display:flex;flex-wrap:wrap;gap:8px;margin-top:16px}.ds-selected button{display:flex;align-items:center;gap:9px;padding:9px 12px;max-width:100%;border:1px solid #c4d3f3;background:#edf2ff;color:#244b9f;border-radius:5px;font:inherit;font-size:14px;cursor:pointer}.ds-selected button span{overflow-wrap:anywhere}.ds-selected button:hover{background:#dfe9ff}.ds-metric:focus-visible,.ds-selected button:focus-visible{outline:2px solid var(--workspace-accent,#2859c5);outline-offset:3px;}@media(prefers-reduced-motion:reduce){.ds-metric{transition:none}}"
     }
   ],
   "narrative": {
     "northStar": "专业双工作台",
-    "overview": "深蓝窄导航、浅灰目录与白色阅读面构成稳定的工作环境。资源与分析共享项目、版本和当前资源上下文；视觉层级服务于长时间阅读、查找和操作。整体沿用专业双工作台；已发布资源目录采用用户批准的上下文侧栏 C，让资源阅读与版本核对同时可见，具体尺寸以当前实现为准。\n\n本规范记录已实现的公共外壳、资源管理与分析探索。分析工作区让选择过程直接可见：搜索指标、点击加入、点选共同维度与时间粒度，再按需展开筛选排序。查询条件与真实结果位于同一连续画布，减少重复打开下拉菜单的操作。",
+    "overview": "深蓝可收起导航、浅灰目录与白色阅读面构成稳定的工作环境。资源与分析共享项目、版本和当前资源上下文；视觉层级服务于长时间阅读、查找和操作。用户委托本次设计兼顾数据开发与分析，保留环境和构建能力，并突出资源与分析；本规范以代码实现和桌面、手机成品审查为依据。\n\n本规范记录公共外壳、登录、环境与部署管理、资源目录和分析探索。管理页以对齐记录和分组表单组织信息；分析页集中选择指标、共同维度、时间和高级条件，运行操作与真实结果位于连续画布中。",
     "keyCharacteristics": [
       "冷灰工作底与白色内容面，通过边界和间距区分职责。",
       "蓝色集中标识当前工作区、可执行操作与选中资源。",
       "中文保持自然阅读；资源标识、SQL 和 YAML 保留原始拼写。",
       "定义、来源和依赖形成阅读顺序，原始属性按需展开。",
       "已发布目录以两级资源树、主体阅读面和可收起版本上下文分工，维持固定版本。",
-      "分析候选项直接显示，已选指标明确可移除，复杂条件按需展开。"
+      "指标库直接可选，高级条件默认展开且可收起；结果明确区分当前、运行中与条件已变更。"
     ],
     "rules": [
       {
@@ -688,11 +738,11 @@
       "**Do** 让分析候选项和已选状态直接可见，使用就地搜索与可移除标签控制大量选项。"
     ],
     "donts": [
-      "**Don't** 把效果图中的虚构数量、账号、精度或结果写入产品。",
+      "**Don't** 把虚构数量、账号、精度或结果写入产品。",
       "**Don't** 为技术标识强制大写，或以装饰字体降低中文和代码的可读性。",
       "**Don't** 用层层卡片或长篇原始序列化属性取代定义摘要。",
       "**Don't** 用固定或悬浮动作条遮住字段，也不要让画布宽度造成页面横向溢出。",
-      "**Don't** 把常用的指标、维度、粒度和图表字段重新藏进一串下拉框；复杂筛选与排序按需展开。"
+      "**Don't** 把常用的指标、维度、粒度和图表字段重新藏进一串下拉框；复杂筛选与排序允许收起。"
     ]
   }
 }

@@ -84,7 +84,7 @@ export function DbtCatalogPage({
   const [page, setPage] = useState(0);
   const [loadAttempt, setLoadAttempt] = useState(0);
   const catalogScope = useRef('');
-  const [treeWidth, setTreeWidth] = useState(292);
+  const [treeWidth, setTreeWidth] = useState(268);
   const splitter = useRef<{ x: number; width: number } | undefined>(undefined);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);

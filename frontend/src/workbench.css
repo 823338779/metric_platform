@@ -494,12 +494,6 @@ button.lineage-summary-node:hover {
     margin: 14px;
   }
 }
-.platform-layout {
-  grid-template-columns: 70px minmax(0, 1fr);
-}
-.platform-rail {
-  background: #283858;
-}
 .resource-detail-heading {
   padding-bottom: 0;
 }
@@ -567,11 +561,6 @@ button.lineage-summary-node:hover {
 }
 .catalog-explorer-title {
   display: none;
-}
-@media (max-width: 760px) {
-  .platform-layout {
-    grid-template-columns: 48px minmax(0, 1fr);
-  }
 }
 .catalog-explorer {
   position: relative;

@@ -1,5 +1,11 @@
 import { Alert, Button, Empty, Input } from 'antd';
-import { PlayCircleOutlined, CodeOutlined } from '@ant-design/icons';
+import {
+  PlayCircleOutlined,
+  CodeOutlined,
+  ReloadOutlined,
+  ArrowLeftOutlined,
+  FilterOutlined,
+} from '@ant-design/icons';
 import { AnalysisEmpty, ChoiceChips, MetricLibrary, TimeRange } from './AnalysisControls';
 import { QuerySelection, ASCENDING, type QueryDirection } from './QuerySelection';
 import { useQueryDimensionTypes } from './useQueryDimensionTypes';
@@ -24,6 +30,15 @@ const QUERY = 'QUERY';
 const EXPLAIN = 'EXPLAIN';
 const PREVIEW = 'PREVIEW';
 const DIMENSION_VALUES = 'DIMENSION_VALUES';
+const COPY = {
+  context: '版本与执行环境',
+  description: '选择指标，组合维度，探索数据背后的变化。',
+  conditions: '查询条件',
+  advanced: '筛选与排序',
+  current: '结果与当前条件一致',
+  stale: '条件已修改，运行查询以更新结果',
+  running: '正在执行查询，结果将在完成后更新',
+};
 
 const errorText = (error: unknown) =>
   error instanceof ApiProblem
@@ -69,6 +84,21 @@ function FixedPublishedWorkbench({ api }: { api: BuildCatalogApi }) {
   const generation = useRef(0);
   const submissionGeneration = useRef(0);
   const [refresh, setRefresh] = useState(0);
+  /** 记录提交时的条件，避免异步返回后把旧条件的结果标成最新。 */
+  const [resultSelection, setResultSelection] = useState(EMPTY);
+  const currentSelection = JSON.stringify({
+    selected,
+    groups,
+    grains,
+    filterOption,
+    operator,
+    filterValue,
+    start,
+    end,
+    limit,
+    sortFields,
+    sortDirections,
+  });
 
   useEffect(() => {
     if (!buildId) return;
@@ -264,6 +294,7 @@ function FixedPublishedWorkbench({ api }: { api: BuildCatalogApi }) {
       if (turn === submissionGeneration.current) {
         // 同步响应携带完整有界结果，不存在后续分页。
         setResult(accepted);
+        setResultSelection(currentSelection);
         setSubmittedMode(mode);
         setSubmittedMetrics(
           metrics
@@ -297,42 +328,28 @@ function FixedPublishedWorkbench({ api }: { api: BuildCatalogApi }) {
       <header className="analysis-heading">
         <div>
           <Link to={`/dbt/builds/${encodeURIComponent(buildId)}/catalog?${params}`}>
-            返回资源目录
+            <ArrowLeftOutlined aria-hidden /> 返回资源目录
           </Link>
           <h1>分析探索</h1>
+          <p>{COPY.description}</p>
         </div>
         <div className="query-toolbar-actions">
-          <Button loading={loading} onClick={() => void latest()}>
+          <Button
+            icon={<ReloadOutlined aria-hidden />}
+            loading={loading}
+            onClick={() => void latest()}
+          >
             刷新已发布版本
-          </Button>
-          <Button
-            disabled={
-              !identity?.queryAvailable || !availableDimensionsReady || groups.length !== 1 || busy
-            }
-            onClick={() => void submit(DIMENSION_VALUES)}
-          >
-            维度值
-          </Button>
-          <Button
-            icon={<CodeOutlined />}
-            disabled={!identity?.queryAvailable || !availableDimensionsReady || busy}
-            onClick={() => void submit(EXPLAIN)}
-          >
-            查看 SQL
-          </Button>
-          <Button
-            type="primary"
-            icon={<PlayCircleOutlined />}
-            aria-label="查询"
-            disabled={!identity?.queryAvailable || !availableDimensionsReady || busy}
-            loading={busy}
-            onClick={() => void submit(QUERY)}
-          >
-            运行查询
           </Button>
         </div>
       </header>
-      <section className="query-context" aria-label="查询上下文">
+      <details className="query-context" aria-label="查询上下文">
+        <summary>
+          {COPY.context}
+          <span>
+            {identity?.branchName} · {identity?.execution.schema}
+          </span>
+        </summary>
         <p>
           仓库：{identity?.repository} · 分支：{identity?.branchName} · 环境：
           {identity?.execution
@@ -343,10 +360,10 @@ function FixedPublishedWorkbench({ api }: { api: BuildCatalogApi }) {
           固定版本：<code>{buildId || '尚未选择'}</code> · 源码提交：
           <code>{identity?.commitSha ?? '尚未读取'}</code>
         </p>
-        {identityError && (
-          <Alert type="warning" title="分支身份详情读取失败，查询目标仍为上述固定 ID。" />
-        )}
-      </section>
+      </details>
+      {identityError && (
+        <Alert type="warning" title="分支身份详情读取失败，查询目标仍为上述固定 ID。" />
+      )}
       {availableBuild && availableBuild !== buildId && (
         <Alert type="info" title="有效部署已更新，当前查询仍固定原构建；点击刷新后重新选择。" />
       )}
@@ -361,8 +378,14 @@ function FixedPublishedWorkbench({ api }: { api: BuildCatalogApi }) {
           onChange={changeMetrics}
           loading={loading}
         />
-        <main className="analysis-canvas">
+        <div className="analysis-canvas">
           <section className="analysis-builder" aria-label="查询设置">
+            <header className="analysis-builder-heading">
+              <h2>{COPY.conditions}</h2>
+              <span>
+                {selected.length} 个指标 · {groups.length} 个分组
+              </span>
+            </header>
             <div className="analysis-builder-row">
               <h3>分析指标</h3>
               <QuerySelection
@@ -404,72 +427,78 @@ function FixedPublishedWorkbench({ api }: { api: BuildCatalogApi }) {
                 }}
               />
             </div>
-            <div className="analysis-builder-row">
-              <h3>筛选维度</h3>
-              <div className="analysis-filter-controls">
-                <QuerySelection
-                  label="筛选维度"
-                  single
-                  suggestWhenEmpty={false}
-                  disabled={!availableDimensionsReady}
-                  options={dimensionChoices.filter(
-                    (choice) =>
-                      availableDimensions.find((option) => option.optionId === choice.value)
-                        ?.operators.length,
+            <details className="analysis-advanced" open>
+              <summary>
+                <FilterOutlined aria-hidden />
+                {COPY.advanced}
+              </summary>
+              <div className="analysis-builder-row">
+                <h3>筛选维度</h3>
+                <div className="analysis-filter-controls">
+                  <QuerySelection
+                    label="筛选维度"
+                    single
+                    suggestWhenEmpty={false}
+                    disabled={!availableDimensionsReady}
+                    options={dimensionChoices.filter(
+                      (choice) =>
+                        availableDimensions.find((option) => option.optionId === choice.value)
+                          ?.operators.length,
+                    )}
+                    selected={filterOption ? [filterOption] : []}
+                    onChange={(values) => {
+                      setFilterOption(values[0] ?? EMPTY);
+                      setOperator(
+                        availableDimensions.find((option) => option.optionId === values[0])
+                          ?.operators[0] ?? '=',
+                      );
+                      setFilterValue(EMPTY);
+                    }}
+                  />
+                  {filterOption && (
+                    <>
+                      <ChoiceChips
+                        label="操作符"
+                        single
+                        options={(
+                          availableDimensions.find((option) => option.optionId === filterOption)
+                            ?.operators ?? []
+                        ).map((value) => ({ value, label: value }))}
+                        selected={[operator]}
+                        onChange={(values) => {
+                          if (values[0]) setOperator(values[0]);
+                        }}
+                      />
+                      <Input
+                        aria-label="筛选值"
+                        value={filterValue}
+                        onChange={(event) => setFilterValue(event.target.value)}
+                        placeholder={operator === 'IN' ? '多个值用逗号分隔' : '输入筛选值'}
+                      />
+                    </>
                   )}
-                  selected={filterOption ? [filterOption] : []}
-                  onChange={(values) => {
-                    setFilterOption(values[0] ?? EMPTY);
-                    setOperator(
-                      availableDimensions.find((option) => option.optionId === values[0])
-                        ?.operators[0] ?? '=',
-                    );
-                    setFilterValue(EMPTY);
-                  }}
-                />
-                {filterOption && (
-                  <>
-                    <ChoiceChips
-                      label="操作符"
-                      single
-                      options={(
-                        availableDimensions.find((option) => option.optionId === filterOption)
-                          ?.operators ?? []
-                      ).map((value) => ({ value, label: value }))}
-                      selected={[operator]}
-                      onChange={(values) => {
-                        if (values[0]) setOperator(values[0]);
-                      }}
-                    />
-                    <Input
-                      aria-label="筛选值"
-                      value={filterValue}
-                      onChange={(event) => setFilterValue(event.target.value)}
-                      placeholder={operator === 'IN' ? '多个值用逗号分隔' : '输入筛选值'}
-                    />
-                  </>
-                )}
+                </div>
               </div>
-            </div>
-            <div className="analysis-builder-row">
-              <h3>排序字段</h3>
-              <QuerySelection
-                label="排序字段"
-                showTypes={false}
-                suggestWhenEmpty={false}
-                options={[
-                  ...metricChoices.filter((item) => selected.includes(item.value)),
-                  ...dimensionChoices.filter((item) => groups.includes(item.value)),
-                ]}
-                selected={sortFields}
-                onChange={setSortFields}
-                directions={sortDirections}
-                onDirectionChange={(id, direction) =>
-                  setSortDirections((current) => ({ ...current, [id]: direction }))
-                }
-                disabled={!availableDimensionsReady}
-              />
-            </div>
+              <div className="analysis-builder-row">
+                <h3>排序字段</h3>
+                <QuerySelection
+                  label="排序字段"
+                  showTypes={false}
+                  suggestWhenEmpty={false}
+                  options={[
+                    ...metricChoices.filter((item) => selected.includes(item.value)),
+                    ...dimensionChoices.filter((item) => groups.includes(item.value)),
+                  ]}
+                  selected={sortFields}
+                  onChange={setSortFields}
+                  directions={sortDirections}
+                  onDirectionChange={(id, direction) =>
+                    setSortDirections((current) => ({ ...current, [id]: direction }))
+                  }
+                  disabled={!availableDimensionsReady}
+                />
+              </div>
+            </details>
             <footer className="analysis-runbar">
               <label>
                 最多返回{' '}
@@ -483,6 +512,36 @@ function FixedPublishedWorkbench({ api }: { api: BuildCatalogApi }) {
                 />{' '}
                 行
               </label>
+              <div className="query-toolbar-actions">
+                <Button
+                  disabled={
+                    !identity?.queryAvailable ||
+                    !availableDimensionsReady ||
+                    groups.length !== 1 ||
+                    busy
+                  }
+                  onClick={() => void submit(DIMENSION_VALUES)}
+                >
+                  维度值
+                </Button>
+                <Button
+                  icon={<CodeOutlined aria-hidden />}
+                  disabled={!identity?.queryAvailable || !availableDimensionsReady || busy}
+                  onClick={() => void submit(EXPLAIN)}
+                >
+                  查看 SQL
+                </Button>
+                <Button
+                  type="primary"
+                  icon={<PlayCircleOutlined aria-hidden />}
+                  aria-label="查询"
+                  disabled={!identity?.queryAvailable || !availableDimensionsReady || busy}
+                  loading={busy}
+                  onClick={() => void submit(QUERY)}
+                >
+                  运行查询
+                </Button>
+              </div>
             </footer>
           </section>
           <section className="analysis-result" aria-label="查询结果" aria-live="polite">
@@ -492,7 +551,20 @@ function FixedPublishedWorkbench({ api }: { api: BuildCatalogApi }) {
             </header>
             {result ? (
               <>
-                <p className="resource-muted">修改条件后，运行查询以刷新结果。</p>
+                <p
+                  className={
+                    resultSelection === currentSelection && !busy
+                      ? 'result-freshness'
+                      : 'result-freshness is-stale'
+                  }
+                  role="status"
+                >
+                  {busy
+                    ? COPY.running
+                    : resultSelection === currentSelection
+                      ? COPY.current
+                      : COPY.stale}
+                </p>
                 {!result.columns?.length && !result.sql ? (
                   <Empty image={null} description="查询完成，没有返回数据列" />
                 ) : (
@@ -508,7 +580,7 @@ function FixedPublishedWorkbench({ api }: { api: BuildCatalogApi }) {
               <AnalysisEmpty />
             )}
           </section>
-        </main>
+        </div>
       </div>
     </section>
   );
