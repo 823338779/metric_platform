@@ -58,7 +58,6 @@ export function DbtResourceDetail({
   onSelect,
   onExplore,
   onClose,
-  queryAvailable = true,
   api = metricPlatformApi,
 }: {
   projectId: string;
@@ -69,8 +68,6 @@ export function DbtResourceDetail({
   onSelect: (resourceId: string) => void;
   onExplore?: (name: string) => void;
   onClose?: () => void;
-  /** 固定构建的物理查询能力；历史目录仍可浏览。 */
-  queryAvailable?: boolean;
   api?: DetailApi;
 }) {
   const [presentation, setPresentation] = useState<DbtResourcePresentation>();
@@ -225,7 +222,7 @@ export function DbtResourceDetail({
               <Button
                 type="primary"
                 loading={previewBusy}
-                disabled={!queryAvailable || previewBusy}
+                disabled={previewBusy}
                 onClick={() => void loadPreview()}
               >
                 {COPY.preview}

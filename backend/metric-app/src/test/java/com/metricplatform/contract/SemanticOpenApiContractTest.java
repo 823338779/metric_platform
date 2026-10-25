@@ -4,10 +4,8 @@ import static org.assertj.core.api.Assertions.*;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
-
-import org.junit.jupiter.api.Test;
-
 import java.nio.file.*;
+import org.junit.jupiter.api.Test;
 
 class SemanticOpenApiContractTest {
     @Test
@@ -35,7 +33,13 @@ class SemanticOpenApiContractTest {
                 .contains("QUERY", "EXPLAIN", "PREVIEW", "DIMENSION_VALUES");
         assertThat(schemas.path("QueryRequest").path("properties").has("buildId")).isFalse();
         assertThat(schemas.path("QueryRequest").path("properties").has("releaseId")).isFalse();
-        assertThat(schemas.path("ResultPage").path("properties").has("sql")).isTrue();
+        assertThat(schemas.path("ResultPage").path("oneOf")).hasSize(3);
+        assertThat(schemas.path("ExplainResult").path("properties").has("sql")).isTrue();
+        assertThat(schemas.path("ExplainResult").path("properties").has("rows")).isFalse();
+        assertThat(schemas.path("PreviewRequest").path("properties").has("selector")).isTrue();
+        assertThat(schemas.path("PreviewRequest").path("properties").has("metrics")).isFalse();
+        assertThat(schemas.path("AvailableDimensionsRequest").path("properties").has("metrics"))
+                .isTrue();
         assertThat(schemas.path("ResultPage").path("properties").has("nextOffset")).isFalse();
         assertThat(schemas.path("AvailableDimensionsView").path("properties").has("dimensions"))
                 .isTrue();

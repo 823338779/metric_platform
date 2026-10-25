@@ -1,11 +1,16 @@
 import { ApiProblem } from '../../api/httpClient';
 import { describe, expect, it, vi } from 'vitest';
 import { publishedResourceAdapter, publishedResult } from './publishedResourceAdapter';
-import { resolveResourceDataType } from './resourceDataType';
 import type { BuildCatalogApi } from '../../api/buildCatalogApi';
 
 const RELEASE = 'release-a';
 const PROJECT = 'project';
+const previewResource = async (_build: string, id: string) => ({
+  buildId: RELEASE,
+  resourceId: id,
+  resource: { name: 'orders', resource_type: 'model', fqn: ['shop', 'orders'] },
+  source: null,
+});
 const BASE = {
   buildId: RELEASE,
   nativeId: 'native',
@@ -24,7 +29,10 @@ describe('published presentation contract', () => {
       .fn()
       .mockRejectedValueOnce(new Error('response lost'))
       .mockResolvedValue({ buildId: RELEASE, mode: 'PREVIEW', rows: [['value']], columns: [] });
-    const adapter = publishedResourceAdapter({ submit } as unknown as BuildCatalogApi);
+    const adapter = publishedResourceAdapter({
+      submit,
+      resource: previewResource,
+    } as unknown as BuildCatalogApi);
     await expect(adapter.previewDbtDataset(PROJECT, 'dataset', RELEASE, 10)).rejects.toThrow(
       'lost',
     );
@@ -36,53 +44,30 @@ describe('published presentation contract', () => {
     expect(submit.mock.calls[1][0]).toBe(RELEASE);
   });
 
-  it('follows platform identities for a directly mapped column without calling a native ID', async () => {
-    const resources = {
-      dimension: {
-        ...BASE,
-        resourceId: 'dimension',
-        kind: 'DIMENSION',
-        attributes: { dimensionType: 'categorical', expression: 'brand' },
-        nativeDetails: { name: 'brand', type: 'categorical' },
+  it('原生模型列类型保留在展示契约中，并使用原生资源身份', async () => {
+    const id = 'model.shop.orders';
+    const resource = vi.fn().mockResolvedValue({
+      buildId: RELEASE,
+      resourceId: id,
+      resource: {
+        unique_id: id,
+        resource_type: 'model',
+        name: 'orders',
+        config: { materialized: 'table' },
+        columns: { brand: { data_type: 'VARCHAR(64)' } },
       },
-      dataset: {
-        ...BASE,
-        resourceId: 'dataset',
-        kind: 'SEMANTIC_MODEL',
-        attributes: { modelResourceId: 'physical' },
-        nativeDetails: { depends_on: { nodes: ['native.model.id'] } },
-      },
-      physical: {
-        ...BASE,
-        resourceId: 'physical',
-        kind: 'TABLE',
-        attributes: { columns: { brand: { type: 'VARCHAR(64)' } } },
-      },
-    };
-    const resource = vi.fn(async (_release, id: keyof typeof resources) => resources[id]);
+      source: null,
+    });
     const adapter = publishedResourceAdapter({ resource } as unknown as BuildCatalogApi);
-    const presentation = await adapter.getDbtPresentation(PROJECT, 'dimension', RELEASE);
-    const value = await resolveResourceDataType(
-      presentation,
-      {
-        buildId: RELEASE,
-        resourceId: 'dimension',
-        dependencies: [
-          { upstreamResourceId: 'dataset', downstreamResourceId: 'dimension', kind: 'dimension' },
-        ],
-      },
-      PROJECT,
-      adapter,
-    );
-    expect(value.label).toBe('VARCHAR(64)');
-    expect(resource).toHaveBeenCalledWith(RELEASE, 'physical');
-    expect(resource).not.toHaveBeenCalledWith(RELEASE, 'native.model.id');
+    const presentation = await adapter.getDbtPresentation(PROJECT, id, RELEASE);
+    expect(presentation.nativeDetails.columns).toEqual({ brand: { data_type: 'VARCHAR(64)' } });
+    expect(resource).toHaveBeenCalledWith(RELEASE, id);
   });
 
   it('rejects another release in resource details and lineage', async () => {
     const api = {
       resource: vi.fn().mockResolvedValue({ ...BASE, resourceId: 'x', buildId: 'other' }),
-      detail: vi.fn().mockResolvedValue({ buildId: 'other', resourceId: 'x', dependencies: [] }),
+      lineage: vi.fn().mockResolvedValue({ buildId: 'other', resourceId: 'x', dependencies: [] }),
     };
     const adapter = publishedResourceAdapter(api as unknown as BuildCatalogApi);
     await expect(adapter.getDbtPresentation(PROJECT, 'x', RELEASE)).rejects.toThrow('身份');
@@ -92,6 +77,11 @@ describe('published presentation contract', () => {
   it('keeps raw values and presents completed results without inventing query identity', () => {
     const result = publishedResult({
       buildId: RELEASE,
+      mode: 'QUERY',
+      commitSha: null,
+      businessTimezone: 'Asia/Shanghai',
+      normalizedTimeRange: { startTime: null, endTime: null },
+      resultTruncated: false,
       rows: [['9007199254740993.01']],
       columns: [{ name: 'amount', type: 'DECIMAL' }],
     });
@@ -117,7 +107,10 @@ it.each(['COMMAND_FAILED', 'INVALID_QUERY', 'RESULT_INVALID', 'RESULT_TOO_LARGE'
         }),
       )
       .mockResolvedValue({ buildId: RELEASE, queryId: 'new-query', state: 'SUCCEEDED' });
-    const adapter = publishedResourceAdapter({ submit } as unknown as BuildCatalogApi);
+    const adapter = publishedResourceAdapter({
+      submit,
+      resource: previewResource,
+    } as unknown as BuildCatalogApi);
     await expect(adapter.previewDbtDataset(PROJECT, 'dataset', RELEASE, 10)).rejects.toThrow(
       'failed',
     );
@@ -148,7 +141,10 @@ it.each([
       }),
     )
     .mockResolvedValue({ buildId: RELEASE, queryId: 'original-query', state: 'SUCCEEDED' });
-  const adapter = publishedResourceAdapter({ submit } as unknown as BuildCatalogApi);
+  const adapter = publishedResourceAdapter({
+    submit,
+    resource: previewResource,
+  } as unknown as BuildCatalogApi);
   await expect(adapter.previewDbtDataset(PROJECT, 'dataset', RELEASE, 10)).rejects.toThrow(
     'uncertain',
   );

@@ -1,5 +1,7 @@
 import type {
   BuildCatalogApi,
+  NativeManifest,
+  NativeNode,
   PublishedResource,
   PublishedResult,
 } from '../../api/buildCatalogApi';
@@ -50,121 +52,172 @@ export function publishedTreeResource(resource: PublishedResource): DbtResource 
   };
 }
 
-/** 适配展示契约；读取和执行使用固定资源与查询身份，不转换为名称。 */
-export function publishedResourceAdapter(api: BuildCatalogApi) {
-  const cursors = new Map<string, (string | undefined)[]>();
-  const resource = async (project: string, id: string, buildId: string) => {
-    const value = await api.resource(buildId, id);
-    if (value.buildId !== buildId || value.resourceId !== id) throw new Error(MISMATCH);
-    return value;
+const METRIC = 'metric';
+const MODEL = 'model';
+const SOURCE = 'source';
+const SEED = 'seed';
+const SNAPSHOT = 'snapshot';
+const NATIVE_SEMANTIC_MODEL = 'semantic_model';
+const VIEW = 'view';
+const NATIVE_DEPENDENCY = 'native';
+const FQN_SELECTOR = 'fqn:';
+const SOURCE_SELECTOR = 'source:';
+const DOT = '.';
+const STRING = 'string';
+
+/** selector 使用 dbt FQN，unique_id 的 model 前缀不是模型的 FQN。 */
+function nativeSelector(node: NativeNode): string {
+  if (node.resource_type === SOURCE) {
+    const identity = [node.package_name, node.source_name, node.name];
+    if (identity.some((part) => typeof part !== STRING || !part))
+      throw new Error('数据源缺少完整的原生名称');
+    return SOURCE_SELECTOR + identity.join(DOT);
+  }
+  const fqn =
+    Array.isArray(node.fqn) && node.fqn.every((part) => typeof part === STRING)
+      ? node.fqn.join(DOT)
+      : node.name;
+  if (!fqn) throw new Error('资源缺少可选择的原生名称');
+  return FQN_SELECTOR + fqn;
+}
+
+/** dbt unique_id 是唯一资源身份；维度留在 semantic_model 内，不伪造服务资源。 */
+export function nativeResource(id: string, node: NativeNode): PublishedResource {
+  const kind: PublishedResource['kind'] =
+    node.resource_type === METRIC
+      ? 'METRIC'
+      : node.resource_type === NATIVE_SEMANTIC_MODEL
+        ? SEMANTIC_MODEL
+        : node.config?.materialized === VIEW
+          ? 'VIEW'
+          : 'TABLE';
+  return {
+    resourceId: id,
+    nativeId: id,
+    kind,
+    name: node.name ?? id,
+    displayName: node.label ?? node.name ?? id,
+    description: node.description ?? null,
+    sourcePath: node.original_file_path ?? null,
+    capabilities:
+      node.resource_type === METRIC ? [QUERY] : node.resource_type === MODEL ? [PREVIEW] : [],
+    attributes: node,
+    nativeDetails: node,
   };
-  const detail = async (
-    project: string,
-    id: string,
-    buildId: string,
-    view: 'source' | 'lineage',
-  ) => {
-    const value = await api.detail(buildId, id, view);
+}
+export function manifestResources(manifest: NativeManifest): PublishedResource[] {
+  return Object.entries({
+    ...manifest.nodes,
+    ...manifest.sources,
+    ...manifest.metrics,
+    ...manifest.semantic_models,
+  })
+    .filter(([, node]) =>
+      [METRIC, MODEL, SOURCE, SEED, SNAPSHOT, NATIVE_SEMANTIC_MODEL].includes(
+        node.resource_type ?? '',
+      ),
+    )
+    .map(([id, node]) => nativeResource(id, node));
+}
+
+/** 原生协议在展示边界转换；缓存固定构建的不可变 Manifest 和资源，避免重复拉取。 */
+export function publishedResourceAdapter(api: BuildCatalogApi) {
+  const manifests = new Map<string, Promise<NativeManifest>>();
+  const resources = new Map<string, ReturnType<BuildCatalogApi['resource']>>();
+  const resource = async (_project: string, id: string, buildId: string) => {
+    const key = JSON.stringify([buildId, id]);
+    let pending = resources.get(key);
+    if (!pending) {
+      pending = api.resource(buildId, id);
+      resources.set(key, pending);
+      pending.catch(() => resources.delete(key));
+    }
+    const value = await pending;
     if (value.buildId !== buildId || value.resourceId !== id) throw new Error(MISMATCH);
     return value;
   };
   return {
     queryParameter: 'metricResourceId' as const,
     async getDbtCatalog(
-      project: string,
+      _project: string,
       buildId: string,
       search = '',
       page = 0,
-      _size = 20,
+      size = 20,
       kind?: string,
     ) {
-      const key = JSON.stringify([buildId, search, kind, _size]);
-      const known = cursors.get(key) ?? [undefined];
-      if (page > 0 && known[page] === undefined) throw new Error('请按顺序加载资源分页');
-      const value = await api.catalog(buildId, {
-        q: search,
-        kind,
-        cursor: known[page],
-        limit: _size,
-      });
-      if (value.buildId !== buildId) throw new Error(MISMATCH);
-      known[page + 1] = value.nextCursor ?? undefined;
-      cursors.set(key, known);
+      let pending = manifests.get(buildId);
+      if (!pending) {
+        pending = api.catalog(buildId);
+        manifests.set(buildId, pending);
+        pending.catch(() => manifests.delete(buildId));
+      }
+      const all = manifestResources(await pending).filter(
+        (item) =>
+          (!kind || item.kind === kind) &&
+          (!search ||
+            `${item.name} ${item.displayName} ${item.description ?? ''}`
+              .toLowerCase()
+              .includes(search.toLowerCase())),
+      );
       return {
-        buildId: buildId,
+        buildId,
         page,
-        size: _size,
-        total: page * _size + value.items.length + (value.nextCursor ? 1 : 0),
-        resources: value.items.map(publishedTreeResource),
+        size,
+        total: all.length,
+        resources: all.slice(page * size, (page + 1) * size).map(publishedTreeResource),
       };
     },
     async getDbtResource(project: string, id: string, buildId: string): Promise<DbtResource> {
       const value = await resource(project, id, buildId);
-      const mapped = publishedTreeResource(value);
-      // 类型追溯只使用发布契约中的平台 ID，不能拿 nativeId 调用资源 API。
-      if (value.kind === SEMANTIC_MODEL && typeof value.attributes.modelResourceId === 'string')
-        mapped.definitionJson = JSON.stringify({
-          ...value.nativeDetails,
-          depends_on: { nodes: [value.attributes.modelResourceId] },
-        });
-      return mapped;
+      return publishedTreeResource(nativeResource(id, value.resource));
     },
     async getDbtPresentation(
       project: string,
       id: string,
       buildId: string,
     ): Promise<DbtResourcePresentation> {
-      const value = await resource(project, id, buildId);
+      const value = nativeResource(id, (await resource(project, id, buildId)).resource);
       return {
-        buildId: buildId,
+        buildId,
         resourceId: id,
         kind: value.kind,
         title: value.name,
         queryable: value.capabilities.includes(QUERY) || value.capabilities.includes(PREVIEW),
         nativeDetails: value.nativeDetails,
-        sections: [
-          {
-            title: RESOURCE_LABELS[value.kind] ?? value.kind,
-            fields: {
-              ...value.attributes,
-              description: value.description,
-              ...(value.displayName !== value.name ? { label: value.displayName } : {}),
-            },
-          },
-        ],
+        sections: [{ title: RESOURCE_LABELS[value.kind] ?? value.kind, fields: value.attributes }],
       };
     },
-    async getDbtLineage(project: string, id: string, buildId: string): Promise<DbtLineage> {
-      const value = await detail(project, id, buildId, 'lineage');
-      if (
-        !Array.isArray(value.dependencies) ||
-        value.dependencies.some(
-          (edge) =>
-            !edge ||
-            typeof edge.upstreamResourceId !== 'string' ||
-            typeof edge.downstreamResourceId !== 'string' ||
-            typeof edge.kind !== 'string',
-        )
-      )
-        throw new Error(MISMATCH);
-      return { buildId: buildId, resourceId: id, dependencies: value.dependencies };
+    async getDbtLineage(_project: string, id: string, buildId: string): Promise<DbtLineage> {
+      const value = await resource(_project, id, buildId);
+      const nodes = await api.lineage(buildId, `+${nativeSelector(value.resource)}+`);
+      if (!Array.isArray(nodes)) throw new Error(MISMATCH);
+      return {
+        buildId,
+        resourceId: id,
+        dependencies: nodes.flatMap((node) =>
+          (node.depends_on?.nodes ?? []).map((upstreamResourceId) => ({
+            upstreamResourceId,
+            downstreamResourceId: node.unique_id ?? '',
+            kind: NATIVE_DEPENDENCY,
+          })),
+        ),
+      };
     },
     async getDbtSource(project: string, id: string, buildId: string): Promise<DbtSourceDocument> {
-      const value = await detail(project, id, buildId, 'source');
-      if (typeof value.content !== 'string' || typeof value.path !== 'string')
-        throw new Error(MISMATCH);
+      const value = await resource(project, id, buildId);
       return {
-        buildId: buildId,
-        sourcePath: value.path,
+        buildId,
+        sourcePath: value.source?.path ?? '',
         buildSourceSha: '',
-        content: value.content,
+        content: value.source?.content ?? '',
       };
     },
-    async previewDbtDataset(project: string, id: string, buildId: string, limit: number) {
+    async previewDbtDataset(_project: string, id: string, buildId: string, limit: number) {
+      const node = await resource(_project, id, buildId);
       const value = await api.submit(buildId, {
         mode: PREVIEW,
-        datasetResourceId: id,
-        metricResourceIds: [],
+        selector: nativeSelector(node.resource),
         limit,
       });
       if (value.buildId !== buildId) throw new Error(MISMATCH);

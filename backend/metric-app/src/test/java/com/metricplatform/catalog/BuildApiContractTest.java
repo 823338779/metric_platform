@@ -9,7 +9,7 @@ import com.metricplatform.catalog.BuildContracts.*;
 import com.metricplatform.environment.EnvironmentBuildGateway;
 import com.metricplatform.identity.auth.PlatformAuthenticationService;
 import com.metricplatform.security.PlatformPrincipal;
-
+import java.util.*;
 import org.junit.jupiter.api.*;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -18,8 +18,6 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
-
-import java.util.*;
 
 @SpringBootTest
 @AutoConfigureMockMvc
@@ -69,12 +67,16 @@ class BuildApiContractTest {
 
     @Test
     void bffPreservesBuildAndBusinessError() throws Exception {
-        when(gateway.catalog(eq(build), any())).thenReturn(new CatalogPage(List.of(), null, build));
+        when(gateway.catalog(build))
+                .thenReturn(
+                        new com.fasterxml.jackson.databind.ObjectMapper()
+                                .readTree(
+                                        "{\"metadata\":{},\"metrics\":{},\"nodes\":{},\"semantic_models\":{}}"));
         mvc.perform(
                         get(ROOT + "/builds/" + build + "/catalog")
                                 .header("Authorization", "Bearer " + TOKEN))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.buildId").value(build.toString()));
+                .andExpect(jsonPath("$.metadata").isMap());
         when(environmentBuilds.getBuild(build))
                 .thenThrow(
                         new BuildGateway.Failure(
@@ -167,7 +169,7 @@ class BuildApiContractTest {
         var request =
                 new QueryRequest(
                         QueryMode.QUERY,
-                        List.of("metric.revenue"),
+                        List.of("revenue"),
                         List.of(),
                         List.of(),
                         null,
@@ -197,16 +199,12 @@ class BuildApiContractTest {
                                         2,
                                         "Asia/Shanghai"),
                                 "1",
-                                "1",
                                 BuildStatus.SUCCEEDED,
                                 "DONE",
                                 null,
                                 null,
                                 null,
-                                false,
                                 true,
-                                true,
-                                null,
                                 null,
                                 null));
         when(gateway.query(build, request))
@@ -217,7 +215,6 @@ class BuildApiContractTest {
                                 null,
                                 "Asia/Shanghai",
                                 Map.of(),
-                                "metricflow_granularity_alignment",
                                 null,
                                 List.of(),
                                 List.of(),

@@ -11,7 +11,7 @@ import com.metricplatform.catalog.BuildGateway;
 import com.metricplatform.environment.EnvironmentBuildGateway;
 import com.metricplatform.identity.auth.PlatformAuthenticationService;
 import com.metricplatform.security.PlatformPrincipal;
-
+import java.util.*;
 import org.junit.jupiter.api.*;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
@@ -22,8 +22,6 @@ import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
-
-import java.util.*;
 
 @SpringBootTest
 @AutoConfigureMockMvc
@@ -40,6 +38,33 @@ class QueryControllerTest {
     @MockitoBean EnvironmentBuildGateway environmentBuilds;
     @MockitoBean PlatformAuthenticationService authentication;
     private final UUID build = UUID.randomUUID(), query = UUID.randomUUID();
+
+    @Test
+    void explainRetainsNullableCommitIdentityWithoutTabularFields() throws Exception {
+        when(gateway.query(eq(build), any()))
+                .thenReturn(
+                        new ResultPage(
+                                build,
+                                QueryMode.EXPLAIN,
+                                null,
+                                "UTC",
+                                Map.of(),
+                                "select 1",
+                                null,
+                                null,
+                                null));
+        mvc.perform(
+                        post(ROOT + "/builds/" + build + "/queries")
+                                .header(AUTH, TOKEN)
+                                .contentType("application/json")
+                                .content("{\"mode\":\"EXPLAIN\",\"metrics\":[\"revenue\"]}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.commitSha").hasJsonPath())
+                .andExpect(jsonPath("$.commitSha").value(org.hamcrest.Matchers.nullValue()))
+                .andExpect(jsonPath("$.rows").doesNotHaveJsonPath())
+                .andExpect(jsonPath("$.columns").doesNotHaveJsonPath())
+                .andExpect(jsonPath("$.resultTruncated").doesNotHaveJsonPath());
+    }
 
     @Test
     void snapshotBuildQueryDoesNotReadLegacyMetadata() throws Exception {
@@ -62,7 +87,6 @@ class QueryControllerTest {
                                 "a".repeat(40),
                                 "Asia/Shanghai",
                                 Map.of(),
-                                "metricflow_granularity_alignment",
                                 "select 1",
                                 List.of(),
                                 List.of(),
@@ -71,8 +95,7 @@ class QueryControllerTest {
                         post(ROOT + "/builds/" + build + "/queries")
                                 .header(AUTH, TOKEN)
                                 .contentType("application/json")
-                                .content(
-                                        "{\"mode\":\"EXPLAIN\",\"metricResourceIds\":[\"metric.revenue\"]}"))
+                                .content("{\"mode\":\"EXPLAIN\",\"metrics\":[\"revenue\"]}"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.buildId").value(build.toString()));
         verify(environmentBuilds).getBuild(build);
@@ -104,30 +127,26 @@ class QueryControllerTest {
                                         2,
                                         "Asia/Shanghai"),
                                 "1",
-                                "1",
                                 BuildStatus.SUCCEEDED,
                                 "DONE",
                                 null,
                                 null,
                                 null,
-                                false,
                                 true,
-                                true,
-                                null,
                                 null,
                                 null));
     }
 
     @Test
     void availableDimensionsReturnCompletedViewWithoutTaskReceipt() throws Exception {
-        var metrics = List.of("metric.revenue");
+        var metrics = List.of("revenue");
         when(gateway.availableDimensions(build, new AvailableDimensionsRequest(metrics)))
                 .thenReturn(new AvailableDimensionsView(build, metrics, List.of()));
         mvc.perform(
                         post(ROOT + "/builds/" + build + "/available-dimensions")
                                 .header(AUTH, TOKEN)
                                 .contentType("application/json")
-                                .content("{\"metricResourceIds\":[\"metric.revenue\"]}"))
+                                .content("{\"metrics\":[\"revenue\"]}"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.buildId").value(build.toString()))
                 .andExpect(jsonPath("$.dimensions").isArray())
@@ -152,12 +171,12 @@ class QueryControllerTest {
         var request =
                 new QueryRequest(
                         mode,
-                        mode == QueryMode.PREVIEW ? List.of() : List.of("metric.revenue"),
-                        List.of(),
-                        List.of(),
+                        mode == QueryMode.PREVIEW ? null : List.of("revenue"),
+                        mode == QueryMode.QUERY || mode == QueryMode.EXPLAIN ? List.of() : null,
+                        mode == QueryMode.PREVIEW ? null : List.of(),
                         null,
                         null,
-                        List.of(),
+                        mode == QueryMode.QUERY || mode == QueryMode.EXPLAIN ? List.of() : null,
                         100,
                         mode == QueryMode.PREVIEW ? "model.orders" : null,
                         mode == QueryMode.DIMENSION_VALUES ? "option-region" : null);
@@ -168,7 +187,6 @@ class QueryControllerTest {
                         "a".repeat(40),
                         "Asia/Shanghai",
                         Map.of(),
-                        "metricflow_granularity_alignment",
                         null,
                         List.of(),
                         List.of(),
@@ -199,7 +217,6 @@ class QueryControllerTest {
                         "a".repeat(40),
                         "Asia/Shanghai",
                         Map.of("startTime", "2026-10-10T00:00:00.123456"),
-                        "metricflow_granularity_alignment",
                         "select precise_value from fixed_build",
                         List.of(Map.of("name", "precise_value", "type", "DECIMAL")),
                         List.of(List.of("9007199254740993.123456789")),
@@ -208,8 +225,7 @@ class QueryControllerTest {
         mvc.perform(
                         post(ROOT + "/builds/" + build + "/queries")
                                 .contentType("application/json")
-                                .content(
-                                        "{\"mode\":\"EXPLAIN\",\"metricResourceIds\":[\"metric.revenue\"]}")
+                                .content("{\"mode\":\"EXPLAIN\",\"metrics\":[\"revenue\"]}")
                                 .header(AUTH, TOKEN))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.rows[0][0]").value("9007199254740993.123456789"))
@@ -244,7 +260,6 @@ class QueryControllerTest {
                                 "a".repeat(40),
                                 "Asia/Shanghai",
                                 Map.of(),
-                                "metricflow_granularity_alignment",
                                 null,
                                 List.of(),
                                 List.of(),
@@ -256,7 +271,7 @@ class QueryControllerTest {
                                 .content(
                                         """
                                         {"mode":"QUERY",
-                                        "metricResourceIds":["metric.revenue"],"limit":1000}
+                                        "metrics":["revenue"],"limit":1000}
                                         """))
                 .andExpect(status().isOk());
         verify(gateway).query(eq(build), argThat(request -> request.limit() == 1000));
@@ -272,13 +287,12 @@ class QueryControllerTest {
                                 null,
                                 "Asia/Shanghai",
                                 Map.of(),
-                                "metricflow_granularity_alignment",
                                 null,
                                 List.of(),
                                 List.of(),
                                 false));
         var body =
-                "{\"mode\":\"QUERY\",\"metricResourceIds\":[\"metric.revenue\"],\"filters\":[{\"optionId\":\"amount\",\"operator\":\"=\",\"value\":1234567890.123456789},{\"optionId\":\"identifier\",\"operator\":\"=\",\"value\":900719925474099312345}]}";
+                "{\"mode\":\"QUERY\",\"metrics\":[\"revenue\"],\"filters\":[{\"optionId\":\"amount\",\"operator\":\"=\",\"value\":1234567890.123456789},{\"optionId\":\"identifier\",\"operator\":\"=\",\"value\":900719925474099312345}]}";
         mvc.perform(
                         post(ROOT + "/builds/" + build + "/queries")
                                 .header(AUTH, TOKEN)
@@ -306,8 +320,7 @@ class QueryControllerTest {
                         post(ROOT + "/builds/" + build + "/queries")
                                 .header(AUTH, TOKEN)
                                 .contentType("application/json")
-                                .content(
-                                        "{\"mode\":\"QUERY\",\"metricResourceIds\":[\"metric.revenue\"]}"))
+                                .content("{\"mode\":\"QUERY\",\"metrics\":[\"revenue\"]}"))
                 .andExpect(status().is(status))
                 .andExpect(jsonPath("$.code").value(code))
                 .andExpect(jsonPath("$.buildId").value(build.toString()))

@@ -99,10 +99,10 @@ test('builds an analysis with direct choices, fixed identities and no setup drop
   await page.getByRole('button', { name: '查询', exact: true }).click();
   await expect(page.getByRole('cell', { name: '12580.50', exact: true })).toBeVisible();
   expect(fixture.requests.find((item) => item.body?.mode)?.body).toMatchObject({
-    metricResourceIds: ['metric-total'],
+    metrics: ['gross_amount'],
     groupBy: [{ optionId: 'opaque-brand' }, { optionId: 'opaque-time', grain: 'day' }],
     filters: [{ optionId: 'opaque-brand', operator: 'IN', value: ['North', 'South'] }],
-    orderBy: [{ fieldId: 'metric-total', direction: 'DESC' }],
+    orderBy: [{ fieldId: 'gross_amount', direction: 'DESC' }],
     startTime: '2026-08-31T16:00:00.000Z',
     endTime: '2026-09-30T15:59:00.000Z',
   });

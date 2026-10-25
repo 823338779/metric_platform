@@ -69,8 +69,12 @@ test('真实 PostgreSQL 固定构建目录、维度值和月粒度查询', async
     expect(result).not.toHaveProperty('state');
     expect(result.buildId).toBe(buildId);
     const request = response.request().postDataJSON();
-    expect(request.groupBy).toEqual([{ optionId: timeOption.optionId, grain: MONTH }]);
-    if (mode === DIMENSION_VALUES) expect(request.dimensionOptionId).toBe(timeOption.optionId);
+    expect(request.metrics).toEqual([METRIC]);
+    if (mode === DIMENSION_VALUES) {
+      expect(request.dimensionOptionId).toBe(timeOption.optionId);
+      expect(request).not.toHaveProperty('groupBy');
+      expect(request).not.toHaveProperty('orderBy');
+    } else expect(request.groupBy).toEqual([{ optionId: timeOption.optionId, grain: MONTH }]);
     expect(request).not.toHaveProperty('idempotencyKey');
     expect(result.rows.length).toBeGreaterThan(0);
     await expect(page.getByText(/COMPLETED/)).toBeVisible();

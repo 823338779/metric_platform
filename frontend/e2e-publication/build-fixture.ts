@@ -20,7 +20,6 @@ export async function buildFixture(
     dependencies?: Json[];
     result?: (body: Json, buildId: string) => Json;
     resource?: (id: string) => Json;
-    pageSize?: number;
   } = {},
 ) {
   await page.addInitScript(
@@ -63,8 +62,6 @@ export async function buildFixture(
     commitSha: 'sha-' + id,
     buildStatus: 'SUCCEEDED',
     catalogAvailable: true,
-    queryAvailable: true,
-    queryUnavailableReason: null,
   });
   const resources = (id: string) =>
     (typeof config.resources === 'function'
@@ -87,6 +84,23 @@ export async function buildFixture(
       sourcePath: 'models/metrics.yml',
       ...item,
     }));
+  const native = (item: Json) => ({
+    ...item.attributes,
+    ...item.nativeDetails,
+    unique_id: item.resourceId,
+    resource_type:
+      item.kind === 'METRIC'
+        ? 'metric'
+        : item.kind === 'SEMANTIC_MODEL'
+          ? 'semantic_model'
+          : 'model',
+    name: item.name,
+    label: item.displayName,
+    description: item.description,
+    original_file_path: item.sourcePath ?? 'models/metrics.yml',
+    fqn: ['fixture', item.name],
+    config: { materialized: item.kind === 'VIEW' ? 'view' : 'table' },
+  });
   await page.route('**/api/dbt/**', async (route) => {
     const url = new URL(route.request().url());
     const path = decodeURIComponent(url.pathname);
@@ -122,17 +136,26 @@ export async function buildFixture(
       });
     if (/\/builds\/[^/]+$/.test(path)) return route.fulfill({ json: build(id) });
     if (path.endsWith('/catalog')) {
-      const items = resources(id).filter(
-        (item) => !url.searchParams.get('kind') || item.kind === url.searchParams.get('kind'),
-      );
-      const offset = Number(url.searchParams.get('cursor') ?? 0);
-      const size = config.pageSize ?? Number(url.searchParams.get('limit') ?? 50);
       return route.fulfill({
         json: {
-          buildId: id,
-          items: items.slice(offset, offset + size),
-          nextCursor: offset + size < items.length ? String(offset + size) : null,
+          nodes: Object.fromEntries(resources(id).map((item) => [item.resourceId, native(item)])),
         },
+      });
+    }
+    if (path.endsWith('/lineage')) {
+      const edges = config.dependencies ?? [];
+      const ids = [
+        ...new Set(edges.flatMap((edge) => [edge.upstreamResourceId, edge.downstreamResourceId])),
+      ];
+      return route.fulfill({
+        json: ids.map((unique_id) => ({
+          unique_id,
+          depends_on: {
+            nodes: edges
+              .filter((edge) => edge.downstreamResourceId === unique_id)
+              .map((edge) => edge.upstreamResourceId),
+          },
+        })),
       });
     }
     if (path.endsWith('/available-dimensions')) {
@@ -140,53 +163,64 @@ export async function buildFixture(
         status: 200,
         json: {
           buildId: id,
-          dimensions: config.options ?? [],
-          metricResourceIds: body.metricResourceIds,
+          dimensions: (config.options ?? []).map(({ resourceId: _resourceId, ...option }) => ({
+            dimensionType: option.granularities.length ? 'time' : 'categorical',
+            ...option,
+          })),
+          metrics: body.metrics,
         },
       });
     }
     if (path.endsWith('/queries')) {
-      if ('idempotencyKey' in body || 'offset' in body)
+      const allowed =
+        body.mode === 'PREVIEW'
+          ? ['mode', 'selector', 'limit']
+          : body.mode === 'DIMENSION_VALUES'
+            ? ['mode', 'metrics', 'dimensionOptionId', 'filters', 'startTime', 'endTime', 'limit']
+            : ['mode', 'metrics', 'groupBy', 'orderBy', 'filters', 'startTime', 'endTime', 'limit'];
+      if (
+        Object.keys(body).some((key) => !allowed.includes(key)) ||
+        (body.mode !== 'PREVIEW' && !body.metrics?.length)
+      )
         return route.fulfill({ status: 422, json: { code: 'INVALID_REQUEST' } });
       if (lost) {
         lost = false;
         return route.abort('failed');
       }
+      const custom = config.result?.(body, id) ?? {};
+      const identity = { buildId: id, commitSha: 'sha-' + id, mode: body.mode };
+      const time = {
+        businessTimezone: 'UTC',
+        normalizedTimeRange: { startTime: null, endTime: null },
+      };
       return route.fulfill({
         status: 200,
-        json: {
-          buildId: id,
-          mode: body.mode,
-          columns: [{ name: '销售额', type: 'DECIMAL' }],
-          rows: [[id === BUILD_B ? '31.00' : '62.00']],
-          resultTruncated: false,
-          ...config.result?.(body, id),
-        },
+        json:
+          body.mode === 'EXPLAIN'
+            ? { ...identity, ...time, sql: custom.sql ?? 'select 1' }
+            : {
+                ...identity,
+                ...(body.mode === 'PREVIEW' ? {} : time),
+                columns: custom.columns ?? [{ name: '销售额', type: 'DECIMAL' }],
+                rows: custom.rows ?? [[id === BUILD_B ? '31.00' : '62.00']],
+                resultTruncated: custom.resultTruncated ?? false,
+              },
       });
     }
-    const rid = path.match(/\/resources\/([^/]+)/)?.[1];
+    const rid = path.match(/\/resources\/([^/]+)$/)?.[1];
     if (rid) {
       const item = resources(id).find((item) => item.resourceId === rid) ?? config.resource?.(rid);
       if (!item) return route.fulfill({ status: 404, json: { code: 'RESOURCE_NOT_FOUND' } });
-      if (path.endsWith('/lineage'))
-        return route.fulfill({
-          json: { buildId: id, resourceId: rid, dependencies: config.dependencies ?? [] },
-        });
-      if (path.endsWith('/source'))
-        return route.fulfill({
-          json: {
-            buildId: id,
-            resourceId: rid,
+      return route.fulfill({
+        json: {
+          buildId: id,
+          resourceId: rid,
+          resource: native(item),
+          source: {
             path: item.sourcePath ?? 'models/metrics.yml',
             content: config.source ?? 'metrics:\n  - name: ' + item.name + '\n    type: simple\n',
           },
-        });
-      if (path.endsWith('/native-details'))
-        return route.fulfill({
-          json: { buildId: id, resourceId: rid, nativeDetails: item.nativeDetails },
-        });
-      return route.fulfill({
-        json: { buildId: id, capabilities: [], attributes: {}, nativeDetails: {}, ...item },
+        },
       });
     }
     return route.fulfill({ status: 404, json: { code: 'UNKNOWN_FIXTURE_ROUTE', detail: path } });

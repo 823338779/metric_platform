@@ -6,20 +6,19 @@ import com.metricplatform.catalog.BuildContracts.ErrorView;
 import com.metricplatform.catalog.BuildGateway;
 import com.metricplatform.environment.EnvironmentBuildGateway;
 import com.metricplatform.environment.EnvironmentContracts.*;
-
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.stereotype.Component;
-
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.util.Objects;
 import java.util.StringJoiner;
 import java.util.UUID;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.stereotype.Component;
 
 /** 复用有界 HTTP 传输，完整环境快照构建，不回退旧绑定。 */
 @Component
 public class HttpEnvironmentBuildGateway implements EnvironmentBuildGateway {
     private static final String BUILDS = "/builds", GET = "GET", POST = "POST", SLASH = "/";
+    private static final String EXECUTION_LOGS = "/execution-logs", LIMIT = "limit";
     private static final String BUILD_ID = "buildId",
             EXECUTION = "execution",
             ENVIRONMENT_ID = "environmentId",
@@ -93,10 +92,12 @@ public class HttpEnvironmentBuildGateway implements EnvironmentBuildGateway {
     }
 
     @Override
-    public JsonNode logs(UUID id, String cursor) {
+    public JsonNode logs(UUID id, String cursor, int limit) {
         var query = new StringJoiner("&", "?", "");
         add(query, "cursor", cursor);
-        return transport.call(GET, BUILDS + SLASH + id + "/logs" + query, null, JsonNode.class);
+        add(query, LIMIT, Integer.toString(limit));
+        return transport.call(
+                GET, BUILDS + SLASH + id + EXECUTION_LOGS + query, null, JsonNode.class);
     }
 
     private static void verifyEnvironment(JsonNode value, UUID id) {

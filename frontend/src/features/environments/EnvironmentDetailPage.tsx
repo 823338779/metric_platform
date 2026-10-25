@@ -9,6 +9,7 @@ import {
   type ExecutionEnvironment,
 } from '../../api/environmentApi';
 import { EnvironmentForm } from './EnvironmentForm';
+import { ExecutionLogs } from './ExecutionLogs';
 import { BuildSubmissionForm } from './BuildSubmissionForm';
 import {
   ArrowLeftOutlined,
@@ -52,13 +53,7 @@ function SelectedEnvironment({
   const [editing, setEditing] = useState(false);
   const [busy, setBusy] = useState(false);
   const [refresh, setRefresh] = useState(0);
-  const [logs, setLogs] = useState<{
-    buildId: string;
-    items: string[];
-    loading: boolean;
-    error: string;
-  } | null>(null);
-  const logRequest = useRef(0);
+  const [logBuild, setLogBuild] = useState<string | null>(null);
   const generation = useRef(0);
   const paging = useRef(false);
   const repository = params.get('repository') || undefined;
@@ -68,7 +63,7 @@ function SelectedEnvironment({
     const turn = ++generation.current;
     setPage({ items: [], nextCursor: null });
     setError('');
-    setLogs(null);
+    setLogBuild(null);
     setEditing(false);
     paging.current = false;
     setBusy(false);
@@ -128,24 +123,6 @@ function SelectedEnvironment({
         paging.current = false;
         setBusy(false);
       }
-    }
-  }
-  async function showLogs(buildId: string) {
-    const turn = generation.current;
-    const request = ++logRequest.current;
-    setLogs({ buildId, items: [], loading: true, error: '' });
-    try {
-      const result = await api.logs(buildId);
-      if (turn === generation.current && request === logRequest.current)
-        setLogs({ buildId, items: result.items, loading: false, error: '' });
-    } catch (reason) {
-      if (turn === generation.current && request === logRequest.current)
-        setLogs({
-          buildId,
-          items: [],
-          loading: false,
-          error: reason instanceof Error ? reason.message : '日志读取失败',
-        });
     }
   }
   return (
@@ -287,31 +264,19 @@ function SelectedEnvironment({
             </p>
             <p>
               {build.execution?.catalog} / {build.execution?.schema} · 配置版本{' '}
-              {build.execution?.configVersion ?? build.configVersion} · {build.createdAt}
+              {build.execution.configVersion} · {build.createdAt}
             </p>
             <div className="environment-actions">
               {build.catalogAvailable && (
                 <Link to={`/dbt/builds/${build.buildId}/catalog`}>查看目录</Link>
               )}
-              {build.queryAvailable && (
-                <Link to={`/dbt/builds/${build.buildId}/query`}>查询此构建</Link>
-              )}
-              <Button type="link" onClick={() => void showLogs(build.buildId)}>
+              {<Link to={`/dbt/builds/${build.buildId}/query`}>查询此构建</Link>}
+              <Button type="link" onClick={() => setLogBuild(build.buildId)}>
                 查看日志
               </Button>
             </div>
-            {logs?.buildId === build.buildId && (
-              <section aria-label="构建日志" aria-busy={logs.loading}>
-                {logs.loading ? (
-                  <p role="status">正在加载日志</p>
-                ) : logs.error ? (
-                  <Alert type="error" title={logs.error} />
-                ) : logs.items.length ? (
-                  <pre>{logs.items.join('\n')}</pre>
-                ) : (
-                  <p role="status">暂无日志</p>
-                )}
-              </section>
+            {logBuild === build.buildId && (
+              <ExecutionLogs key={logBuild} buildId={logBuild} api={api} />
             )}
           </article>
         ))}

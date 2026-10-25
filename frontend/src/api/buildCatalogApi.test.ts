@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { createBuildCatalogApi } from './buildCatalogApi';
+import { createBuildCatalogApi, type PublishedQuery } from './buildCatalogApi';
 
 const B1 = '11111111-1111-4111-8111-111111111111';
 const TASK = '22222222-2222-4222-8222-222222222222';
@@ -18,7 +18,7 @@ describe('唯一构建协议', () => {
     );
     const result = await createBuildCatalogApi(fetcher).submit(B1, {
       mode: 'QUERY',
-      metricResourceIds: ['metric'],
+      metrics: ['metric'],
       limit: 1000,
       startTime: '2026-10-10T00:00:00+08:00',
     });
@@ -26,7 +26,7 @@ describe('唯一构建协议', () => {
     expect(fetcher.mock.calls[0][0]).toBe(`/api/dbt/builds/${B1}/queries`);
     expect(JSON.parse(fetcher.mock.calls[0][1].body)).toEqual({
       mode: 'QUERY',
-      metricResourceIds: ['metric'],
+      metrics: ['metric'],
       limit: 1000,
       startTime: '2026-10-10T00:00:00+08:00',
     });
@@ -61,18 +61,18 @@ describe('唯一构建协议', () => {
         ),
     );
     const api = createBuildCatalogApi(fetcher);
-    await api.catalog(B1, { cursor: 'opaque', limit: 50 });
+    await api.catalog(B1);
     await api.resource(B1, 'metric/a');
-    await api.availableDimensions(B1, { metricResourceIds: ['m'] });
+    await api.availableDimensions(B1, { metrics: ['m'] });
     const input = {
       mode: 'QUERY' as const,
-      metricResourceIds: ['m'],
+      metrics: ['m'],
       filters: [{ optionId: 'o', operator: '=', value: '9007199254740993' }],
       startTime: '2026-10-10T00:00:00+08:00',
     };
     await api.submit(B1, input);
     expect(fetcher.mock.calls.map(([url]) => url)).toEqual([
-      `/api/dbt/builds/${B1}/catalog?limit=50&cursor=opaque`,
+      `/api/dbt/builds/${B1}/catalog`,
       `/api/dbt/builds/${B1}/resources/metric%2Fa`,
       `/api/dbt/builds/${B1}/available-dimensions`,
       `/api/dbt/builds/${B1}/queries`,
@@ -106,12 +106,12 @@ it.each(['QUERY', 'EXPLAIN', 'PREVIEW', 'DIMENSION_VALUES'] as const)(
       .mockResolvedValue(
         new Response(JSON.stringify({ queryId: TASK, buildId: B1, state: 'SUCCEEDED' })),
       );
-    const body = {
-      mode,
-      metricResourceIds: mode === 'PREVIEW' ? [] : ['metric'],
-      ...(mode === 'PREVIEW' ? { datasetResourceId: 'dataset' } : {}),
-      ...(mode === 'DIMENSION_VALUES' ? { dimensionOptionId: 'opaque-option' } : {}),
-    };
+    const body: PublishedQuery =
+      mode === 'PREVIEW'
+        ? { mode, selector: 'dataset' }
+        : mode === 'DIMENSION_VALUES'
+          ? { mode, metrics: ['metric'], dimensionOptionId: 'opaque-option' }
+          : { mode, metrics: ['metric'] };
     await createBuildCatalogApi(fetcher).submit(B1, body);
     expect(fetcher).toHaveBeenCalledTimes(1);
     expect(fetcher.mock.calls[0][0]).toBe(`/api/dbt/builds/${B1}/queries`);

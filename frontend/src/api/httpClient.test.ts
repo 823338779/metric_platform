@@ -10,14 +10,14 @@ describe('typed API client', () => {
     const api = createBuildCatalogApi(fetcher);
     await api.submit('11111111-1111-4111-8111-111111111111', {
       mode: 'QUERY',
-      metricResourceIds: ['revenue'],
+      metrics: ['revenue'],
     });
     expect(fetcher).toHaveBeenCalledWith(
       expect.stringContaining('/builds/11111111-1111-4111-8111-111111111111/queries'),
       expect.objectContaining({
         body: JSON.stringify({
           mode: 'QUERY',
-          metricResourceIds: ['revenue'],
+          metrics: ['revenue'],
         }),
       }),
     );

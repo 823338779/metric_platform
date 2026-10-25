@@ -8,7 +8,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.metricplatform.identity.auth.PlatformAuthenticationService;
 import com.metricplatform.security.PlatformPrincipal;
-
+import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -18,8 +18,6 @@ import org.springframework.http.MediaType;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
-
-import java.util.UUID;
 
 @SpringBootTest(
         properties =
@@ -38,7 +36,7 @@ class EnvironmentApiTest {
         UUID build = UUID.randomUUID();
         var body = mapper.readTree("{\"buildId\":\"" + build + "\",\"buildStatus\":\"QUEUED\"}");
         when(gateway.getBuild(build)).thenReturn(body);
-        when(gateway.logs(build, null))
+        when(gateway.logs(build, null, 100))
                 .thenReturn(mapper.readTree("{\"items\":[\"QUEUED\"],\"nextCursor\":null}"));
         when(gateway.history(any()))
                 .thenReturn(mapper.readTree("{\"items\":[],\"nextCursor\":null}"));
@@ -70,7 +68,7 @@ class EnvironmentApiTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.buildId").value(build.toString()));
         mvc.perform(
-                        get("/api/dbt/builds/" + build + "/logs")
+                        get("/api/dbt/builds/" + build + "/execution-logs")
                                 .header("Authorization", "Bearer environment-test"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.items[0]").value("QUEUED"));

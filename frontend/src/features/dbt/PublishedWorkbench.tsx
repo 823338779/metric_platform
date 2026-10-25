@@ -8,9 +8,8 @@ import {
 } from '@ant-design/icons';
 import { AnalysisEmpty, ChoiceChips, MetricLibrary, TimeRange } from './AnalysisControls';
 import { QuerySelection, ASCENDING, type QueryDirection } from './QuerySelection';
-import { useQueryDimensionTypes } from './useQueryDimensionTypes';
 import { DbtQueryResults } from './DbtQueryResults';
-import { publishedResult } from './publishedResourceAdapter';
+import { manifestResources, publishedResult } from './publishedResourceAdapter';
 import { businessTimeToIso } from './businessTime';
 import { useEffect, useRef, useState } from 'react';
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
@@ -80,7 +79,6 @@ function FixedPublishedWorkbench({ api }: { api: BuildCatalogApi }) {
   const [limit, setLimit] = useState(1000);
   const [sortFields, setSortFields] = useState<string[]>([]);
   const [sortDirections, setSortDirections] = useState<Record<string, QueryDirection>>({});
-  const dimensionTypes = useQueryDimensionTypes(api, projectId, buildId, availableDimensions);
   const generation = useRef(0);
   const submissionGeneration = useRef(0);
   const [refresh, setRefresh] = useState(0);
@@ -174,16 +172,8 @@ function FixedPublishedWorkbench({ api }: { api: BuildCatalogApi }) {
     const load = async () => {
       try {
         {
-          const all: PublishedResource[] = [];
-          let cursor: string | undefined;
-          while (true) {
-            const part = await api.catalog(buildId, { kind: 'METRIC', cursor });
-            if (turn !== generation.current) return;
-            if (part.buildId !== buildId) throw new Error('目录版本不匹配');
-            all.push(...part.items);
-            if (!part.nextCursor) break;
-            cursor = part.nextCursor;
-          }
+          const manifest = await api.catalog(buildId);
+          const all = manifestResources(manifest).filter((item) => item.kind === 'METRIC');
           if (turn !== generation.current) return;
           setMetrics(all);
           setSelected((previous) =>
@@ -214,7 +204,11 @@ function FixedPublishedWorkbench({ api }: { api: BuildCatalogApi }) {
     setGrains({});
     setFilterOption(EMPTY);
     if (!selected.length || !buildId) return;
-    const ids = [...new Set(selected)].sort();
+    const ids = metrics
+      .filter((item) => selected.includes(item.resourceId))
+      .map((item) => item.name)
+      .sort();
+    if (!ids.length) return;
     // 选项响应已经完成，切换选择后忽略旧响应。
     function observe(value: Awaited<ReturnType<BuildCatalogApi['availableDimensions']>>) {
       if (!active) return;
@@ -231,7 +225,7 @@ function FixedPublishedWorkbench({ api }: { api: BuildCatalogApi }) {
       setAvailableDimensionsReady(true);
     }
     void api
-      .availableDimensions(buildId, { metricResourceIds: ids })
+      .availableDimensions(buildId, { metrics: ids })
       .then(observe)
       .catch((failure) => {
         if (active) setError(errorText(failure));
@@ -239,7 +233,7 @@ function FixedPublishedWorkbench({ api }: { api: BuildCatalogApi }) {
     return () => {
       active = false;
     };
-  }, [api, buildId, selected]);
+  }, [api, buildId, selected, metrics]);
 
   async function submit(mode: PublishedQuery['mode'], resourceId?: string) {
     const turn = submissionGeneration.current;
@@ -253,41 +247,45 @@ function FixedPublishedWorkbench({ api }: { api: BuildCatalogApi }) {
     }
     setBusy(true);
     setError(EMPTY);
-    const selection = {
-      mode,
-      metricResourceIds: mode === PREVIEW ? [] : selected,
-      groupBy:
-        mode === PREVIEW
-          ? []
-          : groups.map((optionId) => ({
-              optionId,
-              ...(grains[optionId] ? { grain: grains[optionId] } : {}),
-            })),
+    const metricNames = metrics
+      .filter((item) => selected.includes(item.resourceId))
+      .map((item) => item.name);
+    const shared = {
+      metrics: metricNames,
       limit,
-      ...(mode === PREVIEW
-        ? { datasetResourceId: resourceId }
-        : {
-            filters: filterOption
-              ? [
-                  {
-                    optionId: filterOption,
-                    operator,
-                    value:
-                      operator === 'IN'
-                        ? filterValue.split(',').map((value) => value.trim())
-                        : filterValue,
-                  },
-                ]
-              : [],
-            orderBy: sortFields.map((fieldId) => ({
-              fieldId,
-              direction: sortDirections[fieldId] ?? ASCENDING,
-            })),
-            ...(start ? { startTime: businessTimeToIso(start) } : {}),
-            ...(end ? { endTime: businessTimeToIso(end) } : {}),
-          }),
-      ...(mode === DIMENSION_VALUES ? { dimensionOptionId: groups[0] } : {}),
+      filters: filterOption
+        ? [
+            {
+              optionId: filterOption,
+              operator,
+              value:
+                operator === 'IN'
+                  ? filterValue.split(',').map((value) => value.trim())
+                  : filterValue,
+            },
+          ]
+        : [],
+      ...(start ? { startTime: businessTimeToIso(start) } : {}),
+      ...(end ? { endTime: businessTimeToIso(end) } : {}),
     };
+    // 各模式只发送自身支持的字段，PREVIEW 不携带指标，维度值不携带分组或排序。
+    const selection: PublishedQuery =
+      mode === PREVIEW
+        ? { mode, selector: resourceId ?? EMPTY, limit }
+        : mode === DIMENSION_VALUES
+          ? { ...shared, mode, dimensionOptionId: groups[0] }
+          : {
+              ...shared,
+              mode,
+              groupBy: groups.map((optionId) => ({
+                optionId,
+                ...(grains[optionId] ? { grain: grains[optionId] } : {}),
+              })),
+              orderBy: sortFields.map((id) => ({
+                fieldId: metrics.find((item) => item.resourceId === id)?.name ?? id,
+                direction: sortDirections[id] ?? ASCENDING,
+              })),
+            };
     try {
       const accepted = await api.submit(buildId, selection);
       if (accepted.buildId !== buildId) throw new Error('查询版本不匹配');
@@ -319,7 +317,7 @@ function FixedPublishedWorkbench({ api }: { api: BuildCatalogApi }) {
   const dimensionChoices = availableDimensions.map((item) => ({
     value: item.optionId,
     label: item.displayName,
-    dataType: item.resourceId ? dimensionTypes[item.resourceId] : undefined,
+    dataType: item.dimensionType,
     granularities: item.granularities,
   }));
   const changeMetrics = (value: string[]) => setSelected(value);
@@ -366,9 +364,6 @@ function FixedPublishedWorkbench({ api }: { api: BuildCatalogApi }) {
       )}
       {availableBuild && availableBuild !== buildId && (
         <Alert type="info" title="有效部署已更新，当前查询仍固定原构建；点击刷新后重新选择。" />
-      )}
-      {identity && !identity.queryAvailable && (
-        <Alert type="warning" title={`查询不可用：${identity.queryUnavailableReason}`} />
       )}
       {error && <Alert type="error" title={error} />}
       <div className="analysis-studio">
@@ -514,19 +509,14 @@ function FixedPublishedWorkbench({ api }: { api: BuildCatalogApi }) {
               </label>
               <div className="query-toolbar-actions">
                 <Button
-                  disabled={
-                    !identity?.queryAvailable ||
-                    !availableDimensionsReady ||
-                    groups.length !== 1 ||
-                    busy
-                  }
+                  disabled={!availableDimensionsReady || groups.length !== 1 || busy}
                   onClick={() => void submit(DIMENSION_VALUES)}
                 >
                   维度值
                 </Button>
                 <Button
                   icon={<CodeOutlined aria-hidden />}
-                  disabled={!identity?.queryAvailable || !availableDimensionsReady || busy}
+                  disabled={!availableDimensionsReady || busy}
                   onClick={() => void submit(EXPLAIN)}
                 >
                   查看 SQL
@@ -535,7 +525,7 @@ function FixedPublishedWorkbench({ api }: { api: BuildCatalogApi }) {
                   type="primary"
                   icon={<PlayCircleOutlined aria-hidden />}
                   aria-label="查询"
-                  disabled={!identity?.queryAvailable || !availableDimensionsReady || busy}
+                  disabled={!availableDimensionsReady || busy}
                   loading={busy}
                   onClick={() => void submit(QUERY)}
                 >

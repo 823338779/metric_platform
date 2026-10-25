@@ -28,24 +28,20 @@ export type DeploymentTarget = DeploymentKey & {
   headObservedAt: string | null;
   sourceState: string;
 };
-/** 构建成功、目录可读和物理查询可用是独立事实。 */
+/** 构建执行事实；查询能力由执行请求的实际结果确定。 */
 export type BuildView = Omit<DeploymentKey, 'environmentId'> & {
   /** 受理时固定的完整执行快照。 */
   execution: ExecutionSnapshot;
   buildId: string;
   requestedCommitSha: string | null;
   commitSha: string | null;
-  configVersion: string;
   toolchainVersion: string;
   buildStatus: string;
   phase: string;
   createdAt: string;
   updatedAt: string;
   finishedAt: string | null;
-  cancelRequested: boolean;
   catalogAvailable: boolean;
-  queryAvailable: boolean;
-  queryUnavailableReason: string | null;
   error: ServiceError | null;
   initialDeployment: DeploymentAttempt | null;
 };
@@ -69,41 +65,82 @@ export type PublishedResource = {
 };
 export type PublishedOption = {
   optionId: string;
-  resourceId: string | null;
+  /** 原生维度语义类型，不推断物理列类型。 */
+  dimensionType: string;
+  name?: string;
+  semanticModelName?: string;
   displayName: string;
   granularities: string[];
   operators: string[];
 };
-/** buildId 只在 URL 中，数值筛选值与时间字符串不在调用方转换精度。 */
-export type PublishedQuery = {
-  mode: 'QUERY' | 'EXPLAIN' | 'PREVIEW' | 'DIMENSION_VALUES';
-  metricResourceIds: string[];
-  groupBy?: { optionId: string; grain?: string }[];
-  orderBy?: { fieldId: string; direction: 'ASC' | 'DESC' }[];
+/** 固定构建查询按模式约束字段，避免发送上游拒绝的无关空字段。 */
+type MetricSelection = {
+  metrics: string[];
   filters?: { optionId: string; operator: string; value: unknown }[];
   startTime?: string;
   endTime?: string;
   limit?: number;
-  datasetResourceId?: string;
-  dimensionOptionId?: string;
+};
+export type PublishedQuery =
+  | (MetricSelection & {
+      mode: 'QUERY' | 'EXPLAIN';
+      groupBy?: { optionId: string; grain?: string }[];
+      orderBy?: { fieldId: string; direction: 'ASC' | 'DESC' }[];
+    })
+  | (MetricSelection & { mode: 'DIMENSION_VALUES'; dimensionOptionId: string })
+  | { mode: 'PREVIEW'; selector: string; limit?: number };
+/** 原生 Manifest 节点保持扩展字段，展示层只读取明确支持的字段。 */
+export type NativeNode = Record<string, unknown> & {
+  unique_id?: string;
+  resource_type?: string;
+  name?: string;
+  label?: string;
+  description?: string;
+  original_file_path?: string;
+  config?: { materialized?: string };
+  depends_on?: { nodes?: string[] };
+};
+export type NativeManifest = {
+  nodes?: Record<string, NativeNode>;
+  sources?: Record<string, NativeNode>;
+  metrics?: Record<string, NativeNode>;
+  semantic_models?: Record<string, NativeNode>;
+};
+export type ResourceView = {
+  buildId: string;
+  resourceId: string;
+  resource: NativeNode;
+  source: { path: string; content: string } | null;
 };
 export type AvailableDimensionsView = {
   buildId: string;
-  metricResourceIds: string[];
+  metrics: string[];
   dimensions: PublishedOption[];
 };
-export type PublishedResult = {
-  buildId: string;
-  mode?: PublishedQuery['mode'];
-  commitSha?: string;
-  businessTimezone?: string;
-  normalizedTimeRange?: Record<string, string>;
-  boundaryPolicy?: string;
-  columns?: { name: string; type: string }[];
-  rows?: unknown[][];
-  sql?: string;
-  resultTruncated?: boolean;
+type QueryIdentity = { buildId: string; commitSha: string | null };
+type TimeContext = {
+  businessTimezone: string;
+  normalizedTimeRange: { startTime: string | null; endTime: string | null };
 };
+type TabularResult = {
+  columns: { name: string; type: string }[];
+  rows: unknown[][];
+  resultTruncated: boolean;
+  sql?: never;
+};
+/** EXPLAIN 仅有 SQL，PREVIEW 不带指标时间语义。 */
+export type PublishedResult = QueryIdentity &
+  (
+    | (TabularResult & TimeContext & { mode: 'QUERY' | 'DIMENSION_VALUES' })
+    | (TabularResult & { mode: 'PREVIEW'; businessTimezone?: never; normalizedTimeRange?: never })
+    | (TimeContext & {
+        mode: 'EXPLAIN';
+        sql: string;
+        columns?: never;
+        rows?: never;
+        resultTruncated?: never;
+      })
+  );
 const ROOT = '/api/dbt';
 const POST = 'POST';
 const segment = encodeURIComponent;
@@ -134,18 +171,11 @@ export function createBuildCatalogApi(fetcher?: Fetcher) {
       request<{ items: DeploymentAttempt[]; nextCursor: string | null }>(
         `/deployments?${query({ ...key, cursor, limit: 50 })}`,
       ),
-    catalog: (
-      id: string,
-      filter: { q?: string; kind?: string; cursor?: string; limit?: number } = {},
-    ) =>
-      request<{ buildId: string; items: PublishedResource[]; nextCursor: string | null }>(
-        `${build(id)}/catalog?${query({ limit: 50, ...filter })}`,
-      ),
-    resource: (id: string, rid: string) =>
-      request<PublishedResource & { buildId: string }>(resource(id, rid)),
-    detail: (id: string, rid: string, view: 'lineage' | 'source' | 'native-details') =>
-      request<Record<string, unknown>>(`${resource(id, rid)}/${view}`),
-    availableDimensions: (id: string, input: { metricResourceIds: string[] }) =>
+    catalog: (id: string) => request<NativeManifest>(`${build(id)}/catalog`),
+    resource: (id: string, rid: string) => request<ResourceView>(resource(id, rid)),
+    lineage: (id: string, selector: string) =>
+      request<NativeNode[]>(`${build(id)}/lineage?${query({ selector })}`),
+    availableDimensions: (id: string, input: { metrics: string[] }) =>
       request<AvailableDimensionsView>(`${build(id)}/available-dimensions`, {
         method: POST,
         body: JSON.stringify(input),

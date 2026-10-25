@@ -41,17 +41,21 @@ function fixture() {
         threads: 2,
         businessTimezone: 'Asia/Shanghai',
       },
-      queryAvailable: true,
     }),
     current: vi.fn().mockResolvedValue({ activeBuildId: B2 }),
     catalog: vi.fn().mockResolvedValue({
-      buildId: B1,
-      items: [{ resourceId: 'metric', displayName: '销售额' }],
-      nextCursor: null,
+      metrics: {
+        ['metric']: {
+          unique_id: 'metric',
+          resource_type: 'metric',
+          name: 'metric',
+          label: '销售额',
+        },
+      },
     }),
     availableDimensions: vi
       .fn()
-      .mockResolvedValue({ buildId: B1, metricResourceIds: ['metric'], dimensions: [] }),
+      .mockResolvedValue({ buildId: B1, metrics: ['metric'], dimensions: [] }),
     getOptions: vi.fn().mockResolvedValue({ buildId: B1, state: 'SUCCEEDED', dimensions: [] }),
     submit: vi.fn().mockResolvedValue({
       queryId: Q,
@@ -131,7 +135,7 @@ it('同步选项响应前禁查询，新部署不替换选项和查询 buildId',
   expect(api.getOptions).not.toHaveBeenCalled();
   expect(api.submit).toHaveBeenCalledWith(
     B1,
-    expect.objectContaining({ metricResourceIds: ['metric'], mode: 'QUERY' }),
+    expect.objectContaining({ metrics: ['metric'], mode: 'QUERY' }),
   );
   expect(api.submit.mock.calls[0][1]).not.toHaveProperty('buildId');
 });
@@ -205,11 +209,15 @@ it.each(['EXPLAIN', 'DIMENSION_VALUES'] as const)(
           mode,
           startTime: '2026-10-10T01:00:00.000Z',
           endTime: '2026-10-11T01:00:00.000Z',
-          groupBy: [{ optionId: 'opaque-region' }],
+          ...(mode === 'EXPLAIN' ? { groupBy: [{ optionId: 'opaque-region' }] } : {}),
           ...(mode === 'DIMENSION_VALUES' ? { dimensionOptionId: 'opaque-region' } : {}),
         }),
       ),
     );
+    if (mode === 'DIMENSION_VALUES') {
+      expect(api.submit.mock.calls[0][1]).not.toHaveProperty('groupBy');
+      expect(api.submit.mock.calls[0][1]).not.toHaveProperty('orderBy');
+    }
   },
 );
 
@@ -245,7 +253,7 @@ it('同步返回选项及首屏结果，不读取任务状态或重复拉取首�
   const api = fixture();
   api.availableDimensions.mockResolvedValue({
     buildId: B1,
-    metricResourceIds: ['metric'],
+    metrics: ['metric'],
     dimensions: [],
   });
   api.submit.mockResolvedValue({
@@ -264,7 +272,7 @@ it('同步返回选项及首屏结果，不读取任务状态或重复拉取首�
   expect(await screen.findByText(/sync-first-page/)).toBeInTheDocument();
   expect(api.getOptions).not.toHaveBeenCalled();
   expect(api.results).not.toHaveBeenCalled();
-  expect(api.availableDimensions).toHaveBeenCalledWith(B1, { metricResourceIds: ['metric'] });
+  expect(api.availableDimensions).toHaveBeenCalledWith(B1, { metrics: ['metric'] });
 });
 
 it('明确失败后再次同步查询不发送幂等键，查询条件保持不变', async () => {

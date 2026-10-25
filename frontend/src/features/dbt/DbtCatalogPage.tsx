@@ -58,12 +58,10 @@ const filters = [
 export function DbtCatalogPage({
   api = metricPlatformApi,
   actions,
-  queryAvailable = true,
 }: {
   api?: CatalogApi;
   actions?: ReactNode;
   /** 固定构建的查询能力，不影响目录与源码读取。 */
-  queryAvailable?: boolean;
 }) {
   const navigate = useNavigate();
   const { projectId = '', buildId: routeBuildId } = useParams();
@@ -121,7 +119,7 @@ export function DbtCatalogPage({
         active = false;
       };
     }
-    // 常见类型在服务端分页；其他资源遍历当前版本后筛选，避免漏掉后续页。
+    // 展示适配器对固定 Manifest 本地分页；其他资源遍历后筛选，避免漏掉后续页。
     setLoading(true);
     const loadCatalog = async () => {
       if (kind !== OTHER)
@@ -360,7 +358,6 @@ export function DbtCatalogPage({
         />
         {selected && catalog && detailReady ? (
           <DbtResourceDetail
-            queryAvailable={queryAvailable}
             key={`${catalog.buildId}:${selected}`}
             projectId={projectId}
             buildId={catalog.buildId}

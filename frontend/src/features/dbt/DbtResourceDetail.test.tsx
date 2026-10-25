@@ -291,7 +291,7 @@ it('reports synchronous preview failure without polling', async () => {
   expect(client.getDbtQuery).toHaveBeenCalledTimes(calls);
 });
 
-it('历史目录可见但物理查询不可用时禁止预览', async () => {
+it('历史目录不预判物理查询可用性，执行失败由服务报告', async () => {
   const client = api('TABLE');
   render(
     <DbtResourceDetail
@@ -300,13 +300,12 @@ it('历史目录可见但物理查询不可用时禁止预览', async () => {
       resourceId="r"
       onSelect={vi.fn()}
       api={client as never}
-      queryAvailable={false}
     />,
   );
   const preview = await screen.findByRole('button', { name: '预览数据' });
-  expect(preview.hasAttribute('disabled')).toBe(true);
+  expect(preview.hasAttribute('disabled')).toBe(false);
   fireEvent.click(preview);
-  expect(client.previewDbtDataset).not.toHaveBeenCalled();
+  expect(client.previewDbtDataset).toHaveBeenCalled();
   expect(screen.getByRole('heading', { name: 'TABLE title' })).toBeTruthy();
 });
 

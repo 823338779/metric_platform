@@ -31,8 +31,15 @@ const build = (id = B1) =>
     },
     buildStatus: 'SUCCEEDED',
     catalogAvailable: true,
-    queryAvailable: true,
     commitSha: 'sha1',
+    requestedCommitSha: null,
+    toolchainVersion: 'test',
+    phase: 'COMPLETE',
+    createdAt: '',
+    updatedAt: '',
+    finishedAt: null,
+    error: null,
+    initialDeployment: null,
   }) as BuildView;
 function fixture() {
   return {
@@ -101,16 +108,14 @@ it('undeployedBranchDoesNotUseMainCatalog', async () => {
     environmentId: '12345678-1234-4234-8234-000000000001',
   });
 });
-it('historicalCatalogVisibleWhenQueryUnavailable', async () => {
+it('historicalCatalogVisibleWithoutQueryAvailabilityGate', async () => {
   const api = fixture();
   api.build.mockResolvedValue({
     ...build(),
-    queryAvailable: false,
-    queryUnavailableReason: 'PHYSICAL_OBJECTS_CLEANED',
   });
   mount(api);
   expect(await screen.findByText('固定构建目录')).toBeInTheDocument();
-  expect(await screen.findByText(/PHYSICAL_OBJECTS_CLEANED/)).toBeInTheDocument();
+  expect(screen.queryByText(/查询不可用/)).not.toBeInTheDocument();
 });
 
 it('构建与部署历史各自保留游标和完整分支作用域', async () => {

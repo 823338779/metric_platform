@@ -32,7 +32,7 @@ test('历史查询始终固定原构建，新部署只在显式刷新后切换�
   const request = fixture.requests.find((item) => item.body?.mode);
   expect(request?.path).toContain(`/builds/${BUILD_A}/queries`);
   expect(request?.body).toMatchObject({
-    metricResourceIds: ['metric'],
+    metrics: ['revenue'],
     groupBy: [{ optionId: 'opaque-region' }],
   });
   expect(request?.body).not.toHaveProperty('buildId');

@@ -14,7 +14,6 @@ it('版本侧栏可开关，完整提交信息按需展开且刷新不切换构�
       branchName: 'main',
       commitSha: 'abcdef0123456789',
       catalogAvailable: true,
-      queryAvailable: true,
       execution: {
         environmentId: 'env',
         configVersion: 3,
@@ -74,7 +73,6 @@ it('固定构建链接读取历史，与Agent分支登记无关', async () => {
         businessTimezone: 'Asia/Shanghai',
       },
       catalogAvailable: true,
-      queryAvailable: false,
     }),
     current: vi.fn().mockRejectedValue(new Error('offline')),
     builds: vi.fn().mockResolvedValue({ items: [], nextCursor: null }),

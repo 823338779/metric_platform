@@ -1,13 +1,10 @@
 package com.metricplatform.engine.dbt.runtime;
 
 import com.fasterxml.jackson.databind.DeserializationFeature;
+import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.metricplatform.catalog.BuildContracts.*;
 import com.metricplatform.catalog.BuildGateway;
-
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.stereotype.Component;
-
 import java.io.IOException;
 import java.net.URI;
 import java.net.URLEncoder;
@@ -15,6 +12,8 @@ import java.net.http.*;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.util.*;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.stereotype.Component;
 
 /** 唯一执行快照 HTTP 适配；不持有部署指针，不重解释构建的业务时区。 */
 @Component
@@ -37,8 +36,7 @@ public class HttpBuildGateway implements BuildGateway {
             BUILD_STATUS = "buildStatus",
             CURSOR = "cursor",
             LIMIT = "limit",
-            Q = "q",
-            KIND = "kind",
+            SELECTOR = "selector",
             BUILD_ID = "build_id",
             DETAIL = "detail",
             ERROR = "error",
@@ -49,9 +47,18 @@ public class HttpBuildGateway implements BuildGateway {
             MESSAGE = "msg",
             ERROR_TYPE = "type",
             REQUEST_VALIDATION_ERROR = "REQUEST_VALIDATION_ERROR";
-    private static final Set<String> VIEWS = Set.of(EMPTY, "source", "lineage", "native-details");
     private static final String SERVICE_AUTHENTICATION_FAILED = "SERVICE_AUTHENTICATION_FAILED";
+    private static final String CATALOG = "/catalog",
+            RESOURCES = "/resources/",
+            LINEAGE = "/lineage",
+            METADATA = "metadata",
+            NODES = "nodes",
+            METRICS = "metrics",
+            SEMANTIC_MODELS = "semantic_models";
     private static final int MAX_BYTES = 8 * 1024 * 1024;
+
+    /** 原生 Manifest 和源码不分页，读取边界与服务默认单产物上限一致。 */
+    private static final int MAX_ARTIFACT_BYTES = 64 * 1024 * 1024;
 
     /** 固定运行服务地址。 */
     private final URI baseUri;
@@ -167,42 +174,39 @@ public class HttpBuildGateway implements BuildGateway {
                 DeploymentPage.class);
     }
 
-    public CatalogPage catalog(UUID id, CatalogFilter f) {
-        return scoped(
-                id,
-                call(
-                        GET,
-                        BUILDS
-                                + SLASH
-                                + id
-                                + "/catalog"
-                                + parameters(
-                                        Q,
-                                        f.q(),
-                                        KIND,
-                                        f.kind(),
-                                        CURSOR,
-                                        f.cursor(),
-                                        LIMIT,
-                                        f.limit()),
-                        null,
-                        CatalogPage.class));
+    public JsonNode catalog(UUID id) {
+        // Manifest 没有 buildId 包装；版本由请求 URL 固定，完整保留原生结构。
+        var result = call(GET, BUILDS + SLASH + id + CATALOG, null, JsonNode.class);
+        if (!result.isObject()
+                || !result.path(METADATA).isObject()
+                || !result.path(NODES).isObject()
+                || !result.path(METRICS).isObject()
+                || !result.path(SEMANTIC_MODELS).isObject()) throw invalid();
+        return result;
     }
 
-    public ResourceView resource(UUID id, String resource, String view) {
-        if (!VIEWS.contains(view)) throw new IllegalArgumentException("资源视图无效");
-        return scoped(
-                id,
+    public ResourceView resource(UUID id, String resource) {
+        var result =
+                scoped(
+                        id,
+                        call(
+                                GET,
+                                BUILDS + SLASH + id + RESOURCES + encode(resource),
+                                null,
+                                ResourceView.class));
+        if (!resource.equals(result.resourceId()) || result.resource() == null) throw invalid();
+        return result;
+    }
+
+    public JsonNode lineage(UUID id, String selector) {
+        var result =
                 call(
                         GET,
-                        BUILDS
-                                + SLASH
-                                + id
-                                + "/resources/"
-                                + encode(resource)
-                                + (view.isEmpty() ? EMPTY : SLASH + view),
+                        BUILDS + SLASH + id + LINEAGE + parameters(SELECTOR, selector),
                         null,
-                        ResourceView.class));
+                        JsonNode.class);
+        if (!result.isArray()) throw invalid();
+        return result;
     }
 
     public AvailableDimensionsView availableDimensions(
@@ -215,7 +219,7 @@ public class HttpBuildGateway implements BuildGateway {
                                 AVAILABLE_DIMENSIONS + parameters(BUILD_ID, id),
                                 request,
                                 AvailableDimensionsView.class));
-        if (result.dimensions() == null || result.metricResourceIds() == null) throw invalid();
+        if (result.dimensions() == null || result.metrics() == null) throw invalid();
         return result;
     }
 
@@ -223,8 +227,11 @@ public class HttpBuildGateway implements BuildGateway {
         var result =
                 scoped(id, call(POST, QUERY + parameters(BUILD_ID, id), request, ResultPage.class));
         // 同步服务返回完整结果，不再持久化查询身份或分页状态。
-        if (result.mode() == null || result.columns() == null || result.rows() == null)
-            throw invalid();
+        if (result.mode() == null) throw invalid();
+        if (result.mode() == QueryMode.EXPLAIN) {
+            if (result.sql() == null) throw invalid();
+        } else if (result.columns() == null || result.rows() == null) throw invalid();
+        if (request != null && result.mode() != request.mode()) throw invalid();
         return result;
     }
 
@@ -254,8 +261,12 @@ public class HttpBuildGateway implements BuildGateway {
                                     mapper.writeValueAsBytes(body)));
             var response = http.send(request.build(), HttpResponse.BodyHandlers.ofInputStream());
             try (var stream = response.body()) {
-                byte[] bytes = stream.readNBytes(MAX_BYTES + 1);
-                if (bytes.length > MAX_BYTES) throw invalid();
+                int maxBytes =
+                        GET.equals(method) && (path.endsWith(CATALOG) || path.contains(RESOURCES))
+                                ? MAX_ARTIFACT_BYTES
+                                : MAX_BYTES;
+                byte[] bytes = stream.readNBytes(maxBytes + 1);
+                if (bytes.length > maxBytes) throw invalid();
                 // 服务凭据与平台登录身份独立，不能将上游认证失败透传为浏览器登录过期。
                 if (response.statusCode() == 401 || response.statusCode() == 403) {
                     throw new Failure(
@@ -316,7 +327,6 @@ public class HttpBuildGateway implements BuildGateway {
         UUID actual =
                 switch (value) {
                     case BuildView v -> v.buildId();
-                    case CatalogPage v -> v.buildId();
                     case ResourceView v -> v.buildId();
                     case AvailableDimensionsView v -> v.buildId();
                     case ResultPage v -> v.buildId();

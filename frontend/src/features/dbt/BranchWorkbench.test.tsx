@@ -33,13 +33,17 @@ it('运行中的A查询不绘制到B，同名指标重新读取固定构建选�
         threads: 2,
         businessTimezone: 'Asia/Shanghai',
       },
-      queryAvailable: true,
     })),
     current: vi.fn().mockResolvedValue({ activeBuildId: A }),
     catalog: vi.fn(async (id: string) => ({
-      buildId: id,
-      items: [{ resourceId: 'same', displayName: id === A ? 'A指标' : 'B指标' }],
-      nextCursor: null,
+      metrics: {
+        ['same']: {
+          unique_id: 'same',
+          resource_type: 'metric',
+          name: 'same',
+          label: id === A ? 'A指标' : 'B指标',
+        },
+      },
     })),
     availableDimensions: vi.fn(async (id: string) => ({
       buildId: id,
@@ -72,7 +76,7 @@ it('运行中的A查询不绘制到B，同名指标重新读取固定构建选�
   await waitFor(() =>
     expect(api.availableDimensions).toHaveBeenCalledWith(
       B,
-      expect.objectContaining({ metricResourceIds: ['same'] }),
+      expect.objectContaining({ metrics: ['same'] }),
     ),
   );
   await act(async () =>

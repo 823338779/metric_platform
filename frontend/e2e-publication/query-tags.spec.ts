@@ -5,21 +5,21 @@ const IDENTITY = { identityId: 'demo', subject: 'demo', displayName: '演示账�
 const OPTIONS = [
   {
     optionId: 'time-option',
-    resourceId: 'time-resource',
+    dimensionType: 'time',
     displayName: '下单时间',
     granularities: ['day', 'week', 'month'],
     operators: [],
   },
   {
     optionId: 'region-option',
-    resourceId: 'region-resource',
+    dimensionType: 'categorical',
     displayName: '地区',
     granularities: [],
     operators: ['=', 'IN'],
   },
   {
     optionId: 'unknown-option',
-    resourceId: null,
+    dimensionType: 'categorical',
     displayName: '未声明类型的维度',
     granularities: [],
     operators: [],
@@ -60,8 +60,8 @@ for (const width of [1440, 390]) {
     });
     await page.goto(`/dbt/builds/${BUILD_A}/query`);
     await page.getByRole('checkbox', { name: '销售总额' }).click();
-    await expect(page.getByText('DATE', { exact: true })).toBeVisible();
-    await expect(page.getByText('VARCHAR(64)', { exact: true })).toBeVisible();
+    await expect(page.getByText('time', { exact: true })).toBeVisible();
+    await expect(page.getByText('categorical', { exact: true }).first()).toBeVisible();
     await page
       .getByRole('group', { name: '分组维度', exact: true })
       .getByRole('button', { name: '下单时间', exact: true })
@@ -100,11 +100,11 @@ for (const width of [1440, 390]) {
     await page.getByRole('button', { name: '查询', exact: true }).click();
     await expect(page.getByRole('cell', { name: '12580.50' })).toBeVisible();
     expect(fixture.requests.find((item) => item.body?.mode)?.body).toMatchObject({
-      metricResourceIds: ['revenue-id'],
+      metrics: ['revenue'],
       groupBy: [{ optionId: 'time-option', grain: 'month' }, { optionId: 'region-option' }],
       orderBy: [
         { fieldId: 'time-option', direction: 'ASC' },
-        { fieldId: 'revenue-id', direction: 'DESC' },
+        { fieldId: 'revenue', direction: 'DESC' },
       ],
     });
     expect(

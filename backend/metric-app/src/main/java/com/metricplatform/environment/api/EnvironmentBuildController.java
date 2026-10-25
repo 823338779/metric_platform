@@ -4,14 +4,12 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.metricplatform.environment.*;
 import com.metricplatform.environment.EnvironmentContracts.*;
 import com.metricplatform.security.PlatformPrincipal;
-
+import java.util.UUID;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
-
-import java.util.UUID;
 
 /** 环境构建与历史只调用服务 HTTP API。 */
 @RestController
@@ -66,10 +64,13 @@ public class EnvironmentBuildController {
         return json(gateway.getBuild(buildId), HttpStatus.OK);
     }
 
-    @GetMapping("/builds/{buildId}/logs")
+    @GetMapping("/builds/{buildId}/execution-logs")
     public ResponseEntity<String> logs(
-            @PathVariable UUID buildId, @RequestParam(required = false) String cursor) {
-        return json(gateway.logs(buildId, cursor), HttpStatus.OK);
+            @PathVariable UUID buildId,
+            @RequestParam(required = false) String cursor,
+            @RequestParam(defaultValue = "100") int limit) {
+        if (limit < 1 || limit > 200) throw new IllegalArgumentException("页大小必须在 1 到 200 之间");
+        return json(gateway.logs(buildId, cursor, limit), HttpStatus.OK);
     }
 
     private static ResponseEntity<String> json(JsonNode value, HttpStatus status) {

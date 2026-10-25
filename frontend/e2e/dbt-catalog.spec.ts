@@ -3,9 +3,13 @@ import { buildFixture, BUILD_A } from '../e2e-publication/build-fixture';
 test('目录分页、固定构建查询、时间序列与SQL解释', async ({ page }) => {
   const sql = 'select sum(amount) as revenue from orders';
   const fixture = await buildFixture(page, {
-    pageSize: 1,
     resources: [
       { resourceId: 'metric-revenue', kind: 'METRIC', name: 'revenue' },
+      ...Array.from({ length: 19 }, (_, index) => ({
+        resourceId: `metric-padding-${index}`,
+        kind: 'METRIC',
+        name: `padding_${index}`,
+      })),
       { resourceId: 'metric-count', kind: 'METRIC', name: 'order_count' },
     ],
     options: [
@@ -26,7 +30,7 @@ test('目录分页、固定构建查询、时间序列与SQL解释', async ({ pa
     ],
     result: (body) =>
       body.mode === 'EXPLAIN'
-        ? { sql, columns: [], rows: [] }
+        ? { sql }
         : {
             columns: body.groupBy.length
               ? [

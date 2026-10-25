@@ -34,13 +34,17 @@ function page(timeLabel = '下单时间', granularities = ['day', 'month']) {
         threads: 2,
         businessTimezone: 'Asia/Shanghai',
       },
-      queryAvailable: true,
     }),
     current: vi.fn().mockResolvedValue({ activeBuildId: 'A' }),
     catalog: vi.fn().mockResolvedValue({
-      buildId: 'A',
-      nextCursor: null,
-      items: [{ resourceId: 'metric-id', name: 'revenue', displayName: '销售额' }],
+      metrics: {
+        ['metric-id']: {
+          unique_id: 'metric-id',
+          resource_type: 'metric',
+          name: 'revenue',
+          label: '销售额',
+        },
+      },
     }),
     availableDimensions: vi.fn().mockResolvedValue({
       state: 'SUCCEEDED',
@@ -48,14 +52,14 @@ function page(timeLabel = '下单时间', granularities = ['day', 'month']) {
       dimensions: [
         {
           optionId: 'time-option',
-          resourceId: 'time-resource',
+          dimensionType: 'time',
           displayName: timeLabel,
           granularities,
           operators: [],
         },
         {
           optionId: 'region-option',
-          resourceId: 'region-resource',
+          dimensionType: 'categorical',
           displayName: '地区',
           granularities: [],
           operators: ['='],
@@ -177,9 +181,9 @@ it('服务未声明日粒度时保留日期分组和升序，不提交不支持�
 it('submits tag grain and ordered multi-field sorting using fixed resource identities', async () => {
   const api = page();
   fireEvent.click(await screen.findByRole('checkbox', { name: '销售额' }));
-  expect(await screen.findByText('DATE')).toBeTruthy();
-  expect(screen.getByText('VARCHAR(64)')).toBeTruthy();
-  expect(api.resource).toHaveBeenCalledWith('A', 'time-resource');
+  expect(await screen.findByText('time')).toBeTruthy();
+  expect(screen.getByText('categorical')).toBeTruthy();
+  expect(api.resource).not.toHaveBeenCalled();
   fireEvent.click(
     within(screen.getByRole('group', { name: '分组维度' })).getByRole('button', {
       name: '下单时间',
@@ -195,11 +199,11 @@ it('submits tag grain and ordered multi-field sorting using fixed resource ident
     expect(api.submit).toHaveBeenCalledWith(
       'A',
       expect.objectContaining({
-        metricResourceIds: ['metric-id'],
+        metrics: ['revenue'],
         groupBy: [{ optionId: 'time-option', grain: 'month' }],
         orderBy: [
           { fieldId: 'time-option', direction: 'ASC' },
-          { fieldId: 'metric-id', direction: 'DESC' },
+          { fieldId: 'revenue', direction: 'DESC' },
         ],
       }),
     ),
@@ -214,7 +218,7 @@ it('submits tag grain and ordered multi-field sorting using fixed resource ident
       'A',
       expect.objectContaining({
         groupBy: [],
-        orderBy: [{ fieldId: 'metric-id', direction: 'DESC' }],
+        orderBy: [{ fieldId: 'revenue', direction: 'DESC' }],
       }),
     ),
   );
@@ -228,8 +232,9 @@ it('does not display types from mismatched resource metadata and still permits q
     attributes: { dataType: 'VARCHAR' },
   });
   fireEvent.click(await screen.findByRole('checkbox', { name: '销售额' }));
-  await waitFor(() => expect(api.resource).toHaveBeenCalled());
+  await screen.findByText('time');
+  expect(api.resource).not.toHaveBeenCalled();
   expect(screen.queryByText('VARCHAR')).toBeNull();
-  expect(screen.getByText('类型待确认')).toBeTruthy();
+  expect(screen.getByText('categorical')).toBeTruthy();
   expect(screen.getByRole('button', { name: '查询' }).hasAttribute('disabled')).toBe(false);
 });

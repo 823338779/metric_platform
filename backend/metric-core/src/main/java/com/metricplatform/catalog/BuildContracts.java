@@ -61,8 +61,6 @@ public final class BuildContracts {
             String commitSha,
             /** 受理时固定的完整执行快照。 */
             ExecutionSnapshot execution,
-            /** 固定配置版本。 */
-            String configVersion,
             /** 固定工具链版本。 */
             String toolchainVersion,
             /** 构建状态，不代表部署状态。 */
@@ -75,14 +73,8 @@ public final class BuildContracts {
             String updatedAt,
             /** 终态时间。 */
             String finishedAt,
-            /** 是否已请求取消。 */
-            boolean cancelRequested,
             /** 完整封存目录是否可读。 */
             boolean catalogAvailable,
-            /** 是否可受理新的查询。 */
-            boolean queryAvailable,
-            /** 不可查询原因。 */
-            String queryUnavailableReason,
             /** 稳定错误。 */
             ErrorView error,
             /** 受理时附带的部署意图。 */
@@ -186,77 +178,21 @@ public final class BuildContracts {
             /** 绑定筛选条件的后续分页游标。 */
             String nextCursor) {}
 
-    public record CatalogFilter(
-            /** 按资源名称搜索的关键词。 */
-            String q,
-            /** 资源原生种类筛选。 */
-            String kind,
-            /** 当前筛选条件的分页位置。 */
-            String cursor,
-            /** 本次读取的最大条数。 */
-            int limit) {}
-
-    public record CatalogPage(
-            /** 当前筛选条件下的有界结果。 */
-            List<CatalogResource> items,
-            /** 绑定筛选条件的后续分页游标。 */
-            String nextCursor,
-            /** 原生详情所属构建。 */
-            UUID buildId) {}
-
-    public record CatalogResource(
-            /** 构建内稳定资源身份。 */
-            String resourceId,
-            /** 原生引擎资源身份。 */
-            String nativeId,
-            /** 原生资源名称。 */
-            String name,
-            /** 供用户展示的资源名称。 */
-            String displayName,
-            /** 原生定义说明。 */
-            String description,
-            /** 工程中的来源相对路径。 */
-            String sourcePath,
-            /** 服务声明的资源可用能力。 */
-            List<String> capabilities,
-            /** 封存的原生引擎定义。 */
-            Map<String, Object> nativeDetails,
-            /** 资源原生种类筛选。 */
-            String kind,
-            /** 按资源类型区分的结构化属性。 */
-            Map<String, Object> attributes) {}
-
-    @com.fasterxml.jackson.annotation.JsonInclude(
-            com.fasterxml.jackson.annotation.JsonInclude.Include.NON_NULL)
-    public record ResourceView(
-            /** 原生详情所属构建。 */
-            UUID buildId,
-            /** 构建内稳定资源身份。 */
-            String resourceId,
-            /** 原生引擎资源身份。 */
-            String nativeId,
-            /** 原生资源名称。 */
-            String name,
-            /** 供用户展示的资源名称。 */
-            String displayName,
-            /** 原生定义说明。 */
-            String description,
-            /** 工程中的来源相对路径。 */
-            String sourcePath,
-            /** 服务声明的资源可用能力。 */
-            List<String> capabilities,
-            /** 封存的原生引擎定义。 */
-            Map<String, Object> nativeDetails,
-            /** 资源原生种类筛选。 */
-            String kind,
-            /** 按资源类型区分的结构化属性。 */
-            Map<String, Object> attributes,
+    public record ResourceSource(
             /** 构建封存的工程相对路径。 */
             String path,
-            /** 构建封存的源码正文。 */
-            String content,
-            /** 同一构建的上下游依赖关系。 */
-            List<Map<String, Object>> dependencies) {}
+            /** 构建封存的完整源码正文。 */
+            String content) {}
+
+    public record ResourceView(
+            /** 原生节点与源码所属的固定构建。 */
+            UUID buildId,
+            /** dbt 原生 unique_id。 */
+            String resourceId,
+            /** 完整原生节点，保留引擎扩展字段及数值精度。 */
+            Map<String, Object> resource,
+            /** 无源码路径时为空，不从工作目录猜测源码。 */
+            ResourceSource source) {}
 
     public record SelectedDimension(
             /** 过滤选项身份。 */
@@ -280,7 +216,7 @@ public final class BuildContracts {
 
     public record AvailableDimensionsRequest(
             /** 规范化指标集合。 */
-            List<String> metricResourceIds) {}
+            List<String> metrics) {}
 
     @com.fasterxml.jackson.annotation.JsonInclude(
             com.fasterxml.jackson.annotation.JsonInclude.Include.NON_NULL)
@@ -288,7 +224,7 @@ public final class BuildContracts {
             /** 查询模式。 */
             QueryMode mode,
             /** 规范化指标集合。 */
-            List<String> metricResourceIds,
+            List<String> metrics,
             /** 有序分组。 */
             List<SelectedDimension> groupBy,
             /** 类型化过滤条件。 */
@@ -301,8 +237,8 @@ public final class BuildContracts {
             List<SelectedOrder> orderBy,
             /** 本次读取的最大条数。 */
             Integer limit,
-            /** PREVIEW 的数据集身份。 */
-            String datasetResourceId,
+            /** PREVIEW 的 dbt 原生选择表达式。 */
+            String selector,
             /** DIMENSION_VALUES 的维度选项。 */
             String dimensionOptionId) {}
 
@@ -310,23 +246,25 @@ public final class BuildContracts {
             /** 原生详情所属构建。 */
             UUID buildId,
             /** 规范化指标集合。 */
-            List<String> metricResourceIds,
+            List<String> metrics,
             /** 当前指标共同支持的可用维度。 */
             List<Map<String, Object>> dimensions) {}
 
+    @com.fasterxml.jackson.annotation.JsonInclude(
+            com.fasterxml.jackson.annotation.JsonInclude.Include.NON_NULL)
     public record ResultPage(
             /** 原生详情所属构建。 */
             UUID buildId,
             /** 查询模式。 */
             QueryMode mode,
             /** 固定源码版本。 */
+            @com.fasterxml.jackson.annotation.JsonInclude(
+                    com.fasterxml.jackson.annotation.JsonInclude.Include.ALWAYS)
             String commitSha,
             /** 构建固定的业务时区。 */
             String businessTimezone,
             /** 归一化时间输入。 */
             Map<String, String> normalizedTimeRange,
-            /** 引擎粒度边界策略。 */
-            String boundaryPolicy,
             /** EXPLAIN 返回的完整编译 SQL。 */
             String sql,
             /** 结果列及精度类型。 */
@@ -334,7 +272,7 @@ public final class BuildContracts {
             /** 有界结果正文。 */
             List<List<Object>> rows,
             /** 引擎结果是否截断。 */
-            boolean resultTruncated) {}
+            Boolean resultTruncated) {}
 
     public record ChangeRecord(
             /** 与事实同事务提交的变化序号。 */

@@ -6,15 +6,13 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.metricplatform.catalog.BuildContracts.*;
 import com.sun.net.httpserver.HttpServer;
-
-import org.junit.jupiter.params.ParameterizedTest;
-import org.junit.jupiter.params.provider.CsvSource;
-
 import java.net.*;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.util.*;
 import java.util.concurrent.atomic.AtomicReference;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
 
 /** 平台保留时间精度和时区，具体日历解释由固定构建服务完成。 */
 class QueryTimeTransportTest {
@@ -45,6 +43,14 @@ class QueryTimeTransportTest {
                                             + build
                                             + "\",\"mode\":\"QUERY\",\"businessTimezone\":\"Asia/Shanghai\",\"normalizedTimeRange\":{},\"columns\":[],\"rows\":[]}")
                                     .getBytes(StandardCharsets.UTF_8);
+                    var response =
+                            (com.fasterxml.jackson.databind.node.ObjectNode) mapper.readTree(bytes);
+                    response.put("mode", received.get().path("mode").asText());
+                    if (received.get().path("mode").asText().equals("EXPLAIN")) {
+                        response.put("sql", "select 1");
+                        response.remove(List.of("columns", "rows"));
+                    }
+                    bytes = mapper.writeValueAsBytes(response);
                     e.sendResponseHeaders(200, bytes.length);
                     try (var out = e.getResponseBody()) {
                         out.write(bytes);
@@ -57,11 +63,12 @@ class QueryTimeTransportTest {
                             URI.create("http://127.0.0.1:" + server.getAddress().getPort()),
                             Duration.ofSeconds(2),
                             null);
-            for (var mode : QueryMode.values()) {
+            for (var mode :
+                    List.of(QueryMode.QUERY, QueryMode.EXPLAIN, QueryMode.DIMENSION_VALUES)) {
                 var request =
                         new QueryRequest(
                                 mode,
-                                List.of("metric.revenue"),
+                                List.of("revenue"),
                                 List.of(),
                                 List.of(),
                                 start,

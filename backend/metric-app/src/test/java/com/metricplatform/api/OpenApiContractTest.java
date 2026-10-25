@@ -4,10 +4,8 @@ import static org.assertj.core.api.Assertions.*;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
-
-import org.junit.jupiter.api.Test;
-
 import java.nio.file.*;
+import org.junit.jupiter.api.Test;
 
 class OpenApiContractTest {
     @Test
@@ -28,7 +26,7 @@ class OpenApiContractTest {
                         "/api/dbt/deployments/current",
                         "/api/dbt/builds/{buildId}/catalog",
                         "/api/dbt/builds/{buildId}/resources/{resourceId}",
-                        "/api/dbt/builds/{buildId}/resources/{resourceId}/{view}",
+                        "/api/dbt/builds/{buildId}/lineage",
                         "/api/dbt/builds/{buildId}/available-dimensions",
                         "/api/dbt/builds/{buildId}/queries",
                         "/api/dbt/contract"))

@@ -273,9 +273,9 @@ paths:
           schema:
             type: string
             format: uuid
-  /api/dbt/builds/{buildId}/logs:
+  /api/dbt/builds/{buildId}/execution-logs:
     get:
-      summary: 读取固定构建的脱敏日志
+      summary: 读取固定构建的结构化执行日志
       security:
       - bearerAuth: []
       responses:
@@ -284,7 +284,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/BuildLogPage'
+                $ref: '#/components/schemas/ExecutionLogPage'
         '401':
           $ref: '#/components/responses/Problem'
         '404':
@@ -298,12 +298,25 @@ paths:
         '503':
           $ref: '#/components/responses/Problem'
       parameters:
-      - *id002
+      - name: buildId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
       - name: cursor
         in: query
         required: false
         schema:
           type: string
+      - name: limit
+        in: query
+        required: false
+        schema:
+          type: integer
+          minimum: 1
+          maximum: 200
+          default: 100
   /api/v1/auth/token:
     post:
       summary: Exchange one Metric Platform username and password for an access token
@@ -748,55 +761,23 @@ paths:
         - bearerAuth: []
   /api/dbt/builds/{buildId}/catalog:
     get:
-      summary: Catalog
+      summary: 读取固定构建的原生 Manifest
       operationId: catalog_builds__build_id__catalog_get
       parameters:
-        - name: buildId
-          in: path
-          required: true
-          schema:
-            type: string
-            format: uuid
-            title: Build Id
-        - name: q
-          in: query
-          required: false
-          schema:
-            type: string
-            default: ''
-            title: Q
-        - name: kind
-          in: query
-          required: false
-          schema:
-            anyOf:
-              - type: string
-              - type: 'null'
-            title: Kind
-        - name: cursor
-          in: query
-          required: false
-          schema:
-            anyOf:
-              - type: string
-              - type: 'null'
-            title: Cursor
-        - name: limit
-          in: query
-          required: false
-          schema:
-            type: integer
-            maximum: 200
-            minimum: 1
-            default: 50
-            title: Limit
+      - name: buildId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+          title: Build Id
       responses:
         '200':
           description: Successful Response
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/CatalogPage'
+                $ref: '#/components/schemas/Manifest'
         '422':
           description: 平台错误包装保留服务业务诊断
           content:
@@ -840,7 +821,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/Problem'
       security:
-        - bearerAuth: []
+      - bearerAuth: []
   /api/dbt/builds/{buildId}/resources/{resourceId}:
     get:
       summary: Resource
@@ -910,41 +891,34 @@ paths:
                 $ref: '#/components/schemas/Problem'
       security:
         - bearerAuth: []
-  /api/dbt/builds/{buildId}/resources/{resourceId}/{view}:
+  /api/dbt/builds/{buildId}/lineage:
     get:
-      summary: Detail
-      operationId: detail_builds__build_id__resources__resource_id___view__get
+      summary: 按 dbt selector 读取原生血缘节点
+      operationId: lineage_builds__build_id__lineage_get
       parameters:
-        - name: buildId
-          in: path
-          required: true
-          schema:
-            type: string
-            format: uuid
-            title: Build Id
-        - name: resourceId
-          in: path
-          required: true
-          schema:
-            type: string
-            title: Resource Id
-        - name: view
-          in: path
-          required: true
-          schema:
-            type: string
-            title: View
+      - name: buildId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+          title: Build Id
+      - name: selector
+        in: query
+        required: true
+        description: dbt 原生选择表达式；加号等保留字符必须 URL 编码
+        schema:
+          type: string
       responses:
         '200':
           description: Successful Response
           content:
             application/json:
               schema:
-                anyOf:
-                  - $ref: '#/components/schemas/ResourceSourceView'
-                  - $ref: '#/components/schemas/ResourceLineageView'
-                  - $ref: '#/components/schemas/ResourceNativeView'
-                title: Response Detail V3 Builds  Build Id  Resources  Resource Id   View  Get
+                type: array
+                items:
+                  type: object
+                  additionalProperties: true
         '422':
           description: 平台错误包装保留服务业务诊断
           content:
@@ -988,7 +962,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/Problem'
       security:
-        - bearerAuth: []
+      - bearerAuth: []
   /api/dbt/contract:
     get:
       summary: 当前 BFF 协议和契约
@@ -1237,30 +1211,6 @@ components:
           minLength: 1
           maxLength: 256
           description: 同一次提交重试必须保持不变
-    BuildLogPage:
-      type: object
-      required:
-      - items
-      - nextCursor
-      - truncated
-      properties:
-        items:
-          type: array
-          items:
-            type: string
-        nextCursor:
-          type:
-          - string
-          - 'null'
-        truncated:
-          type: boolean
-    BindingMode:
-      type: string
-      enum:
-      - BUILT
-      - REUSED
-      - EXTERNAL
-      title: BindingMode
     BuildStatus:
       type: string
       enum:
@@ -1285,26 +1235,22 @@ components:
           type: string
         branchName:
           anyOf:
-            - type: string
-            - type: 'null'
+          - type: string
+          - type: 'null'
           description: 请求来源分支
           title: Branchname
         requestedCommitSha:
           anyOf:
-            - type: string
-            - type: 'null'
+          - type: string
+          - type: 'null'
           description: 受理时显式指定的 SHA
           title: Requestedcommitsha
         commitSha:
           anyOf:
-            - type: string
-            - type: 'null'
+          - type: string
+          - type: 'null'
           description: 首次解析后固定的实际 SHA
           title: Commitsha
-        configVersion:
-          description: 固定配置版本
-          title: Configversion
-          type: string
         toolchainVersion:
           description: 固定工具链版本
           title: Toolchainversion
@@ -1328,45 +1274,28 @@ components:
           type: string
         finishedAt:
           anyOf:
-            - format: date-time
-              type: string
-            - type: 'null'
+          - format: date-time
+            type: string
+          - type: 'null'
           default: null
           description: 终态时间
           title: Finishedat
-        cancelRequested:
-          default: false
-          description: 是否已请求取消
-          title: Cancelrequested
-          type: boolean
         catalogAvailable:
           default: false
           description: 完整封存目录是否可读
           title: Catalogavailable
           type: boolean
-        queryAvailable:
-          default: false
-          description: 是否可受理新的查询
-          title: Queryavailable
-          type: boolean
-        queryUnavailableReason:
-          anyOf:
-            - type: string
-            - type: 'null'
-          default: null
-          description: 不可查询原因
-          title: Queryunavailablereason
         error:
           anyOf:
-            - $ref: '#/components/schemas/ErrorView'
-            - type: 'null'
+          - $ref: '#/components/schemas/ErrorView'
+          - type: 'null'
           default: null
           description: 脱敏错误摘要
         initialDeployment:
           anyOf:
-            - additionalProperties: true
-              type: object
-            - type: 'null'
+          - additionalProperties: true
+            type: object
+          - type: 'null'
           default: null
           description: 受理时附带的部署意图
           title: Initialdeployment
@@ -1374,161 +1303,19 @@ components:
           $ref: '#/components/schemas/ExecutionSnapshot'
           description: 受理时固定的完整执行快照
       required:
-        - buildId
-        - repository
-        - branchName
-        - requestedCommitSha
-        - commitSha
-        - configVersion
-        - toolchainVersion
-        - buildStatus
-        - phase
-        - createdAt
-        - updatedAt
-        - execution
+      - buildId
+      - repository
+      - branchName
+      - requestedCommitSha
+      - commitSha
+      - toolchainVersion
+      - buildStatus
+      - phase
+      - createdAt
+      - updatedAt
+      - execution
       title: BuildView
       type: object
-    CatalogPage:
-      properties:
-        items:
-          items:
-            oneOf:
-            - $ref: '#/components/schemas/MetricResource'
-            - $ref: '#/components/schemas/DimensionResource'
-            - $ref: '#/components/schemas/DatasetResource'
-            - $ref: '#/components/schemas/PhysicalResource'
-            discriminator:
-              propertyName: kind
-              mapping:
-                DIMENSION: '#/components/schemas/DimensionResource'
-                METRIC: '#/components/schemas/MetricResource'
-                SEMANTIC_MODEL: '#/components/schemas/DatasetResource'
-                TABLE: '#/components/schemas/PhysicalResource'
-                VIEW: '#/components/schemas/PhysicalResource'
-          type: array
-          title: Items
-          description: 本页有界结果
-        nextCursor:
-          anyOf:
-          - type: string
-          - type: 'null'
-          title: Nextcursor
-          description: 绑定筛选条件的后续游标
-        buildId:
-          type: string
-          format: uuid
-          title: Buildid
-          description: 本页资源所属构建
-      additionalProperties: false
-      type: object
-      required:
-      - items
-      - buildId
-      title: CatalogPage
-    CatalogRelation:
-      properties:
-        upstreamResourceId:
-          type: string
-          title: Upstreamresourceid
-        downstreamResourceId:
-          type: string
-          title: Downstreamresourceid
-        kind:
-          type: string
-          title: Kind
-      additionalProperties: false
-      type: object
-      required:
-      - upstreamResourceId
-      - downstreamResourceId
-      - kind
-      title: CatalogRelation
-    DatasetAttributes:
-      properties:
-        modelResourceId:
-          type: string
-          title: Modelresourceid
-        dimensionIds:
-          items:
-            type: string
-          type: array
-          title: Dimensionids
-        entities:
-          items:
-            additionalProperties: true
-            type: object
-          type: array
-          title: Entities
-        measures:
-          items:
-            additionalProperties: true
-            type: object
-          type: array
-          title: Measures
-        defaultTimeDimension:
-          anyOf:
-          - type: string
-          - type: 'null'
-          title: Defaulttimedimension
-      additionalProperties: false
-      type: object
-      required:
-      - modelResourceId
-      - dimensionIds
-      - entities
-      - measures
-      title: DatasetAttributes
-    DatasetResource:
-      properties:
-        resourceId:
-          type: string
-          title: Resourceid
-        nativeId:
-          type: string
-          title: Nativeid
-        name:
-          type: string
-          title: Name
-        displayName:
-          type: string
-          title: Displayname
-        description:
-          anyOf:
-          - type: string
-          - type: 'null'
-          title: Description
-        sourcePath:
-          anyOf:
-          - type: string
-          - type: 'null'
-          title: Sourcepath
-        capabilities:
-          items:
-            type: string
-          type: array
-          title: Capabilities
-        nativeDetails:
-          additionalProperties: true
-          type: object
-          title: Nativedetails
-        kind:
-          type: string
-          const: SEMANTIC_MODEL
-          title: Kind
-          default: SEMANTIC_MODEL
-        attributes:
-          $ref: '#/components/schemas/DatasetAttributes'
-      additionalProperties: false
-      type: object
-      required:
-      - resourceId
-      - nativeId
-      - name
-      - displayName
-      - capabilities
-      - nativeDetails
-      - attributes
-      title: DatasetResource
     DeploymentAttemptView:
       additionalProperties: false
       properties:
@@ -1670,81 +1457,6 @@ components:
         - branchName
       title: DeploymentTargetView
       type: object
-    DimensionAttributes:
-      properties:
-        datasetId:
-          type: string
-          title: Datasetid
-        dimensionType:
-          type: string
-          title: Dimensiontype
-        expression:
-          anyOf:
-          - type: string
-          - type: 'null'
-          title: Expression
-        timeGranularity:
-          anyOf:
-          - type: string
-          - type: 'null'
-          title: Timegranularity
-      additionalProperties: false
-      type: object
-      required:
-      - datasetId
-      - dimensionType
-      title: DimensionAttributes
-    DimensionResource:
-      properties:
-        resourceId:
-          type: string
-          title: Resourceid
-        nativeId:
-          type: string
-          title: Nativeid
-        name:
-          type: string
-          title: Name
-        displayName:
-          type: string
-          title: Displayname
-        description:
-          anyOf:
-          - type: string
-          - type: 'null'
-          title: Description
-        sourcePath:
-          anyOf:
-          - type: string
-          - type: 'null'
-          title: Sourcepath
-        capabilities:
-          items:
-            type: string
-          type: array
-          title: Capabilities
-        nativeDetails:
-          additionalProperties: true
-          type: object
-          title: Nativedetails
-        kind:
-          type: string
-          const: DIMENSION
-          title: Kind
-          default: DIMENSION
-        attributes:
-          $ref: '#/components/schemas/DimensionAttributes'
-      additionalProperties: false
-      type: object
-      required:
-      - resourceId
-      - nativeId
-      - name
-      - displayName
-      - capabilities
-      - nativeDetails
-      - attributes
-      title: DimensionResource
     ErrorView:
       additionalProperties: false
       properties:
@@ -1790,107 +1502,19 @@ components:
           title: Detail
       type: object
       title: HTTPValidationError
-    MetricAttributes:
-      properties:
-        metricType:
-          type: string
-          title: Metrictype
-        definitionSummary:
-          type: string
-          title: Definitionsummary
-        inputMetricIds:
-          items:
-            type: string
-          type: array
-          title: Inputmetricids
-        datasetIds:
-          items:
-            type: string
-          type: array
-          title: Datasetids
-        filters:
-          anyOf:
-          - additionalProperties: true
-            type: object
-          - type: 'null'
-          title: Filters
-        timeConfig:
-          additionalProperties: true
-          type: object
-          title: Timeconfig
-      additionalProperties: false
-      type: object
-      required:
-      - metricType
-      - definitionSummary
-      - inputMetricIds
-      - datasetIds
-      - timeConfig
-      title: MetricAttributes
-    MetricResource:
-      properties:
-        resourceId:
-          type: string
-          title: Resourceid
-        nativeId:
-          type: string
-          title: Nativeid
-        name:
-          type: string
-          title: Name
-        displayName:
-          type: string
-          title: Displayname
-        description:
-          anyOf:
-          - type: string
-          - type: 'null'
-          title: Description
-        sourcePath:
-          anyOf:
-          - type: string
-          - type: 'null'
-          title: Sourcepath
-        capabilities:
-          items:
-            type: string
-          type: array
-          title: Capabilities
-        nativeDetails:
-          additionalProperties: true
-          type: object
-          title: Nativedetails
-        kind:
-          type: string
-          const: METRIC
-          title: Kind
-          default: METRIC
-        attributes:
-          $ref: '#/components/schemas/MetricAttributes'
-      additionalProperties: false
-      type: object
-      required:
-      - resourceId
-      - nativeId
-      - name
-      - displayName
-      - capabilities
-      - nativeDetails
-      - attributes
-      title: MetricResource
     AvailableDimensionsRequest:
       properties:
-        metricResourceIds:
+        metrics:
           items:
             type: string
           type: array
           maxItems: 100
           minItems: 1
-          description: 指标资源集合
+          description: dbt 指标名称集合
       additionalProperties: false
       type: object
       required:
-      - metricResourceIds
+      - metrics
       title: AvailableDimensionsRequest
     AvailableDimensionsView:
       properties:
@@ -1898,22 +1522,21 @@ components:
           type: string
           format: uuid
           description: 固定构建身份
-        metricResourceIds:
+        dimensions:
+          items:
+            $ref: '#/components/schemas/DimensionOption'
+          type: array
+          description: 当前指标共同支持的合法选项
+        metrics:
           items:
             type: string
           type: array
-          description: 规范化指标集合
-        dimensions:
-          items:
-            additionalProperties: true
-            type: object
-          type: array
-          description: 当前指标共同支持的合法选项
+          description: dbt 指标名称集合
       additionalProperties: false
       type: object
       required:
       - buildId
-      - metricResourceIds
+      - metrics
       - dimensions
       title: AvailableDimensionsView
     Page_BuildView_:
@@ -1964,78 +1587,6 @@ components:
       required:
       - items
       title: Page[DeploymentAttemptView]
-    PhysicalAttributes:
-      properties:
-        origin:
-          $ref: '#/components/schemas/BindingMode'
-        relation:
-          $ref: '#/components/schemas/RelationName'
-        columns:
-          additionalProperties:
-            additionalProperties: true
-            type: object
-          type: object
-          title: Columns
-      additionalProperties: false
-      type: object
-      required:
-      - origin
-      - relation
-      - columns
-      title: PhysicalAttributes
-    PhysicalResource:
-      properties:
-        resourceId:
-          type: string
-          title: Resourceid
-        nativeId:
-          type: string
-          title: Nativeid
-        name:
-          type: string
-          title: Name
-        displayName:
-          type: string
-          title: Displayname
-        description:
-          anyOf:
-          - type: string
-          - type: 'null'
-          title: Description
-        sourcePath:
-          anyOf:
-          - type: string
-          - type: 'null'
-          title: Sourcepath
-        capabilities:
-          items:
-            type: string
-          type: array
-          title: Capabilities
-        nativeDetails:
-          additionalProperties: true
-          type: object
-          title: Nativedetails
-        kind:
-          type: string
-          enum:
-          - TABLE
-          - VIEW
-          title: Kind
-        attributes:
-          $ref: '#/components/schemas/PhysicalAttributes'
-      additionalProperties: false
-      type: object
-      required:
-      - resourceId
-      - nativeId
-      - name
-      - displayName
-      - capabilities
-      - nativeDetails
-      - kind
-      - attributes
-      title: PhysicalResource
     QueryMode:
       type: string
       enum:
@@ -2045,311 +1596,67 @@ components:
       - DIMENSION_VALUES
       title: QueryMode
     QueryRequest:
-      properties:
-        mode:
-          $ref: '#/components/schemas/QueryMode'
-          description: 受控的引擎查询模式
-        metricResourceIds:
-          items:
-            type: string
-          type: array
-          maxItems: 100
-          title: Metricresourceids
-          description: 指标资源集合
-        groupBy:
-          items:
-            $ref: '#/components/schemas/SelectedDimension'
-          type: array
-          maxItems: 100
-          title: Groupby
-          description: 有序分组
-        filters:
-          items:
-            $ref: '#/components/schemas/SelectedFilter'
-          type: array
-          maxItems: 100
-          title: Filters
-          description: 类型化过滤条件
-        startTime:
-          anyOf:
-          - type: string
-            format: date-time
-          - type: 'null'
-          title: Starttime
-          description: 起点，按构建业务时区解释
-        endTime:
-          anyOf:
-          - type: string
-            format: date-time
-          - type: 'null'
-          title: Endtime
-          description: 终点，按构建业务时区解释
-        orderBy:
-          items:
-            $ref: '#/components/schemas/SelectedOrder'
-          type: array
-          maxItems: 100
-          title: Orderby
-          description: 有序排序条件
-        limit:
-          type: integer
-          maximum: 10000.0
-          minimum: 1.0
-          title: Limit
-          description: 最多返回的结果行数
-          default: 1000
-        datasetResourceId:
-          anyOf:
-          - type: string
-          - type: 'null'
-          title: Datasetresourceid
-          description: PREVIEW 的数据集身份
-        dimensionOptionId:
-          anyOf:
-          - type: string
-          - type: 'null'
-          title: Dimensionoptionid
-          description: DIMENSION_VALUES 的维度选项
-      additionalProperties: false
-      type: object
-      required:
-      - mode
-      title: QueryRequest
-    RelationName:
-      properties:
-        database:
-          anyOf:
-          - type: string
-          - type: 'null'
-          title: Database
-        schema:
-          type: string
-          minLength: 1
-          title: Schema
-        identifier:
-          type: string
-          minLength: 1
-          title: Identifier
-      additionalProperties: false
-      type: object
-      required:
-      - schema
-      - identifier
-      title: RelationName
-    ResourceKind:
-      type: string
-      enum:
-      - METRIC
-      - DIMENSION
-      - SEMANTIC_MODEL
-      - TABLE
-      - VIEW
-      title: ResourceKind
-    ResourceLineageView:
-      properties:
-        buildId:
-          type: string
-          format: uuid
-          title: Buildid
-          description: 血缘所属构建
-        resourceId:
-          type: string
-          title: Resourceid
-          description: 资源身份
-        dependencies:
-          items:
-            $ref: '#/components/schemas/CatalogRelation'
-          type: array
-          title: Dependencies
-          description: 同一构建的上下游关系
-      additionalProperties: false
-      type: object
-      required:
-      - buildId
-      - resourceId
-      - dependencies
-      title: ResourceLineageView
-    ResourceNativeView:
-      properties:
-        buildId:
-          type: string
-          format: uuid
-          title: Buildid
-          description: 原生详情所属构建
-        resourceId:
-          type: string
-          title: Resourceid
-          description: 资源身份
-        nativeDetails:
-          additionalProperties: true
-          type: object
-          title: Nativedetails
-          description: 原生引擎定义
-      additionalProperties: false
-      type: object
-      required:
-      - buildId
-      - resourceId
-      - nativeDetails
-      title: ResourceNativeView
+      description: 按 mode 严格选择请求结构，无关字段即使为 null 或空数组也拒绝
+      oneOf:
+      - $ref: '#/components/schemas/MetricQueryRequest'
+      - $ref: '#/components/schemas/DimensionValuesRequest'
+      - $ref: '#/components/schemas/PreviewRequest'
+      discriminator:
+        propertyName: mode
+        mapping:
+          QUERY: '#/components/schemas/MetricQueryRequest'
+          EXPLAIN: '#/components/schemas/MetricQueryRequest'
+          DIMENSION_VALUES: '#/components/schemas/DimensionValuesRequest'
+          PREVIEW: '#/components/schemas/PreviewRequest'
     ResourceSourceView:
+      type: object
+      additionalProperties: false
       properties:
-        buildId:
-          type: string
-          format: uuid
-          title: Buildid
-          description: 源码所属构建
-        resourceId:
-          type: string
-          title: Resourceid
-          description: 资源身份
         path:
           type: string
-          title: Path
           description: 工程内相对路径
         content:
           type: string
-          title: Content
-          description: 封存源码正文
-      additionalProperties: false
-      type: object
+          description: 完整封存源码正文
       required:
-      - buildId
-      - resourceId
       - path
       - content
-      title: ResourceSourceView
     ResourceView:
+      type: object
+      additionalProperties: false
       properties:
+        buildId:
+          type: string
+          description: 资源和源码所属固定构建
+          format: uuid
         resourceId:
           type: string
-          title: Resourceid
-        nativeId:
-          type: string
-          title: Nativeid
-        name:
-          type: string
-          title: Name
-        displayName:
-          type: string
-          title: Displayname
-        description:
-          anyOf:
-          - type: string
-          - type: 'null'
-          title: Description
-        sourcePath:
-          anyOf:
-          - type: string
-          - type: 'null'
-          title: Sourcepath
-        capabilities:
-          items:
-            type: string
-          type: array
-          title: Capabilities
-        nativeDetails:
+          description: dbt 原生 unique_id
+        resource:
+          type: object
+          description: 完整原生节点定义
           additionalProperties: true
-          type: object
-          title: Nativedetails
-        buildId:
-          type: string
-          format: uuid
-          title: Buildid
-          description: 资源所属构建
-        kind:
-          $ref: '#/components/schemas/ResourceKind'
-          description: 原生资源种类
-        attributes:
+        source:
+          description: 完整源码；无源码时为空
           anyOf:
-          - $ref: '#/components/schemas/MetricAttributes'
-          - $ref: '#/components/schemas/DimensionAttributes'
-          - $ref: '#/components/schemas/DatasetAttributes'
-          - $ref: '#/components/schemas/PhysicalAttributes'
-          title: Attributes
-          description: 保持封存类型的资源属性
-      additionalProperties: false
-      type: object
+          - $ref: '#/components/schemas/ResourceSourceView'
+          - type: 'null'
       required:
+      - buildId
       - resourceId
-      - nativeId
-      - name
-      - displayName
-      - capabilities
-      - nativeDetails
-      - buildId
-      - kind
-      - attributes
-      title: ResourceView
+      - resource
     ResultPage:
-      properties:
-        buildId:
-          type: string
-          format: uuid
-          title: Buildid
-          description: 固定构建身份
-        mode:
-          $ref: '#/components/schemas/QueryMode'
-          description: 查询模式
-        commitSha:
-          anyOf:
-          - type: string
-          - type: 'null'
-          title: Commitsha
-          description: 固定源码版本
-        businessTimezone:
-          type: string
-          title: Businesstimezone
-          description: 构建固定的业务时区
-        normalizedTimeRange:
-          additionalProperties:
-            anyOf:
-            - type: string
-            - type: 'null'
-          type: object
-          title: Normalizedtimerange
-          description: 归一化时间输入
-        boundaryPolicy:
-          type: string
-          title: Boundarypolicy
-          description: 引擎粒度边界策略
-          default: metricflow_granularity_alignment
-        sql:
-          anyOf:
-          - type: string
-          - type: 'null'
-          title: Sql
-          description: EXPLAIN 返回的完整编译 SQL
-        columns:
-          items:
-            additionalProperties: true
-            type: object
-          type: array
-          title: Columns
-          description: 结果列及精度类型
-        rows:
-          items:
-            items: {}
-            type: array
-          type: array
-          title: Rows
-          description: 有界结果正文
-        resultTruncated:
-          type: boolean
-          title: Resulttruncated
-          description: 引擎结果是否截断
-      additionalProperties: false
-      type: object
-      required:
-      - buildId
-      - mode
-      - commitSha
-      - businessTimezone
-      - normalizedTimeRange
-      - columns
-      - rows
-      - resultTruncated
-      title: ResultPage
+      oneOf:
+      - $ref: '#/components/schemas/MetricQueryResult'
+      - $ref: '#/components/schemas/ExplainResult'
+      - $ref: '#/components/schemas/PreviewResult'
+      discriminator:
+        propertyName: mode
+        mapping:
+          QUERY: '#/components/schemas/MetricQueryResult'
+          DIMENSION_VALUES: '#/components/schemas/MetricQueryResult'
+          EXPLAIN: '#/components/schemas/ExplainResult'
+          PREVIEW: '#/components/schemas/PreviewResult'
     SelectedDimension:
       properties:
         optionId:
@@ -2501,6 +1808,454 @@ components:
           type: integer
         detail:
           type: string
+    ExecutionLogView:
+      type: object
+      additionalProperties: false
+      properties:
+        logId:
+          type: string
+          description: 日志十进制字符串标识，用于去重，避免整数精度丢失
+        jobId:
+          type: string
+          description: 所属持久任务标识
+          format: uuid
+        attemptId:
+          type: string
+          description: 执行尝试标识，用于区分重试
+          format: uuid
+        phase:
+          type: string
+          description: 事件发生的构建阶段
+        command:
+          type: string
+          description: dbt 子命令
+        eventTime:
+          type: string
+          description: 事件产生时间，UTC
+          format: date-time
+        level:
+          type: string
+          description: 原始日志级别
+        eventName:
+          type: string
+          description: dbt 事件名或 Python logger 名称
+        eventCode:
+          type: string
+          description: 事件代码，无值时为空字符串
+        invocationId:
+          type: string
+          description: dbt 调用标识，无值时为空字符串
+        nodeId:
+          type: string
+          description: 节点 unique_id，无值时为空字符串
+        threadName:
+          type: string
+          description: 产生事件的线程名称
+        message:
+          type: string
+          description: 脱敏消息，按文本渲染，可能含换行及 ANSI 转义序列
+        createdAt:
+          type: string
+          description: 入库时间，UTC
+          format: date-time
+      required:
+      - logId
+      - jobId
+      - attemptId
+      - phase
+      - command
+      - eventTime
+      - level
+      - eventName
+      - eventCode
+      - invocationId
+      - nodeId
+      - threadName
+      - message
+      - createdAt
+    ExecutionLogPage:
+      type: object
+      additionalProperties: false
+      properties:
+        items:
+          type: array
+          description: 按 logId 升序返回的本页日志
+          items:
+            $ref: '#/components/schemas/ExecutionLogView'
+        nextCursor:
+          type: string
+          description: 绑定构建的续读游标，空页及末页仍返回，应保留用于轮询
+        hasMore:
+          type: boolean
+          description: 读取时是否有下一页，不表示构建结束或日志完整
+      required:
+      - items
+      - nextCursor
+      - hasMore
+    Manifest:
+      type: object
+      additionalProperties: true
+      description: dbt 原生 Manifest，完整保留 nodes、sources、metrics、semantic_models 等字段；无平台分页、筛选或资源包装
+    DimensionOption:
+      type: object
+      additionalProperties: false
+      properties:
+        optionId:
+          type: string
+          description: 固定构建和指标集合的选项身份
+        name:
+          type:
+          - string
+          - 'null'
+          description: 原生维度名称
+        semanticModelName:
+          type:
+          - string
+          - 'null'
+          description: 所属语义模型名称
+        displayName:
+          type: string
+          description: 显示名称
+        dimensionType:
+          type: string
+          description: 维度类型
+        granularities:
+          type: array
+          description: 支持的时间粒度
+          items:
+            type: string
+        operators:
+          type: array
+          description: 支持的过滤操作
+          items:
+            type: string
+      required:
+      - optionId
+      - displayName
+      - dimensionType
+      - granularities
+      - operators
+    MetricQueryRequest:
+      type: object
+      additionalProperties: false
+      properties:
+        mode:
+          type: string
+          description: 指标查询或编译模式
+          enum:
+          - QUERY
+          - EXPLAIN
+        filters:
+          items:
+            $ref: '#/components/schemas/SelectedFilter'
+          type: array
+          maxItems: 100
+          title: Filters
+          description: 类型化过滤条件
+        startTime:
+          anyOf:
+          - type: string
+            format: date-time
+          - type: 'null'
+          title: Starttime
+          description: 起点，按构建业务时区解释
+        endTime:
+          anyOf:
+          - type: string
+            format: date-time
+          - type: 'null'
+          title: Endtime
+          description: 终点，按构建业务时区解释
+        limit:
+          type: integer
+          maximum: 10000.0
+          minimum: 1.0
+          title: Limit
+          description: 最多返回的结果行数
+          default: 1000
+        metrics:
+          type: array
+          description: dbt 指标名称，不能使用资源 ID
+          items:
+            type: string
+          minItems: 1
+          maxItems: 100
+        groupBy:
+          items:
+            $ref: '#/components/schemas/SelectedDimension'
+          type: array
+          maxItems: 100
+          title: Groupby
+          description: 有序分组
+        orderBy:
+          items:
+            $ref: '#/components/schemas/SelectedOrder'
+          type: array
+          maxItems: 100
+          title: Orderby
+          description: 有序排序条件
+      required:
+      - mode
+      - metrics
+    DimensionValuesRequest:
+      type: object
+      additionalProperties: false
+      properties:
+        mode:
+          type: string
+          description: 维度值查询模式
+          const: DIMENSION_VALUES
+        filters:
+          items:
+            $ref: '#/components/schemas/SelectedFilter'
+          type: array
+          maxItems: 100
+          title: Filters
+          description: 类型化过滤条件
+        startTime:
+          anyOf:
+          - type: string
+            format: date-time
+          - type: 'null'
+          title: Starttime
+          description: 起点，按构建业务时区解释
+        endTime:
+          anyOf:
+          - type: string
+            format: date-time
+          - type: 'null'
+          title: Endtime
+          description: 终点，按构建业务时区解释
+        limit:
+          type: integer
+          maximum: 10000.0
+          minimum: 1.0
+          title: Limit
+          description: 最多返回的结果行数
+          default: 1000
+        metrics:
+          type: array
+          description: dbt 指标名称，不能使用资源 ID
+          items:
+            type: string
+          minItems: 1
+          maxItems: 100
+        dimensionOptionId:
+          type: string
+          description: 选定维度的 optionId
+          minLength: 1
+      required:
+      - mode
+      - metrics
+      - dimensionOptionId
+    PreviewRequest:
+      type: object
+      additionalProperties: false
+      properties:
+        mode:
+          type: string
+          description: 原生节点预览模式
+          const: PREVIEW
+        selector:
+          type: string
+          description: 匹配一个非 seed 节点的 dbt 原生 selector，不能只包含空白
+          minLength: 1
+          pattern: \S
+        limit:
+          type: integer
+          maximum: 10000.0
+          minimum: 1.0
+          title: Limit
+          description: 最多返回的结果行数
+          default: 1000
+      required:
+      - mode
+      - selector
+    MetricQueryResult:
+      type: object
+      additionalProperties: false
+      properties:
+        buildId:
+          type: string
+          format: uuid
+          title: Buildid
+          description: 固定构建身份
+        commitSha:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Commitsha
+          description: 固定源码版本
+        mode:
+          type: string
+          description: 指标或维度值结果
+          enum:
+          - QUERY
+          - DIMENSION_VALUES
+        businessTimezone:
+          type: string
+          title: Businesstimezone
+          description: 构建固定的业务时区
+        normalizedTimeRange:
+          description: 按构建业务时区归一化的输入，不代表引擎粒度边界
+          type: object
+          additionalProperties: false
+          properties:
+            startTime:
+              type:
+              - string
+              - 'null'
+              description: 归一化起点
+            endTime:
+              type:
+              - string
+              - 'null'
+              description: 归一化终点
+          required:
+          - startTime
+          - endTime
+        columns:
+          items:
+            type: object
+            additionalProperties: false
+            properties:
+              name:
+                type: string
+                description: 列名
+              type:
+                type: string
+                description: 列类型
+            required:
+            - name
+            - type
+          type: array
+          title: Columns
+          description: 结果列及精度类型
+        rows:
+          items:
+            items: {}
+            type: array
+          type: array
+          title: Rows
+          description: 有界结果正文
+        resultTruncated:
+          type: boolean
+          title: Resulttruncated
+          description: 引擎结果是否截断
+      required:
+      - buildId
+      - commitSha
+      - mode
+      - businessTimezone
+      - normalizedTimeRange
+      - columns
+      - rows
+      - resultTruncated
+    ExplainResult:
+      type: object
+      additionalProperties: false
+      properties:
+        buildId:
+          type: string
+          format: uuid
+          title: Buildid
+          description: 固定构建身份
+        commitSha:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Commitsha
+          description: 固定源码版本
+        mode:
+          type: string
+          description: 编译结果模式
+          const: EXPLAIN
+        businessTimezone:
+          type: string
+          title: Businesstimezone
+          description: 构建固定的业务时区
+        normalizedTimeRange:
+          description: 按构建业务时区归一化的输入，不代表引擎粒度边界
+          type: object
+          additionalProperties: false
+          properties:
+            startTime:
+              type:
+              - string
+              - 'null'
+              description: 归一化起点
+            endTime:
+              type:
+              - string
+              - 'null'
+              description: 归一化终点
+          required:
+          - startTime
+          - endTime
+        sql:
+          type: string
+          description: 实际执行路径生成的 SQL，不执行取数
+      required:
+      - buildId
+      - commitSha
+      - mode
+      - businessTimezone
+      - normalizedTimeRange
+      - sql
+    PreviewResult:
+      type: object
+      additionalProperties: false
+      properties:
+        buildId:
+          type: string
+          format: uuid
+          title: Buildid
+          description: 固定构建身份
+        commitSha:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Commitsha
+          description: 固定源码版本
+        mode:
+          type: string
+          description: 节点预览结果
+          const: PREVIEW
+        columns:
+          items:
+            type: object
+            additionalProperties: false
+            properties:
+              name:
+                type: string
+                description: 列名
+              type:
+                type: string
+                description: 列类型
+            required:
+            - name
+            - type
+          type: array
+          title: Columns
+          description: 结果列及精度类型
+        rows:
+          items:
+            items: {}
+            type: array
+          type: array
+          title: Rows
+          description: 有界结果正文
+        resultTruncated:
+          type: boolean
+          title: Resulttruncated
+          description: 引擎结果是否截断
+      required:
+      - buildId
+      - commitSha
+      - mode
+      - columns
+      - rows
+      - resultTruncated
   securitySchemes:
     bearerAuth:
       type: http

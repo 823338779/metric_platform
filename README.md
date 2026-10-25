@@ -1,6 +1,6 @@
 # Metric Platform
 
-指标平台负责登录认证、构建与部署历史展示，以及固定 `buildId` 的目录、可用维度和查询。dbt-service 是构建事实、有效部署、目录和查询执行的唯一权威。平台与 Agent 不直接交互，不发起构建或部署。
+指标平台负责登录认证、构建与部署历史展示，以及固定 `buildId` 的目录、可用维度和查询。dbt-service 是构建事实、有效部署、目录和查询执行的唯一权威。平台与 Agent 不直接交互；平台提交环境执行快照，构建和部署由 dbt-service 执行。
 
 ## 模块边界
 
@@ -60,7 +60,20 @@ npm run dev
 
 固定 buildId 固定指标定义和构建身份，不等于历史数据快照：当前服务在同一 schema 覆盖同名表，历史版本可能读取当前物理数据。
 
-可用维度与四种查询模式（QUERY、EXPLAIN、PREVIEW、DIMENSION_VALUES）均同步完成。平台保留 `/builds/{buildId}/available-dimensions` 与 `/builds/{buildId}/queries` 门面；适配层分别调用 `/query/available-dimensions?build_id=…` 和 `/query?build_id=…`。可用维度返回 `dimensions`；查询不携带幂等键，一次返回完整有界结果，不再返回 `queryId`、状态或分页字段，也不提供历史结果读取。失败通过非 2xx 业务错误返回，不使用任务状态轮询。平台保留 optionId、时间原值、结果精度及服务的业务错误码、phase、buildId、retryable。时间按构建固定的业务时区解释，由服务返回 `businessTimezone`、`normalizedTimeRange` 与边界策略。
+目录接口 `GET /api/dbt/builds/{buildId}/catalog` 返回完整 dbt Manifest，保留 `nodes`、`sources`、`metrics`、`semantic_models` 等原生字段，不接收筛选或分页参数。界面在本地筛选、展示；原生目录没有独立维度资源 ID。资源详情 `/resources/{resourceId}` 使用 dbt `unique_id`，返回 `{buildId, resourceId, resource, source}`，其中 `resource` 为完整节点，`source` 为 `{path, content}` 或 null。血缘改为 `GET /api/dbt/builds/{buildId}/lineage?selector=…`，返回原生节点数组；selector 中的加号必须编码为 `%2B`。旧 `/resources/{resourceId}/{view}` 接口已移除。
+
+可用维度与四种查询模式均同步完成。平台保留 `/builds/{buildId}/available-dimensions` 与 `/builds/{buildId}/queries` 门面；适配层分别调用 `/query/available-dimensions?build_id=…` 和 `/query?build_id=…`。可用维度请求为 `{"metrics":["revenue"]}`，返回 `{buildId, metrics, dimensions}`；指标使用名称，不能传旧资源 ID。维度保留 optionId、dimensionType、granularities 和 operators，不再返回 valueType。
+
+| mode | 请求字段（除 mode） | 结果字段（除 buildId、commitSha、mode） |
+| --- | --- | --- |
+| QUERY | 必填 metrics；可选 groupBy、filters、startTime、endTime、orderBy、limit | businessTimezone、normalizedTimeRange、columns、rows、resultTruncated |
+| EXPLAIN | 同 QUERY | businessTimezone、normalizedTimeRange、sql |
+| PREVIEW | 必填 selector；可选 limit | columns、rows、resultTruncated |
+| DIMENSION_VALUES | 必填 metrics、dimensionOptionId；可选 filters、startTime、endTime、limit | businessTimezone、normalizedTimeRange、columns、rows、resultTruncated |
+
+模式无关字段即使为 null 或空数组也拒绝。PREVIEW 的 selector 匹配一个非 seed 节点，例如 `{"mode":"PREVIEW","selector":"orders","limit":100}`；指标查询例如 `{"mode":"QUERY","metrics":["revenue"],"limit":100}`。limit 默认 1000，范围 1–10000。EXPLAIN 不执行取数，其 SQL 可能包含 `LIMIT 101`，额外一行用于实际取数时判断截断。表格结果最多返回 limit 行，Decimal 保留字符串精度，日期时间保留 ISO 字符串。
+
+查询不携带幂等键，一次返回完整有界结果，不返回 queryId、任务状态或分页字段，也不提供历史结果读取。失败通过非 2xx 业务错误返回，平台保留服务的业务错误码、phase、buildId、retryable。时间按构建固定的业务时区解释，normalizedTimeRange 只表示归一化输入，不再返回 boundaryPolicy。平台不根据构建状态预判查询可用性，实际产物恢复、引擎初始化和执行错误由服务返回。
 
 `GET /api/dbt/builds` 直接读取服务构建历史，`environmentId` 必填，`repository`、`branchName` 和 `buildStatus` 可选。部署列表使用 `/api/dbt/deployments`，固定 repository/environmentId/branchName 与服务游标。旧投影、变化游标和 Agent 分支缓存表保留供审计，不作为当前列表数据源；旧项目和 Agent 分支代理接口已移除。
 
@@ -117,7 +130,8 @@ npm run test:e2e -- --config=playwright.publication.config.ts
 
 - `/api/dbt/environments`：环境列表（最多 200 项）和新增；`/{environmentId}`：读取和按期望版本更新。
 - `/{environmentId}/builds`：POST 提交；GET 按环境读取全部构建历史，可选仓库、分支、状态和游标。失败、排队、未部署构建也保留。
-- `/api/dbt/builds/{buildId}` 和 `/logs`：固定元信息及日志，完整 execution 为必填字段。
+- `/api/dbt/builds/{buildId}`：固定元信息，完整 execution 为必填字段；配置版本读取 `execution.configVersion`，不再返回顶层 configVersion、cancelRequested、queryAvailable 或 queryUnavailableReason。
+- `/api/dbt/builds/{buildId}/execution-logs?cursor=…&limit=100`：结构化执行日志，limit 范围 1–200；旧 `/logs` 已移除。
 - 固定 buildId 的目录和查询使用同一无版本号资源接口，`/dbt/projects` 按环境 UUID 查询部署。
 
 部署时平台和服务必须配置相同的 `EXECUTION_INSTANCES` JSON，例如 `{"warehouse":{"type":"starrocks","hosts":["localhost","127.0.0.1"],"port":9030}}`。这份清单只规范物理实例和地址别名，不含环境的 catalog/schema。凭据引用及 secret 仅由服务部署解析；浏览器不提交密码或服务令牌。
@@ -125,3 +139,12 @@ npm run test:e2e -- --config=playwright.publication.config.ts
 平台通过 Flyway V17/V18 保存环境版本、物理目标归属和幂等提交。提交前固定登录身份、环境版本和完整快照；HTTP 超时后用原 `idempotencyKey` 重试，仍发送原快照，即使环境已修改。只有明确开始新的提交才生成新键。初始化新数据库并启动 dbt-service 后，再启动平台。
 
 同一环境后续构建会更新同名表。旧 build 固定的是源码和执行目标，不承诺历史数据快照。环境目标修改后旧 build 的查询仍使用当时的 catalog/schema。
+
+
+### 详细执行日志
+
+日志响应为 `{items, nextCursor, hasMore}`。每条事件包含 logId、jobId、attemptId、phase、command、eventTime、level、eventName、eventCode、invocationId、nodeId、threadName、message、createdAt。logId 是十进制字符串，按服务返回的 ID 顺序追加并去重，不转为 JavaScript Number，也不按事件时间重排。消息按文本渲染，保留换行，不作为 HTML 执行。
+
+首次读取不传 cursor，成功处理后保存 nextCursor；hasMore=true 时串行继续分页，false 时保留游标轮询。空页也返回有效游标，不能清空或视为构建结束。切换构建时取消旧请求并清空旧游标及列表，重试沿用最后成功的游标。阶段和状态读取构建详情，观察到正常终态后再读一次并取完已有页；OUTCOME_UNKNOWN 仍需核查，迟到日志保留刷新入口。hasMore 只表示当前是否有下一页，不保证日志完整。
+
+平台对原生 Manifest 和资源详情采用 64 MiB HTTP 响应上限，与 dbt-service 默认单产物大小一致；查询及其他响应仍为 8 MiB。若服务部署提高单产物限制，需同步评估平台读取边界。

@@ -6,13 +6,11 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.metricplatform.catalog.BuildContracts.*;
 import com.metricplatform.catalog.BuildGateway;
 import com.sun.net.httpserver.HttpServer;
-
-import org.junit.jupiter.api.Test;
-
 import java.net.InetSocketAddress;
 import java.net.URI;
 import java.time.Duration;
 import java.util.*;
+import org.junit.jupiter.api.Test;
 
 class HttpBuildGatewayTest {
     private static final String SERVICE_AUTHENTICATION_FAILED = "SERVICE_AUTHENTICATION_FAILED";
@@ -29,7 +27,8 @@ class HttpBuildGatewayTest {
                             BuildGateway.Failure.class,
                             failure -> {
                                 assertThat(failure.status()).isEqualTo(502);
-                                assertThat(failure.error().code()).isEqualTo(SERVICE_AUTHENTICATION_FAILED);
+                                assertThat(failure.error().code())
+                                        .isEqualTo(SERVICE_AUTHENTICATION_FAILED);
                                 assertThat(failure.error().retryable()).isFalse();
                             });
         } finally {
@@ -82,8 +81,7 @@ class HttpBuildGatewayTest {
             var result =
                     client(server)
                             .availableDimensions(
-                                    BUILD,
-                                    new AvailableDimensionsRequest(List.of("metric.revenue")));
+                                    BUILD, new AvailableDimensionsRequest(List.of("revenue")));
             assertThat(result.dimensions()).isNotNull();
             assertThat(result.buildId()).isEqualTo(BUILD);
             assertThat(paths).containsExactly("/query/available-dimensions?build_id=" + BUILD);
@@ -101,10 +99,10 @@ class HttpBuildGatewayTest {
                         200,
                         "{\"buildId\":\""
                                 + BUILD
-                                + "\",\"resourceId\":\"a/b\",\"path\":\"x.yml\",\"content\":\"x\"}");
+                                + "\",\"resourceId\":\"a/b\",\"resource\":{},\"source\":{\"path\":\"x.yml\",\"content\":\"x\"}}");
         try {
-            assertThat(client(server).resource(BUILD, "a/b", "source").content()).isEqualTo("x");
-            assertThat(paths).containsExactly("/builds/" + BUILD + "/resources/a%2Fb/source");
+            assertThat(client(server).resource(BUILD, "a/b").source().content()).isEqualTo("x");
+            assertThat(paths).containsExactly("/builds/" + BUILD + "/resources/a%2Fb");
         } finally {
             server.stop(0);
         }
@@ -150,7 +148,7 @@ class HttpBuildGatewayTest {
                                 + UUID.randomUUID()
                                 + "\",\"buildId\":\""
                                 + BUILD
-                                + "\",\"state\":\"SUCCEEDED\",\"metricResourceIds\":[\"metric.revenue\"],\"options\":[]}");
+                                + "\",\"state\":\"SUCCEEDED\",\"metrics\":[\"revenue\"],\"options\":[]}");
         try {
             assertThatThrownBy(
                             () ->
@@ -158,7 +156,7 @@ class HttpBuildGatewayTest {
                                             .availableDimensions(
                                                     BUILD,
                                                     new AvailableDimensionsRequest(
-                                                            List.of("metric.revenue"))))
+                                                            List.of("revenue"))))
                     .isInstanceOfSatisfying(
                             BuildGateway.Failure.class, e -> assertThat(e.status()).isEqualTo(502));
         } finally {
@@ -177,6 +175,11 @@ class HttpBuildGatewayTest {
                         .orElseThrow();
         var response = sample.path("value").deepCopy();
         ((com.fasterxml.jackson.databind.node.ObjectNode) response).put("mode", mode.name());
+        if (mode == QueryMode.EXPLAIN) {
+            ((com.fasterxml.jackson.databind.node.ObjectNode) response).put("sql", "select 1");
+            ((com.fasterxml.jackson.databind.node.ObjectNode) response)
+                    .remove(List.of("columns", "rows", "resultTruncated"));
+        }
         var server = server(new ArrayList<>(), 200, response.toString());
         try {
             var result =
@@ -185,7 +188,7 @@ class HttpBuildGatewayTest {
                                     BUILD,
                                     new QueryRequest(
                                             mode,
-                                            List.of("metric.revenue"),
+                                            List.of("revenue"),
                                             List.of(),
                                             List.of(),
                                             null,
@@ -195,7 +198,10 @@ class HttpBuildGatewayTest {
                                             null,
                                             null));
             assertThat(result.buildId()).isEqualTo(BUILD);
-            assertThat(mapper.valueToTree(result).path("rows")).isEqualTo(response.path("rows"));
+            if (mode == QueryMode.EXPLAIN) assertThat(result.sql()).isEqualTo("select 1");
+            else
+                assertThat(mapper.valueToTree(result).path("rows"))
+                        .isEqualTo(response.path("rows"));
             assertThat(result.mode()).isEqualTo(mode);
         } finally {
             server.stop(0);

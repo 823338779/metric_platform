@@ -3,7 +3,7 @@
   "examples": [
     {
       "name": "build",
-      "model": "SnapshotBuildRequest",
+      "model": "BuildRequest",
       "value": {
         "repository": "https://git.example.com/metrics.git",
         "branchName": "feature/revenue",
@@ -31,24 +31,20 @@
     },
     {
       "name": "failed-build",
-      "model": "SnapshotBuildView",
+      "model": "BuildView",
       "value": {
         "buildId": "12345678-1234-4234-8234-123456789abc",
         "repository": "https://git.example.com/metrics.git",
         "branchName": "feature/revenue",
         "requestedCommitSha": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
         "commitSha": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
-        "configVersion": "1",
         "toolchainVersion": "fixture",
         "buildStatus": "FAILED",
         "phase": "PARSING",
         "createdAt": "2026-10-10T00:00:00Z",
         "updatedAt": "2026-10-10T00:00:00Z",
         "finishedAt": null,
-        "cancelRequested": false,
         "catalogAvailable": false,
-        "queryAvailable": false,
-        "queryUnavailableReason": null,
         "error": {
           "code": "INVALID_DEFINITION",
           "message": "模型定义无效",
@@ -73,16 +69,6 @@
           "threads": 2,
           "businessTimezone": "Asia/Shanghai"
         }
-      }
-    },
-    {
-      "name": "deploy",
-      "model": "DeploymentRequest",
-      "value": {
-        "buildId": "12345678-1234-4234-8234-123456789abc",
-        "branchName": "feature/revenue",
-        "expectedTargetVersion": 0,
-        "idempotencyKey": "deploy-1"
       }
     },
     {
@@ -121,8 +107,8 @@
       "name": "available-dimensions-request",
       "model": "AvailableDimensionsRequest",
       "value": {
-        "metricResourceIds": [
-          "metric.revenue"
+        "metrics": [
+          "revenue"
         ]
       }
     },
@@ -131,10 +117,10 @@
       "model": "AvailableDimensionsView",
       "value": {
         "buildId": "12345678-1234-4234-8234-123456789abc",
-        "metricResourceIds": [
-          "metric.revenue"
-        ],
-        "dimensions": []
+        "dimensions": [],
+        "metrics": [
+          "revenue"
+        ]
       }
     },
     {
@@ -142,17 +128,15 @@
       "model": "QueryRequest",
       "value": {
         "mode": "QUERY",
-        "metricResourceIds": [
-          "metric.revenue"
-        ],
         "groupBy": [],
         "filters": [],
         "startTime": null,
         "endTime": null,
         "orderBy": [],
         "limit": 1000,
-        "datasetResourceId": null,
-        "dimensionOptionId": null
+        "metrics": [
+          "revenue"
+        ]
       }
     },
     {
@@ -160,17 +144,15 @@
       "model": "QueryRequest",
       "value": {
         "mode": "EXPLAIN",
-        "metricResourceIds": [
-          "metric.revenue"
-        ],
         "groupBy": [],
         "filters": [],
         "startTime": null,
         "endTime": null,
         "orderBy": [],
         "limit": 1000,
-        "datasetResourceId": null,
-        "dimensionOptionId": null
+        "metrics": [
+          "revenue"
+        ]
       }
     },
     {
@@ -178,15 +160,8 @@
       "model": "QueryRequest",
       "value": {
         "mode": "PREVIEW",
-        "metricResourceIds": [],
-        "groupBy": [],
-        "filters": [],
-        "startTime": null,
-        "endTime": null,
-        "orderBy": [],
         "limit": 1000,
-        "datasetResourceId": "model.orders",
-        "dimensionOptionId": null
+        "selector": "orders"
       }
     },
     {
@@ -194,17 +169,14 @@
       "model": "QueryRequest",
       "value": {
         "mode": "DIMENSION_VALUES",
-        "metricResourceIds": [
-          "metric.revenue"
-        ],
-        "groupBy": [],
         "filters": [],
         "startTime": null,
         "endTime": null,
-        "orderBy": [],
         "limit": 1000,
-        "datasetResourceId": null,
-        "dimensionOptionId": "53bb4f22c1b44e93a386de1f08b67a37"
+        "dimensionOptionId": "53bb4f22c1b44e93a386de1f08b67a37",
+        "metrics": [
+          "revenue"
+        ]
       }
     },
     {
@@ -219,8 +191,6 @@
           "startTime": "2026-10-01T00:00:00",
           "endTime": null
         },
-        "boundaryPolicy": "metricflow_granularity_alignment",
-        "sql": null,
         "columns": [],
         "rows": [],
         "resultTruncated": false
@@ -238,8 +208,6 @@
           "startTime": "2026-10-01T00:00:00",
           "endTime": null
         },
-        "boundaryPolicy": "metricflow_granularity_alignment",
-        "sql": null,
         "columns": [
           {
             "name": "amount",
@@ -290,180 +258,62 @@
     },
     {
       "name": "catalog",
-      "model": "CatalogPage",
+      "model": "Manifest",
       "value": {
-        "items": [
-          {
-            "resourceId": "metric.revenue",
-            "nativeId": "metric.revenue",
-            "name": "revenue",
-            "displayName": "metric.revenue",
-            "description": null,
-            "sourcePath": null,
-            "capabilities": [
-              "QUERY"
-            ],
-            "nativeDetails": {},
-            "kind": "METRIC",
-            "attributes": {
-              "metricType": "simple",
-              "definitionSummary": "收入",
-              "inputMetricIds": [],
-              "datasetIds": [
-                "semantic_model.orders"
-              ],
-              "filters": null,
-              "timeConfig": {}
-            }
-          },
-          {
-            "resourceId": "dimension.orders.region",
-            "nativeId": "dimension.orders.region",
-            "name": "region",
-            "displayName": "dimension.orders.region",
-            "description": null,
-            "sourcePath": null,
-            "capabilities": [],
-            "nativeDetails": {},
-            "kind": "DIMENSION",
-            "attributes": {
-              "datasetId": "semantic_model.orders",
-              "dimensionType": "categorical",
-              "expression": null,
-              "timeGranularity": null
-            }
-          },
-          {
-            "resourceId": "semantic_model.orders",
-            "nativeId": "semantic_model.orders",
-            "name": "orders",
-            "displayName": "semantic_model.orders",
-            "description": null,
-            "sourcePath": null,
-            "capabilities": [],
-            "nativeDetails": {},
-            "kind": "SEMANTIC_MODEL",
-            "attributes": {
-              "modelResourceId": "model.orders",
-              "dimensionIds": [
-                "dimension.orders.region"
-              ],
-              "entities": [],
-              "measures": [],
-              "defaultTimeDimension": null
-            }
-          },
-          {
-            "resourceId": "model.orders",
-            "nativeId": "model.orders",
-            "name": "orders",
-            "displayName": "model.orders",
-            "description": null,
-            "sourcePath": null,
-            "capabilities": [
-              "PREVIEW"
-            ],
-            "nativeDetails": {},
-            "kind": "TABLE",
-            "attributes": {
-              "origin": "BUILT",
-              "relation": {
-                "database": null,
-                "schema": "analytics",
-                "identifier": "orders"
-              },
-              "columns": {}
-            }
-          },
-          {
-            "resourceId": "model.order_view",
-            "nativeId": "model.order_view",
-            "name": "order_view",
-            "displayName": "model.order_view",
-            "description": null,
-            "sourcePath": null,
-            "capabilities": [
-              "PREVIEW"
-            ],
-            "nativeDetails": {},
-            "kind": "VIEW",
-            "attributes": {
-              "origin": "BUILT",
-              "relation": {
-                "database": null,
-                "schema": "analytics",
-                "identifier": "orders_view"
-              },
-              "columns": {}
-            }
-          }
-        ],
-        "nextCursor": null,
-        "buildId": "12345678-1234-4234-8234-123456789abc"
+        "metadata": {},
+        "metrics": {
+          "metric.revenue": {}
+        },
+        "semantic_models": {
+          "semantic_model.orders": {}
+        },
+        "nodes": {
+          "model.orders": {},
+          "model.order_view": {}
+        },
+        "sources": {},
+        "parent_map": {},
+        "child_map": {}
       }
     },
     {
       "name": "resource",
       "model": "ResourceView",
       "value": {
-        "resourceId": "metric.revenue",
-        "nativeId": "metric.revenue",
-        "name": "revenue",
-        "displayName": "metric.revenue",
-        "description": null,
-        "sourcePath": null,
-        "capabilities": [
-          "QUERY"
-        ],
-        "nativeDetails": {},
         "buildId": "12345678-1234-4234-8234-123456789abc",
-        "kind": "METRIC",
-        "attributes": {
-          "metricType": "simple",
-          "definitionSummary": "收入",
-          "inputMetricIds": [],
-          "datasetIds": [
-            "semantic_model.orders"
-          ],
-          "filters": null,
-          "timeConfig": {}
-        }
+        "resourceId": "metric.revenue",
+        "resource": {},
+        "source": null
       }
     },
     {
       "name": "source",
-      "model": "ResourceSourceView",
+      "model": "ResourceView",
       "value": {
         "buildId": "12345678-1234-4234-8234-123456789abc",
         "resourceId": "metric.revenue",
-        "path": "models/metrics.yml",
-        "content": "metrics: []\n"
+        "resource": {},
+        "source": {
+          "path": "models/metrics.yml",
+          "content": "metrics: []\n"
+        }
       }
     },
     {
       "name": "lineage",
-      "model": "ResourceLineageView",
-      "value": {
-        "buildId": "12345678-1234-4234-8234-123456789abc",
-        "resourceId": "metric.revenue",
-        "dependencies": [
-          {
-            "upstreamResourceId": "semantic_model.orders",
-            "downstreamResourceId": "metric.revenue",
-            "kind": "DEPENDS_ON"
-          }
-        ]
-      }
+      "model": "LineageNodes",
+      "value": []
     },
     {
       "name": "native-details",
-      "model": "ResourceNativeView",
+      "model": "ResourceView",
       "value": {
         "buildId": "12345678-1234-4234-8234-123456789abc",
         "resourceId": "metric.revenue",
-        "nativeDetails": {
+        "resource": {
           "type": "simple"
-        }
+        },
+        "source": null
       }
     }
   ],

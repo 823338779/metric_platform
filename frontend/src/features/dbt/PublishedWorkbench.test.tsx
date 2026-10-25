@@ -33,15 +33,14 @@ it.each([false, true])(
           threads: 2,
           businessTimezone: 'Asia/Shanghai',
         },
-        queryAvailable: true,
       }),
       current: refreshFails
         ? vi.fn().mockRejectedValue(new Error('offline'))
         : vi.fn().mockResolvedValue({ activeBuildId: 'A' }),
       catalog: vi.fn().mockResolvedValue({
-        buildId: 'A',
-        nextCursor: null,
-        items: [{ resourceId: 'M', kind: 'METRIC', displayName: '指标 M' }],
+        metrics: {
+          ['M']: { unique_id: 'M', resource_type: 'metric', name: 'M', label: '指标 M' },
+        },
       }),
       availableDimensions: vi
         .fn()
@@ -79,7 +78,7 @@ it.each([false, true])(
   },
 );
 
-it('queries with platform identities and refreshes without requesting publication', async () => {
+it('queries with native metric names and refreshes without requesting publication', async () => {
   const api = {
     build: vi.fn().mockResolvedValue({
       buildId: 'A',
@@ -101,24 +100,18 @@ it('queries with platform identities and refreshes without requesting publicatio
         threads: 2,
         businessTimezone: 'Asia/Shanghai',
       },
-      queryAvailable: true,
     }),
     current: vi.fn().mockResolvedValue({ activeBuildId: 'A' }),
     publication: vi.fn().mockResolvedValue({ projectId: 'p', activePublication: { buildId: 'A' } }),
     catalog: vi.fn().mockResolvedValue({
-      buildId: 'A',
-      nextCursor: null,
-      items: [
-        {
-          resourceId: 'metric.p.revenue',
-          kind: 'METRIC',
+      metrics: {
+        ['metric.p.revenue']: {
+          unique_id: 'metric.p.revenue',
+          resource_type: 'metric',
           name: 'revenue',
-          displayName: '销售额',
-          capabilities: ['QUERY'],
-          attributes: {},
-          nativeDetails: {},
+          label: '销售额',
         },
-      ],
+      },
     }),
     availableDimensions: vi.fn().mockResolvedValue({
       state: 'SUCCEEDED',
@@ -161,7 +154,7 @@ it('queries with platform identities and refreshes without requesting publicatio
     expect(api.submit).toHaveBeenCalledWith(
       'A',
       expect.objectContaining({
-        metricResourceIds: ['metric.p.revenue'],
+        metrics: ['revenue'],
         groupBy: [{ optionId: 'opaque-region' }],
       }),
     ),

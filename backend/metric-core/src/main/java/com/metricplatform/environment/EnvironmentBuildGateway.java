@@ -13,5 +13,5 @@ public interface EnvironmentBuildGateway {
 
     JsonNode getBuild(UUID buildId);
 
-    JsonNode logs(UUID buildId, String cursor);
+    JsonNode logs(UUID buildId, String cursor, int limit);
 }

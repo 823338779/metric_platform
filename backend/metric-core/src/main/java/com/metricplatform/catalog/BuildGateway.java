@@ -14,9 +14,11 @@ public interface BuildGateway {
 
     DeploymentPage listDeployments(DeploymentFilter filter);
 
-    CatalogPage catalog(UUID buildId, CatalogFilter filter);
+    com.fasterxml.jackson.databind.JsonNode catalog(UUID buildId);
 
-    ResourceView resource(UUID buildId, String resourceId, String view);
+    ResourceView resource(UUID buildId, String resourceId);
+
+    com.fasterxml.jackson.databind.JsonNode lineage(UUID buildId, String selector);
 
     AvailableDimensionsView availableDimensions(UUID buildId, AvailableDimensionsRequest request);
 

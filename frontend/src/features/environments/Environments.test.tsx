@@ -74,28 +74,31 @@ function mountLogs(logs: unknown) {
         buildStatus: 'SUCCEEDED',
         phase: 'COMPLETE',
         createdAt: '2026-10-15T00:00:00Z',
-        configVersion: '1',
         execution: environment.execution,
         catalogAvailable: true,
-        queryAvailable: true,
         initialDeployment: null,
       })),
       nextCursor: null,
     }),
+    getBuild: vi.fn().mockResolvedValue({ buildStatus: 'SUCCEEDED' }),
     logs,
   });
 }
 
 it('点击日志立即在当前构建下显示加载反馈，空结果也有提示', async () => {
-  let resolveLogs!: (value: { items: string[]; nextCursor: null }) => void;
+  let resolveLogs!: (value: {
+    items: { logId: string; message: string }[];
+    nextCursor: string;
+    hasMore: boolean;
+  }) => void;
   const logs = vi.fn().mockImplementation(() => new Promise((resolve) => (resolveLogs = resolve)));
   mountLogs(logs);
   const buttons = await screen.findAllByRole('button', { name: '查看日志' });
   fireEvent.click(buttons[0]);
   const build = within(buttons[0].closest('article')!);
   expect(build.getByRole('status')).toHaveTextContent('正在加载日志');
-  expect(logs).toHaveBeenCalledWith(BUILD);
-  await act(async () => resolveLogs({ items: [], nextCursor: null }));
+  await waitFor(() => expect(logs).toHaveBeenCalledWith(BUILD, undefined, expect.any(AbortSignal)));
+  await act(async () => resolveLogs({ items: [], nextCursor: 'empty', hasMore: false }));
   expect(build.getByText('暂无日志')).toBeInTheDocument();
   expect(build.queryByText('正在加载日志')).not.toBeInTheDocument();
 });
@@ -104,30 +107,53 @@ it('日志读取失败在当前构建下显示错误，再次点击可重新读�
   const logs = vi
     .fn()
     .mockRejectedValueOnce(new Error('日志服务暂不可用'))
-    .mockResolvedValueOnce({ items: ['开始构建', '构建完成'], nextCursor: null });
+    .mockResolvedValueOnce({
+      items: [
+        { logId: '1', message: '开始构建' },
+        { logId: '2', message: '构建完成' },
+      ],
+      nextCursor: 'done',
+      hasMore: false,
+    });
   mountLogs(logs);
   const buttons = await screen.findAllByRole('button', { name: '查看日志' });
   const build = within(buttons[0].closest('article')!);
   fireEvent.click(buttons[0]);
   expect(await build.findByRole('alert')).toHaveTextContent('日志服务暂不可用');
-  fireEvent.click(buttons[0]);
-  expect(await build.findByText(/开始构建/)).toHaveTextContent('开始构建 构建完成');
+  fireEvent.click(build.getByRole('button', { name: '刷新日志' }));
+  expect(await build.findByText('开始构建')).toBeInTheDocument();
+  expect(build.getByText('构建完成')).toBeInTheDocument();
   expect(build.queryByRole('alert')).not.toBeInTheDocument();
 });
 
 it('切换查看的构建后忽略晚返回的旧日志', async () => {
-  let resolveOld!: (value: { items: string[]; nextCursor: null }) => void;
+  let resolveOld!: (value: {
+    items: { logId: string; message: string }[];
+    nextCursor: string;
+    hasMore: boolean;
+  }) => void;
   const logs = vi
     .fn()
     .mockImplementationOnce(() => new Promise((resolve) => (resolveOld = resolve)))
-    .mockResolvedValueOnce({ items: ['当前构建日志'], nextCursor: null });
+    .mockResolvedValueOnce({
+      items: [{ logId: '2', message: '当前构建日志' }],
+      nextCursor: 'new',
+      hasMore: false,
+    });
   mountLogs(logs);
   const buttons = await screen.findAllByRole('button', { name: '查看日志' });
   fireEvent.click(buttons[0]);
+  await waitFor(() => expect(logs).toHaveBeenCalledTimes(1));
   fireEvent.click(buttons[1]);
   const current = within(buttons[1].closest('article')!);
   expect(await current.findByText('当前构建日志')).toBeInTheDocument();
-  await act(async () => resolveOld({ items: ['旧构建日志'], nextCursor: null }));
+  await act(async () =>
+    resolveOld({
+      items: [{ logId: '1', message: '旧构建日志' }],
+      nextCursor: 'old',
+      hasMore: false,
+    }),
+  );
   expect(current.getByText('当前构建日志')).toBeInTheDocument();
   expect(screen.queryByText('旧构建日志')).not.toBeInTheDocument();
 });
@@ -143,7 +169,6 @@ it('完整构建历史展示失败和未部署版本，查询使用固定 build'
           branchName: 'feature/test',
           buildStatus: 'SUCCEEDED',
           catalogAvailable: true,
-          queryAvailable: true,
           execution: environment.execution,
         },
         {
@@ -152,7 +177,6 @@ it('完整构建历史展示失败和未部署版本，查询使用固定 build'
           branchName: 'main',
           buildStatus: 'FAILED',
           catalogAvailable: false,
-          queryAvailable: false,
           execution: environment.execution,
         },
       ],
@@ -161,7 +185,7 @@ it('完整构建历史展示失败和未部署版本，查询使用固定 build'
   };
   mount(api);
   expect(await screen.findByText('FAILED')).toBeInTheDocument();
-  expect(screen.getByRole('link', { name: '查询此构建' })).toHaveAttribute(
+  expect(screen.getAllByRole('link', { name: '查询此构建' })[0]).toHaveAttribute(
     'href',
     `/dbt/builds/${BUILD}/query`,
   );

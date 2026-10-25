@@ -2,13 +2,10 @@ package com.metricplatform.catalog.api;
 
 import com.metricplatform.catalog.BuildContracts.*;
 import com.metricplatform.catalog.BuildGateway;
-
+import java.util.UUID;
 import lombok.RequiredArgsConstructor;
-
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
-
-import java.util.UUID;
 
 /** 固定构建的目录及同步可用维度门面，不提供发布动作。 */
 @RestController
@@ -19,34 +16,35 @@ public class PublishedCatalogController {
     private static final String BUILD = "/builds/{buildId}",
             RESOURCE = BUILD + "/resources/{resourceId}";
     private static final String CATALOG = "/catalog",
-            RESOURCE_VIEW = "/{view:source|lineage|native-details}",
-            AVAILABLE_DIMENSIONS = "/available-dimensions",
-            EMPTY = "";
+            LINEAGE = "/lineage",
+            AVAILABLE_DIMENSIONS = "/available-dimensions";
 
     /** 服务权威的固定构建目录与可用维度接口。 */
     private final BuildGateway gateway;
 
     @GetMapping(BUILD + CATALOG)
-    public CatalogPage catalog(
-            @PathVariable UUID buildId,
-            @RequestParam(defaultValue = "") String q,
-            @RequestParam(required = false) String kind,
-            @RequestParam(required = false) String cursor,
-            @RequestParam(defaultValue = "50") int limit) {
-        return gateway.catalog(buildId, new CatalogFilter(q, kind, cursor, limit));
+    public ResponseEntity<String> catalog(@PathVariable UUID buildId) {
+        return nativeJson(gateway.catalog(buildId));
     }
 
     @GetMapping(RESOURCE)
     public ResourceView resource(@PathVariable UUID buildId, @PathVariable String resourceId) {
-        return gateway.resource(buildId, resourceId, EMPTY);
+        return gateway.resource(buildId, resourceId);
     }
 
-    @GetMapping(RESOURCE + RESOURCE_VIEW)
-    public ResourceView view(
-            @PathVariable UUID buildId,
-            @PathVariable String resourceId,
-            @PathVariable String view) {
-        return gateway.resource(buildId, resourceId, view);
+    @GetMapping(BUILD + LINEAGE)
+    public ResponseEntity<String> lineage(
+            @PathVariable UUID buildId, @RequestParam String selector) {
+        if (selector.isBlank()) throw new IllegalArgumentException("血缘 selector 不能为空");
+        return nativeJson(gateway.lineage(buildId, selector));
+    }
+
+    private static ResponseEntity<String> nativeJson(
+            com.fasterxml.jackson.databind.JsonNode value) {
+        // MVC 使用 Jackson 3，直接输出 Jackson 2 原生 JSON，避免节点内省破坏结构。
+        return ResponseEntity.ok()
+                .contentType(org.springframework.http.MediaType.APPLICATION_JSON)
+                .body(value.toString());
     }
 
     @PostMapping(BUILD + AVAILABLE_DIMENSIONS)

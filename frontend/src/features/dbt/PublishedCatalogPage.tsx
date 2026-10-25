@@ -260,15 +260,9 @@ export function PublishedCatalogPage({ api = buildCatalogApi }: { api?: BuildCat
         <Alert type="info" title={COPY.undeployed} />
       )}
       {!buildId && !branchName && <p>{COPY.choose}</p>}
-      {build && !build.queryAvailable && (
-        <Alert
-          type="warning"
-          title={`查询不可用：${build.queryUnavailableReason ?? '环境暂不可用'}；目录与历史继续可读。`}
-        />
-      )}
       <div className={`published-catalog-body${contextOpen ? ' has-context' : ''}`}>
         {build?.catalogAvailable ? (
-          <DbtCatalogPage key={buildId} api={adapter} queryAvailable={build.queryAvailable} />
+          <DbtCatalogPage key={buildId} api={adapter} />
         ) : build && !busy ? (
           <Alert type="info" title={COPY.unavailable} />
         ) : busy ? (

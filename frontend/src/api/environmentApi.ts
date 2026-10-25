@@ -35,10 +35,8 @@ export type EnvironmentBuild = {
   buildStatus: string;
   phase: string;
   createdAt: string;
-  configVersion: string;
   execution: ExecutionSnapshot;
   catalogAvailable: boolean;
-  queryAvailable: boolean;
   initialDeployment: { deploymentStatus: string } | null;
 };
 export type BuildCommand = {
@@ -55,6 +53,26 @@ export type EnvironmentFilter = {
   buildStatus?: string;
   cursor?: string;
 };
+/** logId 保持字符串精度，事件按服务返回顺序展示。 */
+export type ExecutionLog = {
+  logId: string;
+  jobId: string;
+  attemptId: string;
+  phase: string;
+  command: string;
+  eventTime: string | null;
+  level: string;
+  eventName: string;
+  eventCode: string;
+  invocationId: string;
+  nodeId: string;
+  threadName: string;
+  message: string;
+  createdAt: string;
+};
+export type ExecutionLogPage = { items: ExecutionLog[]; nextCursor: string; hasMore: boolean };
+const LOG_LIMIT = '100';
+const CURSOR = 'cursor';
 const ROOT = '/api/dbt';
 const ENVIRONMENTS = '/environments';
 const POST = 'POST';
@@ -79,10 +97,14 @@ export const environmentApi = {
     request<EnvironmentBuildPage>(
       `${path(id)}/builds?${new URLSearchParams(Object.entries(filter).filter(([, value]) => !!value) as [string, string][])}`,
     ),
-  getBuild: (id: string) => request<EnvironmentBuild>(`/builds/${encodeURIComponent(id)}`),
-  logs: (id: string) =>
-    request<{ items: string[]; nextCursor: string | null }>(
-      `/builds/${encodeURIComponent(id)}/logs`,
-    ),
+  getBuild: (id: string, signal?: AbortSignal) =>
+    request<EnvironmentBuild>(`/builds/${encodeURIComponent(id)}`, { signal }),
+  logs: (id: string, cursor?: string, signal?: AbortSignal) => {
+    const query = new URLSearchParams({ limit: LOG_LIMIT });
+    if (cursor !== undefined) query.set(CURSOR, cursor);
+    return request<ExecutionLogPage>(`/builds/${encodeURIComponent(id)}/execution-logs?${query}`, {
+      signal,
+    });
+  },
 };
 export type EnvironmentApi = typeof environmentApi;
