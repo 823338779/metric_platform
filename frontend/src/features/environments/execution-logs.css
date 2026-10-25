@@ -1,0 +1,75 @@
+.execution-logs {
+  margin-top: 16px;
+  min-width: 0;
+}
+
+.execution-logs-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 8px;
+}
+
+/* 日志共用终端画布，保留原始缩进和换行；长行在区域内部滚动。 */
+.execution-logs-terminal {
+  max-height: 480px;
+  min-height: 120px;
+  overflow: auto;
+  padding: 12px 16px;
+  background: #191a1c;
+  color: #c4c8ce;
+  border-radius: 4px;
+  font-family: Consolas, 'Cascadia Mono', 'Microsoft YaHei', monospace;
+  font-size: 13px;
+  line-height: 1.7;
+  overflow-wrap: normal;
+  color-scheme: dark;
+}
+
+.execution-logs-terminal:focus-visible {
+  outline: 2px solid #729fff;
+  outline-offset: 2px;
+}
+
+.execution-logs-terminal > p {
+  margin: 0;
+}
+
+.execution-logs-row {
+  display: flex;
+  align-items: baseline;
+  gap: 16px;
+  width: max-content;
+  min-width: 100%;
+  white-space: pre;
+}
+
+.execution-logs-time,
+.execution-logs-context {
+  color: #9ca3ad;
+  flex: none;
+}
+
+.execution-logs-level {
+  min-width: 9ch;
+  flex: none;
+}
+
+.execution-logs-message {
+  flex: none;
+}
+
+.execution-logs-row[data-level='debug'] {
+  color: #9ca3ad;
+}
+
+.execution-logs-row[data-level='warn'],
+.execution-logs-row[data-level='warning'] {
+  color: #e5bd70;
+}
+
+.execution-logs-row[data-level='error'],
+.execution-logs-row[data-level='fatal'] {
+  color: #ff707d;
+}

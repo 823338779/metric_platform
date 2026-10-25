@@ -218,7 +218,7 @@ export function DbtCatalogPage({
       >
         <aside className="catalog-explorer">
           {projectId && (
-            <Link className="explorer-project" to="/dbt/projects">
+            <Link className="explorer-project" to="/dbt/environments">
               <span>
                 <small>项目</small>
                 <strong title={projectId}>{projectId}</strong>

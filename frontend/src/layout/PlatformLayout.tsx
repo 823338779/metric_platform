@@ -1,7 +1,6 @@
 import {
   AppstoreOutlined,
   BarChartOutlined,
-  FolderOpenOutlined,
   LogoutOutlined,
   MenuFoldOutlined,
   MenuUnfoldOutlined,
@@ -19,13 +18,11 @@ import {
 } from 'react-router-dom';
 import { clearAuthSession, getAuthSession } from '../api/auth';
 
-const PROJECTS = '/dbt/projects';
 const ENVIRONMENTS = '/dbt/environments';
 const LOGIN = '/login?reason=required';
 const COMPACT_NAVIGATION = '(max-width: 1199px)';
 const COPY = {
   brand: 'Metric Platform',
-  projects: '部署版本',
   environments: '执行环境',
   catalog: '资源管理',
   query: '分析探索',
@@ -50,7 +47,7 @@ export function PlatformLayout() {
   const [params] = useSearchParams();
   const buildId = routeBuildId ?? params.get('buildId');
   const queryPage = pathname.endsWith('/query');
-  const projectPath = buildId ? `/dbt/builds/${encodeURIComponent(buildId)}` : PROJECTS;
+  const projectPath = buildId ? `/dbt/builds/${encodeURIComponent(buildId)}` : ENVIRONMENTS;
   // 工作区切换携带当前版本与资源上下文；不会静默切换到最新发布。
   const catalogPath = `${projectPath}/catalog?${params}`;
   const queryPath = `${projectPath}/query?${params}`;
@@ -78,17 +75,6 @@ export function PlatformLayout() {
           >
             <DatabaseOutlined aria-hidden />
             <span className="platform-nav-text">{COPY.environments}</span>
-          </Link>
-        </Tooltip>
-        <Tooltip title={COPY.projects} placement="right">
-          <Link
-            to={PROJECTS}
-            className={pathname === PROJECTS ? 'is-active' : ''}
-            aria-label={COPY.projects}
-            aria-current={pathname === PROJECTS ? 'page' : undefined}
-          >
-            <FolderOpenOutlined aria-hidden />
-            <span className="platform-nav-text">{COPY.projects}</span>
           </Link>
         </Tooltip>
         {buildId && (

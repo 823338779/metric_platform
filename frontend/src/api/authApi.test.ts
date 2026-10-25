@@ -3,11 +3,12 @@ import { safeReturnTo, type AuthIdentity } from './auth';
 import { createAuthApi } from './authApi';
 
 describe('authentication API', () => {
-  it('returns to dbt projects after login by default', () => {
-    expect(safeReturnTo(null)).toBe('/dbt/projects');
-    expect(safeReturnTo('/metrics')).toBe('/dbt/projects');
+  it('returns to environments after login and rejects removed project routes', () => {
+    expect(safeReturnTo('/dbt/projects')).toBe('/dbt/environments');
+    expect(safeReturnTo(null)).toBe('/dbt/environments');
+    expect(safeReturnTo('/metrics')).toBe('/dbt/environments');
     expect(safeReturnTo('/dbt/projects/sales/catalog?buildId=one')).toBe(
-      '/dbt/projects/sales/catalog?buildId=one',
+      '/dbt/environments',
     );
   });
 
@@ -34,7 +35,7 @@ describe('authentication API', () => {
     '/dbt/builds/00000000-0000-4000-8000-000000000001/catalog/../../outside',
     '/dbt/builds/00000000-0000-4000-8000-000000000001/unknown',
   ])('rejects an unsafe or unsupported login destination: %s', (destination) => {
-    expect(safeReturnTo(destination)).toBe('/dbt/projects');
+    expect(safeReturnTo(destination)).toBe('/dbt/environments');
   });
 
   it('uses the authentication-only identity contract', async () => {

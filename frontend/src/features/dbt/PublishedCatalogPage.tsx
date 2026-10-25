@@ -44,10 +44,10 @@ const COPY = {
   commit: '提交 SHA',
   refreshShort: '刷新',
   fixedHint: '目录、定义、血缘与源码均来自此版本。',
-  projects: '选择项目版本',
+  environments: '选择环境与构建',
   loading: '读取版本信息',
 };
-const PROJECTS = '/dbt/projects';
+const ENVIRONMENTS = '/dbt/environments';
 const CONTEXT_ID = 'catalog-version-context';
 const DESKTOP_CONTEXT = '(min-width: 1200px)';
 const MEDIA_CHANGE = 'change';
@@ -200,12 +200,12 @@ export function PublishedCatalogPage({ api = buildCatalogApi }: { api?: BuildCat
   }
   const repositoryName =
     build?.repository.split(PATH_SEPARATOR).filter(Boolean).at(-1)?.replace(GIT_SUFFIX, '') ??
-    COPY.projects;
+    COPY.environments;
   return (
     <div className="published-catalog">
       <header className="catalog-context-bar">
         <div className="catalog-context-summary">
-          <Link className="catalog-project-link" to={PROJECTS} title={build?.repository}>
+          <Link className="catalog-project-link" to={ENVIRONMENTS} title={build?.repository}>
             <FolderOpenOutlined aria-hidden /> <strong>{repositoryName}</strong>
           </Link>
           {build && (
@@ -271,7 +271,7 @@ export function PublishedCatalogPage({ api = buildCatalogApi }: { api?: BuildCat
           </div>
         ) : (
           <div className="catalog-page-loading">
-            <Link to={PROJECTS}>{COPY.projects}</Link>
+            <Link to={ENVIRONMENTS}>{COPY.environments}</Link>
           </div>
         )}
         {contextOpen && (

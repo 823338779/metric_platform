@@ -32,13 +32,14 @@ describe('PlatformLayout', () => {
     );
   });
 
-  it('shows deployment version navigation', () => {
+  it('shows environment navigation without the removed deployment page', () => {
     render(
       <MemoryRouter>
         <PlatformLayout />
       </MemoryRouter>,
     );
-    expect(screen.getByText('部署版本')).toBeTruthy();
+    expect(screen.queryByRole('link', { name: '部署版本' })).toBeNull();
+    expect(screen.getByRole('link', { name: '执行环境' }).getAttribute('href')).toBe('/dbt/environments');
     expect(screen.queryByText('数据源')).toBeNull();
     expect(screen.queryByText('数据集')).toBeNull();
     expect(screen.queryByText('指标')).toBeNull();

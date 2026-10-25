@@ -22,7 +22,6 @@ const COPY = {
   cancel: '取消新建',
   loading: '正在加载环境',
   empty: '新建一个执行环境，连接构建与指标分析。',
-  history: '查看部署版本',
 };
 const ADAPTER_NAMES: Record<string, string> = {
   starrocks: 'StarRocks',
@@ -95,9 +94,6 @@ export function EnvironmentsPage({ api = environmentApi }: { api?: EnvironmentAp
             {COPY.list}
             <span className="count-label">{items.length}</span>
           </h3>
-          <Link to="/dbt/projects">
-            {COPY.history} <ArrowRightOutlined aria-hidden />
-          </Link>
         </header>
         {loading ? (
           <div className="panel-loading" aria-label={COPY.loading}>

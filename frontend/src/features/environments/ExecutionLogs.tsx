@@ -1,9 +1,9 @@
-import { Alert, Button, Tag } from 'antd';
+import { Alert, Button } from 'antd';
 import { useEffect, useRef, useState } from 'react';
 import type { EnvironmentApi, ExecutionLog } from '../../api/environmentApi';
+import './execution-logs.css';
 
 const TERMINAL = new Set(['SUCCEEDED', 'FAILED', 'CANCELLED']);
-const WARNING = new Set(['warn', 'warning']);
 const POLL_MS = 1000;
 const RETRY_MS = 3000;
 const COPY = {
@@ -13,9 +13,16 @@ const COPY = {
   empty: '暂无日志',
   failed: '日志读取失败',
 };
-const PRE_WRAP = 'pre-wrap';
-const WARNING_COLOR = 'warning';
-const DEFAULT_COLOR = 'default';
+const STYLE = {
+  root: 'execution-logs',
+  toolbar: 'execution-logs-toolbar',
+  terminal: 'execution-logs-terminal',
+  row: 'execution-logs-row',
+  time: 'execution-logs-time',
+  level: 'execution-logs-level',
+  context: 'execution-logs-context',
+  message: 'execution-logs-message',
+};
 
 /** 固定构建内串行续读；终态后取完当前日志，未知结果继续观察。 */
 export function ExecutionLogs({ buildId, api }: { buildId: string; api: EnvironmentApi }) {
@@ -66,21 +73,28 @@ export function ExecutionLogs({ buildId, api }: { buildId: string; api: Environm
     };
   }, [api, buildId, refresh]);
   return (
-    <section aria-label={COPY.title} aria-busy={loading}>
-      <Button onClick={() => setRefresh((value) => value + 1)}>{COPY.refresh}</Button>
+    <section className={STYLE.root} aria-label={COPY.title} aria-busy={loading}>
+      <div className={STYLE.toolbar}>
+        <strong>{COPY.title}</strong>
+        <Button onClick={() => setRefresh((value) => value + 1)}>{COPY.refresh}</Button>
+      </div>
       {error && <Alert type="error" title={error} />}
-      {loading && <p role="status">{COPY.loading}</p>}
-      {!loading && !items.length && <p role="status">{COPY.empty}</p>}
-      {items.map((row) => (
-        <div key={row.logId}>
-          <time>{row.eventTime ? new Date(row.eventTime).toLocaleString() : row.createdAt}</time>{' '}
-          <Tag color={WARNING.has(row.level) ? WARNING_COLOR : DEFAULT_COLOR}>{row.level}</Tag>{' '}
-          <span>
-            {row.phase} {row.nodeId}
-          </span>
-          <pre style={{ whiteSpace: PRE_WRAP }}>{row.message}</pre>
-        </div>
-      ))}
+      <div className={STYLE.terminal} role="log" aria-label={COPY.title} tabIndex={0}>
+        {loading && <p role="status">{COPY.loading}</p>}
+        {!loading && !items.length && <p role="status">{COPY.empty}</p>}
+        {items.map((row) => (
+          <div className={STYLE.row} data-level={row.level?.toLowerCase()} key={row.logId}>
+            <time className={STYLE.time} dateTime={row.eventTime || row.createdAt}>
+              {row.eventTime ? new Date(row.eventTime).toLocaleString() : row.createdAt}
+            </time>
+            <span className={STYLE.level}>{row.level?.toUpperCase()}:</span>
+            <span className={STYLE.context}>
+              {row.phase} {row.nodeId}
+            </span>
+            <span className={STYLE.message}>{row.message}</span>
+          </div>
+        ))}
+      </div>
     </section>
   );
 }
