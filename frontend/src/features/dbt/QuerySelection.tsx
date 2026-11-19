@@ -11,7 +11,7 @@ import {
   PlusOutlined,
   SearchOutlined,
 } from '@ant-design/icons';
-import { GRAIN_LABELS, type AnalysisChoice } from './AnalysisControls';
+import { GRAIN_LABELS, NO_PERMISSION, type AnalysisChoice } from './AnalysisControls';
 import './query-selection.css';
 
 const COPY = {
@@ -127,7 +127,8 @@ export function QuerySelection({
               showTypes ? `${descriptionId}-${encodeURIComponent(option.value)}` : undefined
             }
             aria-pressed={selected.includes(option.value)}
-            disabled={disabled}
+            disabled={disabled || option.granted === false}
+            title={option.granted === false ? NO_PERMISSION : undefined}
             onClick={() => change(option.value)}
           >
             {showTypes && (option.granularities?.length ? <CalendarOutlined /> : <BarsOutlined />)}
@@ -141,6 +142,7 @@ export function QuerySelection({
                   (option.granularities?.length ? COPY.timeUnknown : COPY.unknown)}
               </span>
             )}
+            {option.granted === false && <small>{NO_PERMISSION}</small>}
             {selected.includes(option.value) && <CheckOutlined />}
           </button>
         ))}

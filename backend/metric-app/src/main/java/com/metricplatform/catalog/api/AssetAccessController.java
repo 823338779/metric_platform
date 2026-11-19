@@ -4,7 +4,6 @@ import com.metricplatform.catalog.AssetAccessService;
 import com.metricplatform.catalog.AssetAccessService.View;
 import com.metricplatform.catalog.AssetGrantRepository.Account;
 import com.metricplatform.catalog.BuildContracts.*;
-import com.metricplatform.catalog.BuildGateway;
 import com.metricplatform.security.TenantAssets;
 import java.util.List;
 import java.util.UUID;
@@ -26,7 +25,6 @@ public class AssetAccessController {
             OPTIONS = BUILD + "/available-dimensions";
     private final AssetAccessService access;
     private final TenantAssets ownership;
-    private final BuildGateway gateway;
 
     @GetMapping(ACCOUNTS)
     public List<Account> readers() {
@@ -68,6 +66,6 @@ public class AssetAccessController {
             @PathVariable UUID buildId, @RequestBody String request) {
         ownership.requireTenantBuild(buildId);
         var input = BuildRequestParser.parse(request, AvailableDimensionsRequest.class);
-        return gateway.availableDimensions(buildId, input);
+        return access.dimensionChoices(buildId, input);
     }
 }

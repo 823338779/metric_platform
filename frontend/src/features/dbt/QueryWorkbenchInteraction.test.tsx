@@ -12,7 +12,7 @@ beforeAll(() => {
   };
 });
 
-function page(timeLabel = '下单时间', granularities = ['day', 'month']) {
+function page(timeLabel = '下单时间', granularities = ['day', 'month'], includeDenied = false) {
   const api = {
     build: vi.fn().mockResolvedValue({
       catalogAvailable: true,
@@ -44,6 +44,16 @@ function page(timeLabel = '下单时间', granularities = ['day', 'month']) {
         name: 'revenue',
         label: '销售额',
       },
+      ...(includeDenied
+        ? [
+            {
+              unique_id: 'denied-metric',
+              resource_type: 'metric',
+              name: 'restricted',
+              granted: false,
+            },
+          ]
+        : []),
     ]),
     availableDimensions: vi.fn().mockResolvedValue({
       state: 'SUCCEEDED',
@@ -63,6 +73,18 @@ function page(timeLabel = '下单时间', granularities = ['day', 'month']) {
           granularities: [],
           operators: ['='],
         },
+        ...(includeDenied
+          ? [
+              {
+                optionId: 'denied-dimension',
+                dimensionType: 'categorical',
+                displayName: '受限维度',
+                granted: false,
+                granularities: [],
+                operators: ['='],
+              },
+            ]
+          : []),
       ],
     }),
     resource: vi.fn().mockImplementation((release, id) =>
@@ -236,4 +258,24 @@ it('does not display types from mismatched resource metadata and still permits q
   expect(screen.queryByText('VARCHAR')).toBeNull();
   expect(screen.getByText('categorical')).toBeTruthy();
   expect(screen.getByRole('button', { name: '查询' }).hasAttribute('disabled')).toBe(false);
+});
+
+it('未授权的指标和维度显示原因且无法加入查询', async () => {
+  const api = page('metric_time', ['day'], true);
+  const metric = await screen.findByRole('checkbox', { name: 'restricted' });
+  expect(metric.hasAttribute('disabled')).toBe(true);
+  expect(within(metric).getByText('无权限')).toBeTruthy();
+  fireEvent.click(metric);
+  expect(api.availableDimensions).not.toHaveBeenCalled();
+  fireEvent.click(screen.getByRole('checkbox', { name: '销售额' }));
+  await screen.findByRole('button', { name: 'metric_time时间粒度' });
+  const add = screen.getByRole('button', { name: '添加分组维度' });
+  if (add.getAttribute('aria-expanded') !== 'true') fireEvent.click(add);
+  const group = await screen.findByRole('region', { name: '选择分组维度' });
+  const dimension = within(group).getByRole('button', { name: '受限维度' });
+  expect(dimension.hasAttribute('disabled')).toBe(true);
+  expect(within(dimension).getByText('无权限')).toBeTruthy();
+  fireEvent.click(dimension);
+  expect(dimension.getAttribute('aria-pressed')).toBe('false');
+  expect(within(group).getByRole('button', { name: '地区' }).hasAttribute('disabled')).toBe(false);
 });

@@ -74,6 +74,32 @@ public class AssetAccessService {
         return checked;
     }
 
+    public AvailableDimensionsView dimensionChoices(UUID build, AvailableDimensionsRequest input) {
+        var result = gateway.availableDimensions(build, input);
+        var actor = PlatformPrincipal.current();
+        Set<Object> allowed = new HashSet<>();
+        // 复用实际取数时的维度判定；展示保留完整选项，不过滤未授权的维度。
+        if (!actor.manager()) {
+            var access = new GrantedQuery(build, store.members(build, actor.identityId()), gateway);
+            for (var option : access.allowedOptions(result))
+                allowed.add(option.get(DeployedAssets.OPTION_ID));
+        }
+        var options =
+                result.dimensions().stream()
+                        .map(
+                                option -> {
+                                    Map<String, Object> row = new LinkedHashMap<>(option);
+                                    row.put(
+                                            GRANTED,
+                                            actor.manager()
+                                                    || allowed.contains(
+                                                            option.get(DeployedAssets.OPTION_ID)));
+                                    return row;
+                                })
+                        .toList();
+        return new AvailableDimensionsView(result.buildId(), result.metrics(), options);
+    }
+
     public ArrayNode catalog(UUID build) {
         var actor = PlatformPrincipal.current();
         var members = store.members(build, actor.identityId());

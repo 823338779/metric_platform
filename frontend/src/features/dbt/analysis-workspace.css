@@ -812,3 +812,9 @@
     font-size: 10px;
   }
 }
+
+.analysis-metric-item:disabled,
+.query-picker-list button:disabled {
+  cursor: not-allowed;
+  color: var(--ant-color-text-disabled, #737b89);
+}

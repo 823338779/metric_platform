@@ -212,7 +212,8 @@ class DeployedAssetAccessApiTest {
                                 .contentType("application/json")
                                 .content("{\"metrics\":[\"sales\"]}"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.dimensions[0].name").value("region"));
+                .andExpect(jsonPath("$.dimensions[0].name").value("region"))
+                .andExpect(jsonPath("$.dimensions[0].granted").value(false));
         String path = "/api/dbt/builds/" + build + "/queries";
         String summary = "{\"mode\":\"QUERY\",\"metrics\":[\"sales\"]}";
         when(gateway.query(eq(build), any()))

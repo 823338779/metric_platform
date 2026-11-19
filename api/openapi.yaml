@@ -2087,6 +2087,9 @@ components:
       type: object
       additionalProperties: false
       properties:
+        granted:
+          type: boolean
+          description: 当前账号可在查询中使用该维度选项，系统时间维度随指标可用。
         optionId:
           type: string
           description: 固定构建和指标集合的选项身份

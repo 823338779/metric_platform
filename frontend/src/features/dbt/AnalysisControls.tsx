@@ -10,7 +10,13 @@ import { businessTimeRange } from './businessTime';
 import './analysis-workspace.css';
 
 /** 可见名称与请求身份分离，列表始终回传 API 提供的身份。 */
-export type AnalysisChoice = { value: string; label: string; description?: string | null };
+export type AnalysisChoice = {
+  value: string;
+  label: string;
+  description?: string | null;
+  /** 当前账号是否可使用该选项。 */ granted?: boolean;
+};
+export const NO_PERMISSION = '无权限';
 const COPY = {
   library: '指标库',
   search: '搜索指标',
@@ -86,6 +92,8 @@ export function MetricLibrary({
             <button
               type="button"
               role="checkbox"
+              disabled={option.granted === false}
+              title={option.granted === false ? NO_PERMISSION : undefined}
               aria-checked={checked}
               aria-label={option.label}
               key={option.value}
@@ -101,6 +109,7 @@ export function MetricLibrary({
               <FunctionOutlined />
               <span>
                 <strong>{option.label}</strong>
+                {option.granted === false && <small>{NO_PERMISSION}</small>}
                 {option.description && <small>{option.description}</small>}
               </span>
               <span className="analysis-check">{checked && <CheckOutlined />}</span>

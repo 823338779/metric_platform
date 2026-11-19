@@ -57,33 +57,31 @@ record GrantedQuery(UUID build, List<Asset> assets, BuildGateway gateway) {
         if (!build.equals(result.buildId())
                 || !new HashSet<>(request.metrics()).equals(new HashSet<>(result.metrics())))
             throw new IllegalStateException("维度选项上下文不匹配");
+        return new AvailableDimensionsView(build, result.metrics(), allowedOptions(result));
+    }
+
+    List<Map<String, Object>> allowedOptions(AvailableDimensionsView result) {
         // optionId 只在当前指标集合内有效；系统时间由引擎提供，业务维度按所属模型逐项授权。
         Map<String, Integer> counts = new HashMap<>();
         for (var option : result.dimensions()) {
             if (option.get(OPTION_ID) instanceof String id && !id.isBlank())
                 counts.merge(id, 1, Integer::sum);
         }
-        var options =
-                result.dimensions().stream()
-                        .filter(o -> counts.getOrDefault(o.get(OPTION_ID), 0) == 1)
-                        .filter(
-                                o ->
-                                        (TIME.equals(o.get(NAME)) && o.get(MODEL_NAME) == null)
-                                                || allowed(
-                                                        DIMENSION,
-                                                        a ->
-                                                                a.entry()
-                                                                                .queryName()
-                                                                                .equals(
-                                                                                        o.get(
-                                                                                                MODEL_NAME))
-                                                                        && a.entry()
-                                                                                .dimensionName()
-                                                                                .equals(
-                                                                                        o.get(
-                                                                                                NAME))))
-                        .toList();
-        return new AvailableDimensionsView(build, result.metrics(), options);
+        return result.dimensions().stream()
+                .filter(o -> counts.getOrDefault(o.get(OPTION_ID), 0) == 1)
+                .filter(
+                        o ->
+                                (TIME.equals(o.get(NAME)) && o.get(MODEL_NAME) == null)
+                                        || allowed(
+                                                DIMENSION,
+                                                a ->
+                                                        a.entry()
+                                                                        .queryName()
+                                                                        .equals(o.get(MODEL_NAME))
+                                                                && a.entry()
+                                                                        .dimensionName()
+                                                                        .equals(o.get(NAME))))
+                .toList();
     }
 
     QueryRequest check(QueryRequest q) {

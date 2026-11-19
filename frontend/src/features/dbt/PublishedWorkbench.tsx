@@ -179,7 +179,9 @@ function FixedPublishedWorkbench({ api }: { api: BuildCatalogApi }) {
           if (turn !== generation.current) return;
           setMetrics(all);
           setSelected((previous) =>
-            previous.filter((id) => all.some((item) => item.resourceId === id)),
+            previous.filter((id) =>
+              all.some((item) => item.resourceId === id && item.attributes.granted !== false),
+            ),
           );
         }
       } catch (failure) {
@@ -216,7 +218,9 @@ function FixedPublishedWorkbench({ api }: { api: BuildCatalogApi }) {
       if (!active) return;
       if (value.buildId !== buildId) throw new Error('选项版本不匹配');
       setAvailableDimensions(value.dimensions);
-      const metricTime = value.dimensions.find((option) => option.displayName === 'metric_time');
+      const metricTime = value.dimensions.find(
+        (option) => option.displayName === 'metric_time' && option.granted !== false,
+      );
       if (metricTime) {
         const id = metricTime.optionId;
         setGroups([id]);
@@ -316,11 +320,13 @@ function FixedPublishedWorkbench({ api }: { api: BuildCatalogApi }) {
     value: item.resourceId,
     label: item.displayName || item.name,
     description: item.description,
+    granted: item.attributes.granted !== false,
   }));
   const dimensionChoices = availableDimensions.map((item) => ({
     value: item.optionId,
     label: item.displayName,
     dataType: item.dimensionType,
+    granted: item.granted,
     granularities: item.granularities,
   }));
   const changeMetrics = (value: string[]) => setSelected(value);

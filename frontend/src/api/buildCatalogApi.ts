@@ -64,6 +64,8 @@ export type PublishedResource = {
   nativeDetails: Record<string, unknown>;
 };
 export type PublishedOption = {
+  /** 当前账号可在数据查询中使用该维度。 */
+  granted?: boolean;
   optionId: string;
   /** 原生维度语义类型，不推断物理列类型。 */
   dimensionType: string;
