@@ -175,9 +175,7 @@ function FixedPublishedWorkbench({ api }: { api: BuildCatalogApi }) {
       try {
         {
           const catalog = await api.catalog(buildId);
-          const all = catalogResources(catalog).filter(
-            (item) => item.kind === 'METRIC' && item.attributes.granted !== false,
-          );
+          const all = catalogResources(catalog).filter((item) => item.kind === 'METRIC');
           if (turn !== generation.current) return;
           setMetrics(all);
           setSelected((previous) =>

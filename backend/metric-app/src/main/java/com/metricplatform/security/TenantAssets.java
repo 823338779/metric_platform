@@ -36,7 +36,7 @@ public class TenantAssets {
         requireTenantBuild(build);
     }
 
-    /** 工作区允许查看本租户构建的版本信息，源码和日志仍单独限制。 */
+    /** 工作区允许查看本租户构建的版本信息，构建日志仍单独限制。 */
     public void requireTenantBuild(UUID build) {
         if (!ownership.hasBuild(PlatformPrincipal.current().tenantId(), build)) throw missing();
     }

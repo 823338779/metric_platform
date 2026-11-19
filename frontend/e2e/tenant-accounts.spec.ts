@@ -127,6 +127,17 @@ test('已授权指标可从资源目录查询，撤权后显示整条查询的�
       ],
     }),
   );
+  await page.route('**/api/dbt/builds/*/resources/' + nodeId, (route) =>
+    route.fulfill({
+      json: {
+        buildId: build,
+        resourceId: nodeId,
+        resource: { unique_id: nodeId, resource_type: 'metric', name: 'sales' },
+        source: { path: 'metrics.yml', content: 'name: sales' },
+      },
+    }),
+  );
+  await page.route('**/api/dbt/builds/*/lineage?**', (route) => route.fulfill({ json: [] }));
   await page.route('**/available-dimensions', (route) =>
     route.fulfill({ json: { buildId: build, metrics: ['sales'], dimensions: [] } }),
   );

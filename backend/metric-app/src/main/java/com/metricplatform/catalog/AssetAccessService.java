@@ -22,7 +22,8 @@ public class AssetAccessService {
             MODEL_NODE = "model",
             DIMENSION_NODE = "dimension",
             GRANTED = "granted",
-            SELECTOR = "selector";
+            SELECTOR = "selector",
+            MODEL_ID = "semanticModelId";
 
     /** 从服务核对当前部署及完整登记。 */
     private final DeployedAssets deployed;
@@ -73,42 +74,38 @@ public class AssetAccessService {
         return checked;
     }
 
-    public AvailableDimensionsView dimensions(UUID build, AvailableDimensionsRequest input) {
-        return query(build).dimensions(input);
-    }
-
     public ArrayNode catalog(UUID build) {
         var actor = PlatformPrincipal.current();
+        var members = store.members(build, actor.identityId());
+        var byNode = new HashMap<String, Asset>();
+        for (var asset : members)
+            if (!DeployedAssets.DIMENSION.equals(asset.entry().kind()))
+                byNode.put(asset.entry().nodeId(), asset);
+
+        // 原生元数据对租户内所有账号可见，granted 仅描述查询权限。
         ArrayNode rows = JsonNodeFactory.instance.arrayNode();
-        // 管理者保留原生目录。指标与模型可直接使用，模型内维度从登记记录逐项补齐。
-        if (actor.manager()) {
-            for (var raw : gateway.catalog(build)) {
-                ObjectNode node = raw.deepCopy();
-                String kind = node.path(NATIVE_KIND).asText();
-                if (METRIC_NODE.equals(kind) || MODEL_NODE.equals(kind)) node.put(GRANTED, true);
-                rows.add(node);
+        for (var raw : gateway.catalog(build)) {
+            ObjectNode node = raw.deepCopy();
+            String kind = node.path(NATIVE_KIND).asText();
+            if (METRIC_NODE.equals(kind) || MODEL_NODE.equals(kind)) {
+                var asset = byNode.get(node.path(NATIVE_ID).asText());
+                node.put(GRANTED, actor.manager() || asset != null && asset.granted());
+                if (MODEL_NODE.equals(kind) && asset != null)
+                    node.put(SELECTOR, asset.entry().selector());
             }
+            rows.add(node);
         }
-        var members =
-                actor.manager() ? store.members(build, actor.identityId()) : query(build).assets();
-        // 只读目录仅公开定位资产与发起授权操作所需的字段，不返回源码。
+        // 维度没有独立 dbt 节点，通过所属模型定位固定构建中的定义、血缘和源码。
         for (var asset : members) {
             var entry = asset.entry();
-            boolean dimension = DeployedAssets.DIMENSION.equals(entry.kind());
-            if (actor.manager() && !dimension) continue;
+            if (!DeployedAssets.DIMENSION.equals(entry.kind())) continue;
             var row = rows.addObject();
-            row.put(NATIVE_ID, dimension ? asset.assetId().toString() : entry.nodeId());
-            row.put(DeployedAssets.NAME, dimension ? entry.dimensionName() : entry.queryName());
-            row.put(GRANTED, asset.granted());
-            if (dimension) {
-                row.put(NATIVE_KIND, DIMENSION_NODE);
-                row.put(DeployedAssets.MODEL_NAME, entry.queryName());
-            } else if (DeployedAssets.DATASET.equals(entry.kind())) {
-                row.put(NATIVE_KIND, MODEL_NODE);
-                if (asset.granted()) row.put(SELECTOR, entry.selector());
-            } else {
-                row.put(NATIVE_KIND, METRIC_NODE);
-            }
+            row.put(NATIVE_ID, asset.assetId().toString());
+            row.put(NATIVE_KIND, DIMENSION_NODE);
+            row.put(DeployedAssets.NAME, entry.dimensionName());
+            row.put(DeployedAssets.MODEL_NAME, entry.queryName());
+            row.put(MODEL_ID, entry.nodeId());
+            row.put(GRANTED, actor.manager() || asset.granted());
         }
         return rows;
     }

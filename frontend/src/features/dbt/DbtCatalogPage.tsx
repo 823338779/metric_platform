@@ -6,7 +6,6 @@ import { ApiProblem } from '../../api/httpClient';
 import { metricPlatformApi, type MetricPlatformApi } from '../../api/metricPlatformApi';
 import type { DbtCatalog, DbtResource } from '../../api/types';
 import { DbtResourceDetail } from './DbtResourceDetail';
-import { getAuthSession } from '../../api/auth';
 import { ResourceTree } from './ResourceTree';
 import './resource-workspace.css';
 
@@ -200,7 +199,6 @@ export function DbtCatalogPage({
     () => (catalog ? (located ? [...catalog.resources, located] : catalog.resources) : []),
     [catalog, located],
   );
-  const reader = getAuthSession()?.identity.role === 'READ_ONLY';
   const selectedResource = resources.find((resource) => resource.resourceId === selected);
   const detailReady =
     api.getDbtPresentation && api.getDbtSource && api.getDbtLineage && api.previewDbtDataset;
@@ -359,16 +357,14 @@ export function DbtCatalogPage({
             }
           }}
         />
-        {selected && catalog && detailReady && (selectedResource || !reader) ? (
+        {selected && catalog && detailReady ? (
           <DbtResourceDetail
             key={`${catalog.buildId}:${selected}`}
             projectId={projectId}
             buildId={catalog.buildId}
             resourceId={selected}
             tabTitle={selectedResource?.name}
-            catalogSummary={
-              reader || selectedResource?.kind === 'DIMENSION' ? selectedResource : undefined
-            }
+            granted={selectedResource?.granted}
             onSelect={setSelected}
             onClose={() => setSelected('')}
             onExplore={(name) =>

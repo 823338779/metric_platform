@@ -31,9 +31,11 @@ public class QueryController {
             @PathVariable UUID buildId,
             @RequestBody String request,
             @AuthenticationPrincipal PlatformPrincipal principal) {
-        if (principal.manager()) assets.requireBuild(buildId);
+        assets.requireTenantBuild(buildId);
         var input = BuildRequestParser.parse(request, QueryRequest.class);
-        if (!principal.manager()) input = access.check(buildId, input);
+        // EXPLAIN 仅编译 SQL，和其他资源定义一样对本租户开放。
+        if (!principal.manager() && input.mode() != QueryMode.EXPLAIN)
+            input = access.check(buildId, input);
         return ResponseEntity.ok().body(service.submit(buildId, input, principal.identityId()));
     }
 }

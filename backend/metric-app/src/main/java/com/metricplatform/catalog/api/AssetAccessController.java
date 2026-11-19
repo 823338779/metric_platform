@@ -5,7 +5,6 @@ import com.metricplatform.catalog.AssetAccessService.View;
 import com.metricplatform.catalog.AssetGrantRepository.Account;
 import com.metricplatform.catalog.BuildContracts.*;
 import com.metricplatform.catalog.BuildGateway;
-import com.metricplatform.security.PlatformPrincipal;
 import com.metricplatform.security.TenantAssets;
 import java.util.List;
 import java.util.UUID;
@@ -13,7 +12,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.http.*;
 import org.springframework.web.bind.annotation.*;
 
-/** 账号授权管理及最小可见目录。 */
+/** 账号授权管理及本租户的资源目录。 */
 @RestController
 @RequiredArgsConstructor
 public class AssetAccessController {
@@ -58,7 +57,7 @@ public class AssetAccessController {
 
     @GetMapping(CATALOG)
     public ResponseEntity<?> catalog(@PathVariable UUID buildId) {
-        if (PlatformPrincipal.current().manager()) ownership.requireBuild(buildId);
+        ownership.requireTenantBuild(buildId);
         return ResponseEntity.ok()
                 .contentType(MediaType.APPLICATION_JSON)
                 .body(access.catalog(buildId).toString());
@@ -67,11 +66,8 @@ public class AssetAccessController {
     @PostMapping(OPTIONS)
     public AvailableDimensionsView dimensions(
             @PathVariable UUID buildId, @RequestBody String request) {
-        boolean manager = PlatformPrincipal.current().manager();
-        if (manager) ownership.requireBuild(buildId);
+        ownership.requireTenantBuild(buildId);
         var input = BuildRequestParser.parse(request, AvailableDimensionsRequest.class);
-        return manager
-                ? gateway.availableDimensions(buildId, input)
-                : access.dimensions(buildId, input);
+        return gateway.availableDimensions(buildId, input);
     }
 }

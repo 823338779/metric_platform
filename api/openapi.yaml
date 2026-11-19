@@ -760,7 +760,7 @@ paths:
   /api/dbt/builds/{buildId}/available-dimensions:
     post:
       summary: 可用维度
-      description: 普通用户需持有所选所有指标权限，返回当前构建中可唯一解析且已授权的维度选项。
+      description: 本租户账号可查看指标的可用维度定义。执行查询时逐项校验所用指标与维度的权限。
       operationId: available_dimensions_builds__build_id__available_dimensions_post
       parameters:
         - name: buildId
@@ -830,7 +830,7 @@ paths:
   /api/dbt/builds/{buildId}/queries:
     post:
       summary: 提交固定构建查询
-      description: 普通用户仅可查询当前生效构建。缺少任一显式引用的指标、维度或预览数据集权限返回 403，整条查询不执行。
+      description: 普通用户仅可查询当前生效构建。EXPLAIN 只编译 SQL，所有本租户账号均可使用。实际取数缺少任一显式引用的指标、维度或预览数据集权限返回 403，整条查询不执行。
       operationId: submit_builds__build_id__queries_post
       parameters:
         - name: buildId
@@ -900,7 +900,7 @@ paths:
   /api/dbt/builds/{buildId}/catalog:
     get:
       summary: 读取固定构建的原生资源列表
-      description: 管理者可浏览完整原生目录和登记的维度。普通账号读取生效构建中的指标、维度、数据集摘要及逐项使用权限。
+      description: 本租户所有账号可浏览完整原生目录和登记的维度。逐项授权仅用于数据查询。
       operationId: catalog_builds__build_id__catalog_get
       parameters:
       - name: buildId
@@ -2057,7 +2057,7 @@ components:
       - hasMore
     NativeCatalog:
       type: array
-      description: 当前账号的固定构建资源目录。指标、数据集和维度带有逐项权限；维度使用平台资产 UUID 标识。只读账号接收业务资产摘要。
+      description: 当前账号的固定构建资源目录。指标、数据集和维度带有逐项权限；维度使用平台资产 UUID 标识。所有本租户账号可读取相同的原生元数据、血缘和源码。维度通过 semanticModelId 定位所属模型。
       items:
         type: object
         additionalProperties: true
@@ -2076,7 +2076,10 @@ components:
             description: 当前账号具有该资产的使用权限
           selector:
             type: string
-            description: 已授权数据集的精确预览选择器
+            description: 数据集的精确预览选择器
+          semanticModelId:
+            type: string
+            description: 维度所属语义模型的 dbt 原生节点标识，用于读取模型源码和血缘
           semanticModelName:
             type: string
             description: 维度所属的语义模型名称

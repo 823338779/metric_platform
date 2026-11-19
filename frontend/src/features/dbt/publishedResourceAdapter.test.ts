@@ -24,7 +24,43 @@ const BASE = {
 };
 
 describe('published presentation contract', () => {
-  it('已授权数据集从目录预览，无需读取仅管理员可看的资源源码', async () => {
+  it('未授权维度通过所属模型读取定义、源码和血缘', async () => {
+    const id = 'dimension-id';
+    const parent = 'semantic_model.shop.orders';
+    const source = { path: 'orders.yml', content: 'orders definition' };
+    const api = {
+      catalog: async () => [
+        {
+          unique_id: id,
+          resource_type: 'dimension',
+          name: 'region',
+          semanticModelId: parent,
+          granted: false,
+        },
+      ],
+      resource: vi.fn().mockResolvedValue({
+        buildId: RELEASE,
+        resourceId: parent,
+        resource: {
+          name: 'orders',
+          fqn: ['shop', 'orders'],
+          dimensions: [{ name: 'region', expr: 'region_id' }],
+        },
+        source,
+      }),
+      lineage: vi.fn().mockResolvedValue([]),
+    };
+    const adapter = publishedResourceAdapter(api as unknown as BuildCatalogApi);
+    await adapter.getDbtCatalog(PROJECT, RELEASE);
+    expect((await adapter.getDbtPresentation(PROJECT, id, RELEASE)).nativeDetails.expr).toBe(
+      'region_id',
+    );
+    expect((await adapter.getDbtSource(PROJECT, id, RELEASE)).content).toBe(source.content);
+    await adapter.getDbtLineage(PROJECT, id, RELEASE);
+    expect(api.lineage).toHaveBeenCalledWith(RELEASE, '+fqn:shop.orders+');
+    expect(api.resource).toHaveBeenCalledTimes(1);
+  });
+  it('已授权数据集使用目录中的精确选择器预览', async () => {
     const id = 'model.shop.orders';
     const selector = 'fqn:shop.orders';
     const resource = vi.fn();

@@ -26,14 +26,14 @@ public class PublishedCatalogController {
 
     @GetMapping(RESOURCE)
     public ResourceView resource(@PathVariable UUID buildId, @PathVariable String resourceId) {
-        assets.requireBuild(buildId);
+        assets.requireTenantBuild(buildId);
         return gateway.resource(buildId, resourceId);
     }
 
     @GetMapping(BUILD + LINEAGE)
     public ResponseEntity<String> lineage(
             @PathVariable UUID buildId, @RequestParam String selector) {
-        assets.requireBuild(buildId);
+        assets.requireTenantBuild(buildId);
         if (selector.isBlank()) throw new IllegalArgumentException("血缘 selector 不能为空");
         return nativeJson(gateway.lineage(buildId, selector));
     }

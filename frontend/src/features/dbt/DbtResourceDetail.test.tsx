@@ -1,5 +1,4 @@
 import { MemoryRouter } from 'react-router-dom';
-import { nativeResource, publishedTreeResource } from './publishedResourceAdapter';
 import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, beforeAll, expect, it, vi } from 'vitest';
 import { DbtResourceDetail } from './DbtResourceDetail';
@@ -361,16 +360,14 @@ it('PREVIEW受理即返回未知终态时不再请求状态', async () => {
 
 it('opens analysis from the shared overview of a granted metric', async () => {
   const explore = vi.fn();
-  const resource = publishedTreeResource(
-    nativeResource('metric.pkg.sales', { name: 'sales', resource_type: 'metric', granted: true }),
-  );
   render(
     <MemoryRouter>
       <DbtResourceDetail
         projectId=""
-        resourceId={resource.resourceId}
-        catalogSummary={resource}
-        buildId="b"
+        resourceId="r"
+        granted
+        api={api('METRIC') as never}
+        buildId="release-1"
         onSelect={vi.fn()}
         onExplore={explore}
       />
@@ -378,11 +375,11 @@ it('opens analysis from the shared overview of a granted metric', async () => {
   );
   expect(await screen.findByRole('heading', { name: '基本信息' })).toBeTruthy();
   fireEvent.click(screen.getByRole('button', { name: /开始分析/ }));
-  expect(explore).toHaveBeenCalledWith('sales');
-  expect(screen.getByRole('tab', { name: /血缘/ }).getAttribute('aria-disabled')).toBe('true');
-  expect(screen.queryByRole('button', { name: '查看源码' })).toBeNull();
+  expect(explore).toHaveBeenCalledWith('METRIC title');
+  expect(screen.getByRole('tab', { name: /血缘/ }).getAttribute('aria-disabled')).not.toBe('true');
+  expect(screen.getByRole('button', { name: '查看源码' })).toBeTruthy();
 });
-it('marks inaccessible metrics, dimensions and datasets without offering query or preview', async () => {
+it('shows metadata and ordinary query actions for assets without data grants', async () => {
   render(
     <MemoryRouter>
       {['metric', 'dimension', 'model'].map((kind) => (
@@ -392,15 +389,17 @@ it('marks inaccessible metrics, dimensions and datasets without offering query o
           onSelect={vi.fn()}
           onExplore={vi.fn()}
           key={kind}
-          catalogSummary={publishedTreeResource(
-            nativeResource(kind, { resource_type: kind, granted: false }),
-          )}
-          buildId="b"
+          granted={false}
+          api={api(kind === 'model' ? 'TABLE' : kind.toUpperCase()) as never}
+          buildId="release-1"
         />
       ))}
     </MemoryRouter>,
   );
-  expect(await screen.findAllByText('无权限')).toHaveLength(3);
-  expect(screen.queryByRole('button', { name: /开始分析/ })).toBeNull();
-  expect(screen.queryByRole('button', { name: '预览数据' })).toBeNull();
+  expect(await screen.findAllByText('业务口径')).toHaveLength(3);
+  expect(screen.getAllByText('无权限')).toHaveLength(3);
+  fireEvent.click(screen.getAllByRole('button', { name: '查看源码' })[0]);
+  expect(await screen.findByText('<script>alert(1)</script>')).toBeTruthy();
+  expect(screen.getByRole('button', { name: /开始分析/ })).toBeTruthy();
+  expect(screen.getByRole('button', { name: '预览数据' })).toBeTruthy();
 });

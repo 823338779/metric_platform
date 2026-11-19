@@ -162,6 +162,57 @@ class DeployedAssetAccessApiTest {
                         jsonPath(
                                 "$[?(@.granted == false)].resource_type",
                                 org.hamcrest.Matchers.containsInAnyOrder("dimension", "model")));
+        // 即使没有数据集和维度授权，只读用户仍能读取原生模型、源码、血缘和维度定义。
+        String prefix = "/api/dbt/builds/" + build;
+        String model = "semantic_model.shop.orders";
+        mvc.perform(get(prefix + "/catalog").header("Authorization", "Bearer reader"))
+                .andExpect(
+                        jsonPath(
+                                "$[?(@.unique_id == 'semantic_model.shop.orders')].name",
+                                org.hamcrest.Matchers.contains("orders")))
+                .andExpect(
+                        jsonPath(
+                                "$[?(@.resource_type == 'dimension')].semanticModelId",
+                                org.hamcrest.Matchers.contains(model)));
+        when(gateway.resource(build, model))
+                .thenReturn(
+                        new ResourceView(
+                                build,
+                                model,
+                                Map.of("name", "orders"),
+                                new ResourceSource("orders.yml", "orders definition")));
+        mvc.perform(get(prefix + "/resources/" + model).header("Authorization", "Bearer other"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.source.content").value("orders definition"));
+        when(gateway.lineage(build, "orders"))
+                .thenReturn(json.valueToTree(List.of(Map.of("name", "orders"))));
+        mvc.perform(
+                        get(prefix + "/lineage")
+                                .param("selector", "orders")
+                                .header("Authorization", "Bearer other"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[0].name").value("orders"));
+        var options = new AvailableDimensionsRequest(List.of("sales"));
+        when(gateway.availableDimensions(build, options))
+                .thenReturn(
+                        new AvailableDimensionsView(
+                                build,
+                                options.metrics(),
+                                List.of(
+                                        Map.of(
+                                                "name",
+                                                "region",
+                                                "semanticModelName",
+                                                "orders",
+                                                "optionId",
+                                                "region"))));
+        mvc.perform(
+                        post(prefix + "/available-dimensions")
+                                .header("Authorization", "Bearer other")
+                                .contentType("application/json")
+                                .content("{\"metrics\":[\"sales\"]}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.dimensions[0].name").value("region"));
         String path = "/api/dbt/builds/" + build + "/queries";
         String summary = "{\"mode\":\"QUERY\",\"metrics\":[\"sales\"]}";
         when(gateway.query(eq(build), any()))
@@ -207,6 +258,19 @@ class DeployedAssetAccessApiTest {
                                 .contentType("application/json")
                                 .content(summary))
                 .andExpect(status().isForbidden());
+        // 撤销指标授权后仍可编译 SQL，实际取数继续被拒绝。
+        when(gateway.query(eq(build), argThat(q -> q.mode() == QueryMode.EXPLAIN)))
+                .thenReturn(new ResultPage(build, QueryMode.EXPLAIN, null, "UTC", Map.of(),
+                        "select 1", null, null, null));
+        mvc.perform(
+                        post(path)
+                                .header("Authorization", "Bearer reader")
+                                .contentType("application/json")
+                                .content("{\"mode\":\"EXPLAIN\",\"metrics\":[\"sales\"]}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.sql").value("select 1"))
+                .andExpect(jsonPath("$.rows").doesNotExist());
+
         when(current.activeBuildId()).thenReturn(null);
         mvc.perform(
                         post(path)
@@ -214,7 +278,7 @@ class DeployedAssetAccessApiTest {
                                 .contentType("application/json")
                                 .content(summary))
                 .andExpect(status().isGone());
-        verify(gateway, times(1)).query(eq(build), any());
+        verify(gateway, times(2)).query(eq(build), any());
     }
 
     private PlatformPrincipal actor(UUID id, String tenant, PlatformPrincipal.Role role) {

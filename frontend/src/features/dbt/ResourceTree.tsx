@@ -131,7 +131,7 @@ export function ResourceTree({
                 {bySource ? (RESOURCE_LABELS[kind] ?? COPY.other) : path || COPY.noSource}
               </small>
             </span>
-            {kind === METRIC && resource.granted !== false && resource.queryable && (
+            {kind === METRIC && resource.queryable && (
               <Link
                 onClick={(event) => event.stopPropagation()}
                 to={`/dbt/builds/${encodeURIComponent(buildId)}/query?${new URLSearchParams({ buildId, [queryParameter ?? 'metric']: queryParameter ? resource.resourceId : resource.name })}`}

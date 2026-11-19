@@ -141,16 +141,30 @@ export function publishedResourceAdapter(api: BuildCatalogApi) {
   }
   const resource = async (_project: string, id: string, buildId: string) => {
     checkSession();
-    const key = JSON.stringify([buildId, id]);
+    const summary = (await catalogs.get(buildId))?.find((node) => node.unique_id === id);
+    const modelId = summary?.semanticModelId;
+    const nativeId = typeof modelId === 'string' ? modelId : id;
+    const key = JSON.stringify([buildId, nativeId]);
     let pending = resources.get(key);
     if (!pending) {
-      pending = api.resource(buildId, id);
+      pending = api.resource(buildId, nativeId);
       resources.set(key, pending);
       pending.catch(() => resources.delete(key));
     }
     const value = await pending;
-    if (value.buildId !== buildId || value.resourceId !== id) throw new Error(MISMATCH);
-    return value;
+    if (value.buildId !== buildId || value.resourceId !== nativeId) throw new Error(MISMATCH);
+    if (summary?.resource_type !== DIMENSION) return value;
+    // 维度定义内嵌于语义模型。血缘的选择器和 YAML 源码均来自该模型。
+    const model = value.resource;
+    const fields = Array.isArray(model.dimensions)
+      ? model.dimensions.find((field) => field?.name === summary.name)
+      : undefined;
+    if (!fields) throw new Error(MISMATCH);
+    return {
+      ...value,
+      resourceId: id,
+      resource: { ...fields, ...summary, original_file_path: model.original_file_path },
+    };
   };
   return {
     queryParameter: 'metricResourceId' as const,
@@ -211,7 +225,12 @@ export function publishedResourceAdapter(api: BuildCatalogApi) {
     },
     async getDbtLineage(_project: string, id: string, buildId: string): Promise<DbtLineage> {
       const value = await resource(_project, id, buildId);
-      const nodes = await api.lineage(buildId, `+${nativeSelector(value.resource)}+`);
+      const parentId = value.resource.semanticModelId;
+      const node =
+        typeof parentId === 'string'
+          ? (await resource(_project, parentId, buildId)).resource
+          : value.resource;
+      const nodes = await api.lineage(buildId, `+${nativeSelector(node)}+`);
       if (!Array.isArray(nodes)) throw new Error(MISMATCH);
       return {
         buildId,
@@ -237,7 +256,6 @@ export function publishedResourceAdapter(api: BuildCatalogApi) {
     async previewDbtDataset(_project: string, id: string, buildId: string, limit: number) {
       checkSession();
       const summary = (await catalogs.get(buildId))?.find((node) => node.unique_id === id);
-      if (summary?.granted === false) throw new Error('无权限');
       const selector =
         typeof summary?.selector === 'string'
           ? summary.selector
