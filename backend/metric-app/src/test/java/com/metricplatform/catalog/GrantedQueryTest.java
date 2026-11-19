@@ -121,6 +121,50 @@ class GrantedQueryTest {
         verify(gateway, never()).query(any(), any());
     }
 
+    @Test
+    void metricGrantIncludesSystemTimeButNotModelDimensions() {
+        var access = new GrantedQuery(build, assets, gateway);
+        var request = new AvailableDimensionsRequest(List.of("revenue"));
+        when(gateway.availableDimensions(build, request))
+                .thenReturn(
+                        new AvailableDimensionsView(
+                                build,
+                                request.metrics(),
+                                List.of(
+                                        Map.of("optionId", "day", "name", "metric_time"),
+                                        Map.of(
+                                                "optionId",
+                                                "business",
+                                                "name",
+                                                "metric_time",
+                                                "semanticModelName",
+                                                "orders"))));
+        validate(
+                access,
+                """
+                {"mode":"QUERY","metrics":["revenue"],"groupBy":[{"optionId":"day","grain":"day"}],
+                 "orderBy":[{"fieldId":"day","direction":"ASC"}],"startTime":"2026-11-01T00:00:00Z"}
+                """);
+        for (var id : List.of("business", "unknown"))
+            assertThrows(
+                    SecurityException.class,
+                    () ->
+                            validate(
+                                    access,
+                                    """
+                    {"mode":"QUERY","metrics":["revenue"],"groupBy":[{"optionId":"%s"}]}
+                    """
+                                            .formatted(id)));
+        assertThrows(
+                SecurityException.class,
+                () ->
+                        validate(
+                                access,
+                                """
+                {"mode":"QUERY","metrics":["margin"],"groupBy":[{"optionId":"day"}]}
+                """));
+    }
+
     private void validate(GrantedQuery access, String input) {
         access.check(BuildRequestParser.parse(input, QueryRequest.class));
     }

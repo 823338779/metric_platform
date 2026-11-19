@@ -57,7 +57,7 @@ record GrantedQuery(UUID build, List<Asset> assets, BuildGateway gateway) {
         if (!build.equals(result.buildId())
                 || !new HashSet<>(request.metrics()).equals(new HashSet<>(result.metrics())))
             throw new IllegalStateException("维度选项上下文不匹配");
-        // optionId 只在当前指标集合内有效；缺少唯一模型归属的选项不可授权。
+        // optionId 只在当前指标集合内有效；系统时间由引擎提供，业务维度按所属模型逐项授权。
         Map<String, Integer> counts = new HashMap<>();
         for (var option : result.dimensions()) {
             if (option.get(OPTION_ID) instanceof String id && !id.isBlank())
@@ -68,15 +68,20 @@ record GrantedQuery(UUID build, List<Asset> assets, BuildGateway gateway) {
                         .filter(o -> counts.getOrDefault(o.get(OPTION_ID), 0) == 1)
                         .filter(
                                 o ->
-                                        allowed(
-                                                DIMENSION,
-                                                a ->
-                                                        a.entry()
-                                                                        .queryName()
-                                                                        .equals(o.get(MODEL_NAME))
-                                                                && a.entry()
-                                                                        .dimensionName()
-                                                                        .equals(o.get(NAME))))
+                                        (TIME.equals(o.get(NAME)) && o.get(MODEL_NAME) == null)
+                                                || allowed(
+                                                        DIMENSION,
+                                                        a ->
+                                                                a.entry()
+                                                                                .queryName()
+                                                                                .equals(
+                                                                                        o.get(
+                                                                                                MODEL_NAME))
+                                                                        && a.entry()
+                                                                                .dimensionName()
+                                                                                .equals(
+                                                                                        o.get(
+                                                                                                NAME))))
                         .toList();
         return new AvailableDimensionsView(build, result.metrics(), options);
     }
@@ -118,14 +123,11 @@ record GrantedQuery(UUID build, List<Asset> assets, BuildGateway gateway) {
                 String id = item == null ? null : item.fieldId();
                 if (!q.metrics().contains(id)) needed.add(id);
             }
-        boolean timeRange = q.startTime() != null || q.endTime() != null;
-        if (!needed.isEmpty() || timeRange) {
+        if (!needed.isEmpty()) {
             var options = dimensions(new AvailableDimensionsRequest(q.metrics())).dimensions();
             Set<Object> ids = new HashSet<>();
             for (var option : options) ids.add(option.get(OPTION_ID));
-            if (!ids.containsAll(needed)
-                    || timeRange && options.stream().noneMatch(o -> TIME.equals(o.get(NAME))))
-                throw new SecurityException(DENIED);
+            if (!ids.containsAll(needed)) throw new SecurityException(DENIED);
         }
         return q;
     }

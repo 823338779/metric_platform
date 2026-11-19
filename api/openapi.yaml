@@ -760,7 +760,7 @@ paths:
   /api/dbt/builds/{buildId}/available-dimensions:
     post:
       summary: 可用维度
-      description: 本租户账号可查看指标的可用维度定义。执行查询时逐项校验所用指标与维度的权限。
+      description: 本租户账号可查看指标的可用维度定义。执行查询时逐项校验指标和业务维度权限。系统时间维度 metric_time 随指标可用。
       operationId: available_dimensions_builds__build_id__available_dimensions_post
       parameters:
         - name: buildId
@@ -830,7 +830,7 @@ paths:
   /api/dbt/builds/{buildId}/queries:
     post:
       summary: 提交固定构建查询
-      description: 普通用户仅可查询当前生效构建。EXPLAIN 只编译 SQL，所有本租户账号均可使用。实际取数缺少任一显式引用的指标、维度或预览数据集权限返回 403，整条查询不执行。
+      description: 普通用户仅可查询当前生效构建。EXPLAIN 只编译 SQL，所有本租户账号均可使用。按系统时间 metric_time 分组、排序和筛选无需单独授权。实际取数缺少任一显式引用的指标、业务维度或预览数据集权限返回 403，整条查询不执行。
       operationId: submit_builds__build_id__queries_post
       parameters:
         - name: buildId
