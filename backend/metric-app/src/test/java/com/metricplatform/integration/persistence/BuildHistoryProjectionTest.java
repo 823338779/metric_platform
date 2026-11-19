@@ -4,14 +4,12 @@ import static org.assertj.core.api.Assertions.*;
 
 import com.metricplatform.catalog.BuildContracts.*;
 import com.metricplatform.catalog.BuildHistoryRepository;
-
+import java.util.*;
 import org.junit.jupiter.api.*;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.ActiveProfiles;
-
-import java.util.*;
 
 @SpringBootTest
 @ActiveProfiles("test")
@@ -91,16 +89,16 @@ class BuildHistoryProjectionTest {
         UUID release = UUID.randomUUID(), query = UUID.randomUUID();
         jdbc.update(
                 "insert into"
-                    + " semantic_project(project_id,repository_id,project_subdir,profile_binding_id)"
-                    + " values(?,?,?,?)",
+                        + " semantic_project(project_id,repository_id,project_subdir,profile_binding_id)"
+                        + " values(?,?,?,?)",
                 project,
                 "repo",
                 ".",
                 "binding");
         jdbc.update(
                 "insert into"
-                    + " semantic_release(release_id,project_id,release_sequence,target_commit_sha,build_source_sha,project_digest,config_version,idempotency_key,state)"
-                    + " values(?,?,1,?,?,?,?,?,'FAILED')",
+                        + " semantic_release(release_id,project_id,release_sequence,target_commit_sha,build_source_sha,project_digest,config_version,idempotency_key,state)"
+                        + " values(?,?,1,?,?,?,?,?,'FAILED')",
                 release,
                 project,
                 "a".repeat(40),
@@ -110,8 +108,8 @@ class BuildHistoryProjectionTest {
                 UUID.randomUUID());
         jdbc.update(
                 "insert into"
-                    + " semantic_query(query_id,project_id,release_id,idempotency_key,mode,status)"
-                    + " values(?,?,?,?,'QUERY','FAILED')",
+                        + " semantic_query(query_id,project_id,release_id,idempotency_key,mode,status)"
+                        + " values(?,?,?,?,'QUERY','FAILED')",
                 query,
                 project,
                 release,

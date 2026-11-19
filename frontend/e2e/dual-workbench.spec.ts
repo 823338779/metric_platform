@@ -11,6 +11,8 @@ const identity = {
   subject: 'fixture',
   displayName: '演示账号',
   authVersion: 1,
+  tenant_id: 'tn_00001',
+  role: 'TENANT_MANAGER' as const,
 };
 const resources = [
   ...['gross_amount', 'order_count', 'average_order_value'].map((name) => ({

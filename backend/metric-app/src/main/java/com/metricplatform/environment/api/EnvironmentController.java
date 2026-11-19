@@ -2,11 +2,9 @@ package com.metricplatform.environment.api;
 
 import com.metricplatform.environment.EnvironmentContracts.*;
 import com.metricplatform.environment.EnvironmentService;
-
+import java.util.UUID;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.*;
-
-import java.util.UUID;
 
 /** 环境配置入口，所有操作使用现有平台登录身份。 */
 @RestController

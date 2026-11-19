@@ -8,6 +8,8 @@ const IDENTITY = {
   subject: 'fixture',
   displayName: '验收账号',
   authVersion: 1,
+  tenant_id: 'tn_00001',
+  role: 'TENANT_MANAGER' as const,
 };
 type Json = Record<string, any>;
 /** 完整执行快照 fixture：保留独立构建、同步选项/查询和构建分页身份，未知路由明确失败。 */
@@ -137,9 +139,7 @@ export async function buildFixture(
     if (/\/builds\/[^/]+$/.test(path)) return route.fulfill({ json: build(id) });
     if (path.endsWith('/catalog')) {
       return route.fulfill({
-        json: {
-          nodes: Object.fromEntries(resources(id).map((item) => [item.resourceId, native(item)])),
-        },
+        json: resources(id).map(native),
       });
     }
     if (path.endsWith('/lineage')) {

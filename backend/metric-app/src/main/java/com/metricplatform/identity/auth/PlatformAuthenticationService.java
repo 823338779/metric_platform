@@ -106,7 +106,9 @@ public class PlatformAuthenticationService {
                 principal.identityId(),
                 principal.subject(),
                 principal.displayName(),
-                principal.authVersion());
+                principal.authVersion(),
+                principal.tenantId(),
+                principal.role());
     }
 
     private void recordFailedLogin(PlatformIdentityRepository.User user, Instant now) {
@@ -119,10 +121,19 @@ public class PlatformAuthenticationService {
         }
     }
 
-    private static PlatformPrincipal principal(
-            PlatformIdentityRepository.User user, UUID credentialId) {
+    private PlatformPrincipal principal(PlatformIdentityRepository.User user, UUID credentialId) {
+        // 始终读取当前归属，旧令牌不能延续迁移前的权限。
+        var membership = identities.membership(user.id());
         return new PlatformPrincipal(
-                user.id(), user.username(), user.displayName(), credentialId, user.authVersion());
+                user.id(),
+                user.username(),
+                user.displayName(),
+                credentialId,
+                user.authVersion(),
+                membership.tenantId(),
+                membership.manager()
+                        ? PlatformPrincipal.Role.TENANT_MANAGER
+                        : PlatformPrincipal.Role.READ_ONLY);
     }
 
     private String newToken() {

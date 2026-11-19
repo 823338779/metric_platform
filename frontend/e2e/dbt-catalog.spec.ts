@@ -77,5 +77,5 @@ test('目录分页、固定构建查询、时间序列与SQL解释', async ({ pa
   await expect(page.getByLabel('生成的 SQL')).toHaveText(sql);
   await expect(page.getByRole('table')).toHaveCount(0);
   await page.goto('/metrics');
-  await expect(page).toHaveURL(/\/dbt\/projects$/);
+  await expect(page).toHaveURL(/\/dbt\/environments$/);
 });

@@ -58,6 +58,15 @@ public class ApiExceptionHandler {
         throw exception;
     }
 
+    /** 将租户开通冲突的可操作原因返回给调用方。 */
+    @ExceptionHandler(org.springframework.web.server.ResponseStatusException.class)
+    ResponseEntity<ProblemDetail> operationConflict(
+            org.springframework.web.server.ResponseStatusException exception) {
+        return ResponseEntity.status(exception.getStatusCode())
+                .contentType(org.springframework.http.MediaType.APPLICATION_PROBLEM_JSON)
+                .body(exception.getBody());
+    }
+
     @ExceptionHandler(BadCredentialsException.class)
     ResponseEntity<ProblemDetail> unauthorized(BadCredentialsException exception) {
         return problem(HttpStatus.UNAUTHORIZED, "Authentication failed", "Invalid credentials");

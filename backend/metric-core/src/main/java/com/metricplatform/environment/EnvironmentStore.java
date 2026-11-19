@@ -7,11 +7,11 @@ import java.util.UUID;
 
 /** 平台环境配置持久端口，不复制服务构建事实。 */
 public interface EnvironmentStore {
-    EnvironmentView create(EnvironmentInput input);
+    EnvironmentView create(String tenant, EnvironmentInput input);
 
-    EnvironmentView update(UUID id, long expectedVersion, EnvironmentInput input);
+    EnvironmentView update(String tenant, UUID id, long expectedVersion, EnvironmentInput input);
 
-    EnvironmentView get(UUID id);
+    EnvironmentView get(String tenant, UUID id);
 
-    List<EnvironmentView> list();
+    List<EnvironmentView> list(String tenant);
 }

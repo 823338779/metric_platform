@@ -1,7 +1,7 @@
 import { Spin } from 'antd';
 import { useEffect, useState } from 'react';
 import { Navigate, Outlet, useLocation } from 'react-router-dom';
-import { clearAuthSession, getAuthSession } from '../api/auth';
+import { clearAuthSession, getAuthSession, saveAuthSession } from '../api/auth';
 import { authApi } from '../api/authApi';
 
 type AuthenticationStatus = 'checking' | 'authenticated' | 'required' | 'expired';
@@ -16,13 +16,22 @@ export function AuthenticationGuard() {
     if (status !== 'checking') return;
 
     let cancelled = false;
+    const original = getAuthSession();
     void authApi.me().then(
-      () => {
-        if (!cancelled) setStatus('authenticated');
+      (identity) => {
+        const session = getAuthSession();
+        if (cancelled) return;
+        if (session && session.accessToken === original?.accessToken) {
+          saveAuthSession({ ...session, identity });
+          setStatus('authenticated');
+        } else {
+          setStatus('required');
+        }
       },
       () => {
-        clearAuthSession();
-        if (!cancelled) setStatus('expired');
+        if (cancelled) return;
+        if (getAuthSession()?.accessToken === original?.accessToken) clearAuthSession();
+        setStatus('expired');
       },
     );
 

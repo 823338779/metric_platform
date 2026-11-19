@@ -2,6 +2,7 @@ package com.metricplatform.environment;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.metricplatform.environment.EnvironmentContracts.*;
+import com.metricplatform.security.PlatformPrincipal;
 import java.net.URI;
 import java.util.Set;
 import java.util.UUID;
@@ -32,15 +33,18 @@ public class EnvironmentBuildService {
         this.source = source;
     }
 
-    public JsonNode submit(UUID environment, SubmitBuildCommand command, UUID actor) {
+    public JsonNode submit(UUID environment, SubmitBuildCommand command, PlatformPrincipal actor) {
         validate(command);
         if (!source.repository().equals(command.repository())) {
             throw new IllegalArgumentException("仅允许使用服务器绑定的 Git 仓库");
         }
-        var fixed = submissions.reserve(actor, environment, command);
+        actor.requireManager();
+        var fixed = submissions.reserve(actor.tenantId(), actor.identityId(), environment, command);
         JsonNode result = gateway.submit(fixed);
         submissions.accepted(
-                actor, command.idempotencyKey(), UUID.fromString(result.path(BUILD_ID).asText()));
+                actor.identityId(),
+                command.idempotencyKey(),
+                UUID.fromString(result.path(BUILD_ID).asText()));
         return result;
     }
 

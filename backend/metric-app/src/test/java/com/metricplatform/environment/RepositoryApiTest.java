@@ -43,7 +43,15 @@ class RepositoryApiTest {
         // 仅注册完整安全链，避免 MVC 切片把令牌过滤器重复挂在安全链之前。
         mvc = MockMvcBuilders.webAppContextSetup(context).addFilters(security).build();
         when(authentication.authenticate("repository-test"))
-                .thenReturn(new PlatformPrincipal(UUID.randomUUID(), "test", "Test", null, 1));
+                .thenReturn(
+                        new PlatformPrincipal(
+                                UUID.randomUUID(),
+                                "test",
+                                "Test",
+                                null,
+                                1,
+                                "tn_00001",
+                                PlatformPrincipal.Role.TENANT_MANAGER));
         when(source.repository()).thenReturn(REPOSITORY);
     }
 

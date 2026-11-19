@@ -3,12 +3,9 @@ package com.metricplatform.query;
 import com.metricplatform.catalog.BuildContracts.*;
 import com.metricplatform.catalog.BuildGateway;
 import com.metricplatform.environment.EnvironmentBuildGateway;
-
-import lombok.RequiredArgsConstructor;
-
-import org.springframework.stereotype.Service;
-
 import java.util.UUID;
+import lombok.RequiredArgsConstructor;
+import org.springframework.stereotype.Service;
 
 /** 查询绑定指定构建并保留登录身份；平台不重新解释引擎选择。 */
 @Service

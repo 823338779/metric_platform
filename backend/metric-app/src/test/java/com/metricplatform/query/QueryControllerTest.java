@@ -9,9 +9,12 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.metricplatform.catalog.BuildContracts.*;
 import com.metricplatform.catalog.BuildGateway;
 import com.metricplatform.environment.EnvironmentBuildGateway;
+import com.metricplatform.environment.EnvironmentContracts;
+import com.metricplatform.identity.TenantFixture;
 import com.metricplatform.identity.auth.PlatformAuthenticationService;
 import com.metricplatform.security.PlatformPrincipal;
 import java.util.*;
+import java.util.UUID;
 import org.junit.jupiter.api.*;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
@@ -19,6 +22,7 @@ import org.junit.jupiter.params.provider.EnumSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
@@ -27,12 +31,13 @@ import org.springframework.test.web.servlet.MockMvc;
 @AutoConfigureMockMvc
 @ActiveProfiles("test")
 class QueryControllerTest {
-    private static final java.util.UUID ENVIRONMENT_ID =
-            java.util.UUID.fromString("12345678-1234-4234-8234-000000000001");
+    private static final UUID ENVIRONMENT_ID =
+            UUID.fromString("12345678-1234-4234-8234-000000000001");
 
     private static final String ROOT = "/api/dbt",
             AUTH = "Authorization",
             TOKEN = "Bearer query-test";
+    @Autowired JdbcTemplate jdbc;
     @Autowired MockMvc mvc;
     @MockitoBean BuildGateway gateway;
     @MockitoBean EnvironmentBuildGateway environmentBuilds;
@@ -104,8 +109,17 @@ class QueryControllerTest {
 
     @BeforeEach
     void prepare() {
+        TenantFixture.bind(jdbc, ENVIRONMENT_ID, build);
         when(authentication.authenticate("query-test"))
-                .thenReturn(new PlatformPrincipal(UUID.randomUUID(), "user", "User", null, 1));
+                .thenReturn(
+                        new PlatformPrincipal(
+                                UUID.randomUUID(),
+                                "user",
+                                "User",
+                                null,
+                                1,
+                                TenantFixture.ID,
+                                PlatformPrincipal.Role.TENANT_MANAGER));
         when(gateway.getBuild(build))
                 .thenReturn(
                         new BuildView(
@@ -114,12 +128,10 @@ class QueryControllerTest {
                                 "a",
                                 null,
                                 null,
-                                new com.metricplatform.environment.EnvironmentContracts
-                                        .ExecutionSnapshot(
+                                new EnvironmentContracts.ExecutionSnapshot(
                                         ENVIRONMENT_ID,
                                         1,
-                                        new com.metricplatform.environment.EnvironmentContracts
-                                                .ConnectionTarget(
+                                        new EnvironmentContracts.ConnectionTarget(
                                                 "starrocks", "warehouse", "localhost", 9030, null),
                                         "warehouse-test",
                                         "default_catalog",

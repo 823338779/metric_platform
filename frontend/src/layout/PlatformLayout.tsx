@@ -45,13 +45,18 @@ export function PlatformLayout() {
   const { pathname } = useLocation();
   const { buildId: routeBuildId } = useParams();
   const [params] = useSearchParams();
-  const buildId = routeBuildId ?? params.get('buildId');
+  const buildId =
+    getAuthSession()?.identity.role === 'TENANT_MANAGER'
+      ? (routeBuildId ?? params.get('buildId'))
+      : null;
   const queryPage = pathname.endsWith('/query');
   const projectPath = buildId ? `/dbt/builds/${encodeURIComponent(buildId)}` : ENVIRONMENTS;
   // 工作区切换携带当前版本与资源上下文；不会静默切换到最新发布。
   const catalogPath = `${projectPath}/catalog?${params}`;
   const queryPath = `${projectPath}/query?${params}`;
-  const displayName = getAuthSession()?.identity.displayName;
+  const identity = getAuthSession()?.identity;
+  const displayName = identity?.displayName;
+  const manager = identity?.role === 'TENANT_MANAGER';
   return (
     <div
       className={`platform-layout ${collapsed ? 'nav-collapsed' : ''} ${buildId ? 'platform-workbench' : 'platform-projects'} ${queryPage ? 'platform-analysis' : 'platform-catalog'}`}
@@ -66,6 +71,7 @@ export function PlatformLayout() {
           </span>
         </Link>
         <span className="platform-nav-label">{COPY.management}</span>
+        {manager && <Link to="/tenant/accounts">账号管理</Link>}
         <Tooltip title={COPY.environments} placement="right">
           <Link
             to={ENVIRONMENTS}
@@ -153,7 +159,11 @@ export function PlatformLayout() {
           </div>
         </header>
         <main className="platform-content">
-          <Outlet />
+          {manager ? (
+            <Outlet key={identity?.identityId} />
+          ) : (
+            <p>{pathname === ENVIRONMENTS ? '暂无可见资产' : '无权访问此页面'}</p>
+          )}
         </main>
       </div>
     </div>

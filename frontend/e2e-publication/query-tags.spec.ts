@@ -1,7 +1,14 @@
 import { expect, test } from '@playwright/test';
 import { buildFixture, BUILD_A } from './build-fixture';
 
-const IDENTITY = { identityId: 'demo', subject: 'demo', displayName: '演示账号', authVersion: 1 };
+const IDENTITY = {
+  identityId: 'demo',
+  subject: 'demo',
+  displayName: '演示账号',
+  authVersion: 1,
+  tenant_id: 'tn_00001',
+  role: 'TENANT_MANAGER' as const,
+};
 const OPTIONS = [
   {
     optionId: 'time-option',

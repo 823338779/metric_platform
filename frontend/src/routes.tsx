@@ -2,6 +2,7 @@ import { Navigate, createBrowserRouter } from 'react-router-dom';
 import { AuthenticationGuard } from './auth/AuthenticationGuard';
 import { LoginPage } from './features/auth/LoginPage';
 import { PlatformLayout } from './layout/PlatformLayout';
+import { ACCOUNTS_PATH, TenantAccountsPage } from './features/accounts/TenantAccountsPage';
 import { PublishedWorkbench } from './features/dbt/PublishedWorkbench';
 import { PublishedCatalogPage } from './features/dbt/PublishedCatalogPage';
 import { EnvironmentsPage } from './features/environments/EnvironmentsPage';
@@ -18,6 +19,7 @@ export const router = createBrowserRouter([
         children: [
           { index: true, element: <Navigate to="/dbt/environments" replace /> },
           { path: '/dbt/environments', element: <EnvironmentsPage /> },
+          { path: ACCOUNTS_PATH, element: <TenantAccountsPage /> },
           { path: '/dbt/environments/:environmentId', element: <EnvironmentDetailPage /> },
           { path: '/dbt/builds/:buildId/catalog', element: <PublishedCatalogPage /> },
           { path: '/dbt/builds/:buildId/query', element: <PublishedWorkbench /> },

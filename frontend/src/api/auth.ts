@@ -13,6 +13,9 @@ export interface AuthIdentity {
   subject: string;
   displayName: string;
   authVersion: number;
+  /** 登录身份当前所属租户与资产访问角色。 */
+  tenant_id: string;
+  role: 'TENANT_MANAGER' | 'READ_ONLY';
 }
 
 export interface AuthSession {
@@ -59,7 +62,9 @@ export function safeReturnTo(value: string | null) {
     return DEFAULT_PATH;
   const pathname = value.split(/[?#]/, 1)[0];
   // 仅放行实际固定构建页面，保留查询参数及片段，不扩大到任意内部或外部地址。
-  return ENVIRONMENT_PATH.test(pathname) || FIXED_BUILD_PATH.test(pathname)
+  return pathname === '/tenant/accounts' ||
+    ENVIRONMENT_PATH.test(pathname) ||
+    FIXED_BUILD_PATH.test(pathname)
     ? value
     : DEFAULT_PATH;
 }

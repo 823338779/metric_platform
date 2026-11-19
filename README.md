@@ -52,6 +52,23 @@ npm run dev
 
 开发服务器将 `/api` 代理到 `http://localhost:8090`。平台部署需要统一支持执行快照构建及固定构建资源接口的 dbt-service，不依赖 Agent 的运行状态。平台没有协议模式开关，也不会在新接口失败时访问旧业务路径。
 
+## 租户开通与资产隔离
+
+运维通过 HTTPS 调用 `POST /api/ops/tenants`，以 `X-Operations-Token` 传入部署注入的 `METRIC_PLATFORM_OPERATIONS_TOKEN`。请求体为 `username`、`password`，成功返回 201 及 `tenant_id`。运维凭据仅在服务端配置。开通失败时检查响应状态，重复登录名返回 409。普通用户只访问平台，部署网络须限制 dbt-service 仅对可信调用方开放。
+
+管理者以账号和密码登录，在「账号管理」创建只读账号。登录名全局唯一。只读账号登录后可查看本人身份，初始没有资产访问权。管理者可操作本租户全部环境与固定构建。新租户创建环境前，运维需配置 `TENANT_EXECUTION_TARGETS`，并核对各凭据实际可读写的范围。示例使用部署内的引用名：
+
+```json
+{"tn_00001":[{"instanceId":"warehouse","credentialRef":"tenant-one","catalog":"warehouse","schema":"analytics_one"}]}
+```
+
+### V18 存量切换到 V19
+
+1. 在维护窗口阻断旧平台流量及其他调用方的新提交，等待已受理构建归属确定。核对未确认提交，使用原幂等键和快照恢复。备份平台数据库，保存同版本应用与恢复点。
+2. 汇总平台环境及外部历史环境，明确清单冻结时间。准备 Python 和 PostgreSQL 的 `psql` 客户端，通过 libpq 环境或服务文件选择目标平台库。由运维指定一个已启用、可登录的存量账号。执行 `python scripts/tenant_inventory.py --manager <登录名> --service <内部服务地址>`；对每个额外历史环境追加 `--external-environment <UUID>`。也可使用 `--external-builds <JSON路径>` 导入运维已核验的外部历史，文件为含 `build_id` 和 `environment_id` 的数组。按环境核对数量和历史记录，分页失败后重新生成清单。
+3. 为首租户配置目标范围，启动新版平台执行 Flyway。V19 将存量账号、环境和清单内构建统一归入 `tn_00001`，仅指定账号成为管理者。新安装空库直接由运维接口开通首个租户。
+4. 保持停流，核验各类记录总数与原 ID、管理者身份、其他已登录账号的空资产列表、旧构建详情及一次实际查询。遇到不一致时停止新版实例，在恢复写入前成对恢复备份数据库与旧应用并复核。已恢复写入后应先对账再制定恢复方案，直接还原旧快照会丢失新增数据。
+
 ## 固定构建与历史
 
 浏览器接口使用 `/api/dbt`。首页 `/dbt/projects` 展示部署版本，输入规范 Git 仓库地址、分支和环境 UUID 后，通过服务现有部署历史接口分页读取所有部署记录。筛选写入 URL，可收藏或分享；例如 `/dbt/projects?repository=<URL编码的仓库地址>&branchName=main&environmentId=<环境UUID>`。服务要求明确仓库，不提供全局仓库发现，平台不再读取 Agent 项目或分支。

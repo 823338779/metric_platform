@@ -1,6 +1,5 @@
 package com.metricplatform.identity.config;
 
-import jakarta.validation.Valid;
 import jakarta.validation.constraints.AssertTrue;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
@@ -32,19 +31,9 @@ public class PlatformIdentityProperties {
     private int rateLimit = 10;
 
     @NotNull private Duration rateWindow = Duration.ofMinutes(1);
-    @Valid private Bootstrap bootstrap = new Bootstrap();
 
     @AssertTrue(message = "Metric Platform access tokens must expire after exactly 10 hours")
     public boolean isSupportedTokenTtl() {
         return Duration.ofHours(10).equals(tokenTtl);
-    }
-
-    @Getter
-    @Setter
-    public static class Bootstrap {
-        private boolean enabled;
-        private String username = "";
-        private String displayName = "Platform Administrator";
-        private String password = "";
     }
 }

@@ -28,7 +28,16 @@ public interface PlatformIdentityRepository {
             String passwordAlgorithm,
             String status,
             long authVersion,
-            Instant passwordChangedAt) {}
+            Instant passwordChangedAt,
+            /** 账号唯一所属租户。 */
+            String tenantId) {}
+
+    String createTenant(UUID managerId);
+
+    /** 由唯一管理者引用推导账号在其租户中的权限。 */
+    record Membership(String tenantId, boolean manager) {}
+
+    Membership membership(UUID accountId);
 
     User findByUsername(String username);
 

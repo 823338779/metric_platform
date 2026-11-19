@@ -7,25 +7,50 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.metricplatform.catalog.BuildContracts.ErrorView;
 import com.metricplatform.catalog.BuildGateway;
 import com.metricplatform.environment.EnvironmentContracts.*;
+import com.metricplatform.identity.TenantFixture;
+import com.metricplatform.security.PlatformPrincipal;
+import java.util.List;
 import java.util.UUID;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 
 @SpringBootTest(
-        properties =
-                "EXECUTION_INSTANCES={\"warehouse\":{\"type\":\"starrocks\",\"hosts\":[\"localhost\",\"127.0.0.1\"],\"port\":9030}}")
+        properties = {
+            TenantFixture.TARGETS,
+            "EXECUTION_INSTANCES={\"warehouse\":{\"type\":\"starrocks\",\"hosts\":[\"localhost\",\"127.0.0.1\"],\"port\":9030}}"
+        })
 @ActiveProfiles("test")
 class EnvironmentBuildServiceTest {
+    @Autowired JdbcTemplate jdbc;
     @Autowired EnvironmentService environments;
     @Autowired EnvironmentBuildService builds;
     @MockitoBean EnvironmentBuildGateway gateway;
 
+    private PlatformPrincipal actor;
+
+    @BeforeEach
+    void login() {
+        actor = TenantFixture.manager(jdbc);
+        SecurityContextHolder.getContext()
+                .setAuthentication(new UsernamePasswordAuthenticationToken(actor, null, List.of()));
+    }
+
+    @AfterEach
+    void logout() {
+        SecurityContextHolder.clearContext();
+    }
+
     @Test
     void staleUpdatesAndSubmissionsKeepOldNamespaceReserved() throws Exception {
-        String schema = "env_" + UUID.randomUUID().toString().replace("-", "");
+        String schema = "env_stale";
         var input =
                 new ObjectMapper()
                         .readValue(EnvironmentApiTest.input(schema), EnvironmentInput.class);
@@ -61,10 +86,7 @@ class EnvironmentBuildServiceTest {
                         1,
                         "NONE",
                         UUID.randomUUID().toString());
-        assertThatThrownBy(
-                        () ->
-                                builds.submit(
-                                        environment.environmentId(), command, UUID.randomUUID()))
+        assertThatThrownBy(() -> builds.submit(environment.environmentId(), command, actor))
                 .isInstanceOfSatisfying(
                         BuildGateway.Failure.class,
                         error ->
@@ -75,12 +97,12 @@ class EnvironmentBuildServiceTest {
 
     @Test
     void retryAfterTimeoutReusesOriginalSnapshot() throws Exception {
-        String schema = "env_" + UUID.randomUUID().toString().replace("-", "");
+        String schema = "env_retry";
         var input =
                 new ObjectMapper()
                         .readValue(EnvironmentApiTest.input(schema), EnvironmentInput.class);
         var environment = environments.create(input);
-        UUID actor = UUID.randomUUID();
+
         var command =
                 new SubmitBuildCommand(
                         "https://example.test/metrics.git",

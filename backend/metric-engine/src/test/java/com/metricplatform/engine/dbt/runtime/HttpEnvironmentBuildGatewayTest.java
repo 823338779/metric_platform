@@ -5,14 +5,12 @@ import static org.assertj.core.api.Assertions.*;
 import com.metricplatform.catalog.BuildGateway;
 import com.metricplatform.environment.EnvironmentContracts.*;
 import com.sun.net.httpserver.HttpServer;
-
-import org.junit.jupiter.api.Test;
-
 import java.net.InetSocketAddress;
 import java.net.URI;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.util.UUID;
+import org.junit.jupiter.api.Test;
 
 class HttpEnvironmentBuildGatewayTest {
     @Test

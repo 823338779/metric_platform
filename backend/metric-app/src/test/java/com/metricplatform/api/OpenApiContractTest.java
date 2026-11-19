@@ -5,6 +5,7 @@ import static org.assertj.core.api.Assertions.*;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
 import java.nio.file.*;
+import java.util.List;
 import org.junit.jupiter.api.Test;
 
 class OpenApiContractTest {
@@ -17,7 +18,7 @@ class OpenApiContractTest {
         assertThat(api.path("x-protocol-version").asText()).isEqualTo("execution-snapshot");
         assertThat(api.at("/components/schemas/NativeCatalog/type").asText()).isEqualTo("array");
         for (var path :
-                java.util.List.of(
+                List.of(
                         "/api/v1/auth/token",
                         "/api/v1/auth/me",
                         "/api/dbt/builds",
@@ -42,6 +43,7 @@ class OpenApiContractTest {
         assertThat(api.at("/paths/~1api~1v3~1dbt~1builds").has("post")).isFalse();
         assertThat(api.at("/paths/~1api~1v3~1dbt~1deployments").has("post")).isFalse();
         assertThat(api.at("/components/schemas/IdentitySummary/required").toString())
-                .isEqualTo("[\"identityId\",\"subject\",\"displayName\",\"authVersion\"]");
+                .isEqualTo(
+                        "[\"identityId\",\"subject\",\"displayName\",\"authVersion\",\"tenant_id\",\"role\"]");
     }
 }

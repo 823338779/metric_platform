@@ -7,9 +7,7 @@ describe('authentication API', () => {
     expect(safeReturnTo('/dbt/projects')).toBe('/dbt/environments');
     expect(safeReturnTo(null)).toBe('/dbt/environments');
     expect(safeReturnTo('/metrics')).toBe('/dbt/environments');
-    expect(safeReturnTo('/dbt/projects/sales/catalog?buildId=one')).toBe(
-      '/dbt/environments',
-    );
+    expect(safeReturnTo('/dbt/projects/sales/catalog?buildId=one')).toBe('/dbt/environments');
   });
 
   it.each(['catalog', 'query'])('preserves a fixed build %s return URL', (page) => {
@@ -44,6 +42,8 @@ describe('authentication API', () => {
       subject: 'admin',
       displayName: 'Platform Administrator',
       authVersion: 2,
+      tenant_id: 'tn_00001',
+      role: 'TENANT_MANAGER' as const,
     };
     const fetcher = vi.fn().mockResolvedValue({
       ok: true,

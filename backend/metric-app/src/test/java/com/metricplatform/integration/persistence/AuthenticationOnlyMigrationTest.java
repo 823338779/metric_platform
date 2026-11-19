@@ -7,7 +7,11 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.test.context.ActiveProfiles;
 
-@SpringBootTest
+@SpringBootTest(
+        properties = {
+            "spring.flyway.target=10",
+            "spring.datasource.url=jdbc:tc:postgresql:16-alpine:///historical_v10"
+        })
 @ActiveProfiles("test")
 class AuthenticationOnlyMigrationTest {
     @Autowired MigrationMetadataPersistenceService metadata;

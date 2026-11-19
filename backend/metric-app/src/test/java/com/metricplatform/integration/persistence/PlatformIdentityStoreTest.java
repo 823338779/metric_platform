@@ -27,7 +27,15 @@ class PlatformIdentityStoreTest {
         Instant now = Instant.parse("2026-09-29T00:00:00Z");
         identities.createUser(
                 new PlatformIdentityRepository.NewUser(
-                        id, username, "Test User", "hash", "bcrypt", "ACTIVE", 1, now));
+                        id,
+                        username,
+                        "Test User",
+                        "hash",
+                        "bcrypt",
+                        "ACTIVE",
+                        1,
+                        now,
+                        identities.createTenant(id)));
 
         assertThat(identities.usernameExists(username)).isTrue();
         assertThat(identities.findByUsername(username).id()).isEqualTo(id);

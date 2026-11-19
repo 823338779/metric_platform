@@ -7,30 +7,36 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 import com.metricplatform.catalog.BuildContracts.*;
 import com.metricplatform.environment.EnvironmentBuildGateway;
+import com.metricplatform.environment.EnvironmentContracts;
+import com.metricplatform.identity.TenantFixture;
 import com.metricplatform.identity.auth.PlatformAuthenticationService;
 import com.metricplatform.security.PlatformPrincipal;
 import java.util.*;
+import java.util.TreeSet;
+import java.util.UUID;
 import org.junit.jupiter.api.*;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.web.servlet.mvc.method.annotation.RequestMappingHandlerMapping;
 
 @SpringBootTest
 @AutoConfigureMockMvc
 @ActiveProfiles("test")
 class BuildApiContractTest {
-    private static final java.util.UUID ENVIRONMENT_ID =
-            java.util.UUID.fromString("12345678-1234-4234-8234-000000000001");
+    private static final UUID ENVIRONMENT_ID =
+            UUID.fromString("12345678-1234-4234-8234-000000000001");
 
     @Autowired MockMvc mvc;
 
     @Autowired
-    @org.springframework.beans.factory.annotation.Qualifier("requestMappingHandlerMapping")
-    org.springframework.web.servlet.mvc.method.annotation.RequestMappingHandlerMapping mappings;
+    @Qualifier("requestMappingHandlerMapping")
+    RequestMappingHandlerMapping mappings;
 
     @Autowired JdbcTemplate jdbc;
     @MockitoBean BuildGateway gateway;
@@ -41,8 +47,17 @@ class BuildApiContractTest {
 
     @BeforeEach
     void login() {
+        TenantFixture.bind(jdbc, ENVIRONMENT_ID, build);
         when(authentication.authenticate(TOKEN))
-                .thenReturn(new PlatformPrincipal(user, "test", "Test", null, 1));
+                .thenReturn(
+                        new PlatformPrincipal(
+                                user,
+                                "test",
+                                "Test",
+                                null,
+                                1,
+                                TenantFixture.ID,
+                                PlatformPrincipal.Role.TENANT_MANAGER));
     }
 
     @Test
@@ -51,17 +66,47 @@ class BuildApiContractTest {
                 .andExpect(status().isBadRequest());
         var filter =
                 new BuildFilter(ENVIRONMENT_ID, "repo-a", "feature/a", null, "service-cursor", 10);
-        when(gateway.listBuilds(filter)).thenReturn(new BuildPage(List.of(), "next-cursor"));
+        var first = new BuildFilter(ENVIRONMENT_ID, "repo-a", "feature/a", null, null, 10);
+        var visible = mock(BuildView.class);
+        when(visible.buildId()).thenReturn(build);
+        when(gateway.listBuilds(first))
+                .thenReturn(new BuildPage(List.of(visible), "service-cursor"));
+        when(gateway.listBuilds(filter)).thenReturn(new BuildPage(List.of(), null));
+        String response =
+                mvc.perform(
+                                get(ROOT + "/builds")
+                                        .param("repository", "repo-a")
+                                        .param("environmentId", ENVIRONMENT_ID.toString())
+                                        .param("branchName", "feature/a")
+                                        .param("limit", "10")
+                                        .header("Authorization", "Bearer " + TOKEN))
+                        .andExpect(status().isOk())
+                        .andReturn()
+                        .getResponse()
+                        .getContentAsString();
+        String cursor =
+                new com.fasterxml.jackson.databind.ObjectMapper()
+                        .readTree(response)
+                        .get("nextCursor")
+                        .asText();
+        assertThat(cursor).isNotEqualTo("service-cursor");
+        mvc.perform(
+                        get(ROOT + "/builds")
+                                .param("repository", "another-repo")
+                                .param("environmentId", ENVIRONMENT_ID.toString())
+                                .param("cursor", cursor)
+                                .header("Authorization", "Bearer " + TOKEN))
+                .andExpect(status().isUnprocessableEntity());
         mvc.perform(
                         get(ROOT + "/builds")
                                 .param("repository", "repo-a")
                                 .param("environmentId", ENVIRONMENT_ID.toString())
                                 .param("branchName", "feature/a")
-                                .param("cursor", "service-cursor")
+                                .param("cursor", cursor)
                                 .param("limit", "10")
                                 .header("Authorization", "Bearer " + TOKEN))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.nextCursor").value("next-cursor"));
+                .andExpect(jsonPath("$.nextCursor").isEmpty());
         verify(gateway).listBuilds(filter);
     }
 
@@ -129,7 +174,7 @@ class BuildApiContractTest {
             if (parameter.path("name").asText().equals("environmentId"))
                 assertThat(parameter.path("required").asBoolean()).isTrue();
         }
-        var actual = new java.util.TreeSet<String>();
+        var actual = new TreeSet<String>();
         mappings.getHandlerMethods()
                 .forEach(
                         (mapping, method) ->
@@ -141,7 +186,7 @@ class BuildApiContractTest {
                                                                 path.replace(
                                                                         "{view:source|lineage|native-details}",
                                                                         "{view}"))));
-        var declared = new java.util.TreeSet<String>();
+        var declared = new TreeSet<String>();
         document.path("paths")
                 .fieldNames()
                 .forEachRemaining(
@@ -186,12 +231,10 @@ class BuildApiContractTest {
                                 "a",
                                 null,
                                 null,
-                                new com.metricplatform.environment.EnvironmentContracts
-                                        .ExecutionSnapshot(
+                                new EnvironmentContracts.ExecutionSnapshot(
                                         ENVIRONMENT_ID,
                                         1,
-                                        new com.metricplatform.environment.EnvironmentContracts
-                                                .ConnectionTarget(
+                                        new EnvironmentContracts.ConnectionTarget(
                                                 "starrocks", "warehouse", "localhost", 9030, null),
                                         "warehouse-test",
                                         "default_catalog",

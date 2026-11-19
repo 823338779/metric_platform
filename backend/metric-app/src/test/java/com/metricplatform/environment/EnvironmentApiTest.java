@@ -6,8 +6,8 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.metricplatform.identity.TenantFixture;
 import com.metricplatform.identity.auth.PlatformAuthenticationService;
-import com.metricplatform.security.PlatformPrincipal;
 import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -15,16 +15,20 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.http.MediaType;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
 @SpringBootTest(
-        properties =
-                "EXECUTION_INSTANCES={\"warehouse\":{\"type\":\"starrocks\",\"hosts\":[\"localhost\",\"127.0.0.1\"],\"port\":9030}}")
+        properties = {
+            TenantFixture.TARGETS,
+            "EXECUTION_INSTANCES={\"warehouse\":{\"type\":\"starrocks\",\"hosts\":[\"localhost\",\"127.0.0.1\"],\"port\":9030}}"
+        })
 @AutoConfigureMockMvc
 @ActiveProfiles("test")
 class EnvironmentApiTest {
+    @Autowired JdbcTemplate jdbc;
     private static final String ROOT = "/api/dbt/environments";
     @Autowired MockMvc mvc;
     @MockitoBean PlatformAuthenticationService authentication;
@@ -46,17 +50,13 @@ class EnvironmentApiTest {
                                 post(ROOT)
                                         .header("Authorization", "Bearer environment-test")
                                         .contentType(MediaType.APPLICATION_JSON)
-                                        .content(
-                                                input(
-                                                        "env_"
-                                                                + UUID.randomUUID()
-                                                                        .toString()
-                                                                        .replace("-", ""))))
+                                        .content(input("env_api")))
                         .andExpect(status().isCreated())
                         .andReturn()
                         .getResponse()
                         .getContentAsString();
         String environment = mapper.readTree(created).path("environmentId").asText();
+        TenantFixture.bind(jdbc, UUID.fromString(environment), build);
         mvc.perform(
                         get(ROOT + "/" + environment + "/builds")
                                 .header("Authorization", "Bearer environment-test"))
@@ -109,7 +109,7 @@ class EnvironmentApiTest {
     @BeforeEach
     void login() {
         when(authentication.authenticate("environment-test"))
-                .thenReturn(new PlatformPrincipal(UUID.randomUUID(), "test", "Test", null, 1));
+                .thenReturn(TenantFixture.manager(jdbc));
     }
 
     static String input(String schema) {
@@ -128,7 +128,7 @@ class EnvironmentApiTest {
     @Test
     void createsEnvironmentWithoutSourceBindingAndRejectsDuplicatePhysicalTarget()
             throws Exception {
-        String body = input("env_" + UUID.randomUUID().toString().replace("-", ""));
+        String body = input("env_duplicate");
         var response =
                 mvc.perform(
                                 post(ROOT)

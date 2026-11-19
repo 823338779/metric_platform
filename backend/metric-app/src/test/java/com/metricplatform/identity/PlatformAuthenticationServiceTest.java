@@ -62,6 +62,8 @@ class PlatformAuthenticationServiceTest {
                         0,
                         null);
         when(identities.findByUsername("admin")).thenReturn(user);
+        when(identities.membership(userId))
+                .thenReturn(new PlatformIdentityRepository.Membership("tn_00001", true));
 
         var response = service.login(new AuthTokenRequest("admin", "admin"), "127.0.0.1");
 
@@ -73,7 +75,8 @@ class PlatformAuthenticationServiceTest {
         assertThat(
                         Arrays.stream(response.identity().getClass().getRecordComponents())
                                 .map(java.lang.reflect.RecordComponent::getName))
-                .containsExactly("identityId", "subject", "displayName", "authVersion");
+                .containsExactly(
+                        "identityId", "subject", "displayName", "authVersion", "tenant_id", "role");
 
         ArgumentCaptor<String> tokenHash = ArgumentCaptor.forClass(String.class);
         verify(identities)

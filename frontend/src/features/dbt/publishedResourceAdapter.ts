@@ -1,3 +1,4 @@
+import { getAccessToken } from '../../api/auth';
 import type {
   BuildCatalogApi,
   NativeCatalog,
@@ -119,7 +120,18 @@ export function catalogResources(catalog: NativeCatalog): PublishedResource[] {
 export function publishedResourceAdapter(api: BuildCatalogApi) {
   const catalogs = new Map<string, Promise<NativeCatalog>>();
   const resources = new Map<string, ReturnType<BuildCatalogApi['resource']>>();
+  // 同一浏览器切换账号时丢弃上一会话的目录和资源详情。
+  let sessionToken = getAccessToken();
+  function checkSession() {
+    const current = getAccessToken();
+    if (sessionToken !== current) {
+      catalogs.clear();
+      resources.clear();
+      sessionToken = current;
+    }
+  }
   const resource = async (_project: string, id: string, buildId: string) => {
+    checkSession();
     const key = JSON.stringify([buildId, id]);
     let pending = resources.get(key);
     if (!pending) {
@@ -141,6 +153,7 @@ export function publishedResourceAdapter(api: BuildCatalogApi) {
       size = 20,
       kind?: string,
     ) {
+      checkSession();
       let pending = catalogs.get(buildId);
       if (!pending) {
         pending = api.catalog(buildId);

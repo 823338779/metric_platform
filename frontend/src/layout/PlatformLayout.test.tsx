@@ -11,6 +11,19 @@ afterEach(() => {
 
 describe('PlatformLayout', () => {
   it('collapses navigation without losing fixed build destinations', () => {
+    saveAuthSession({
+      accessToken: 'fixture',
+      tokenType: 'Bearer',
+      expiresIn: 3600,
+      identity: {
+        identityId: 'manager',
+        subject: 'manager',
+        displayName: 'Manager',
+        authVersion: 1,
+        tenant_id: 'tn_00001',
+        role: 'TENANT_MANAGER',
+      },
+    });
     render(
       <MemoryRouter initialEntries={['/dbt/builds/build-123/query?resourceId=metric-1']}>
         <Routes>
@@ -39,7 +52,9 @@ describe('PlatformLayout', () => {
       </MemoryRouter>,
     );
     expect(screen.queryByRole('link', { name: '部署版本' })).toBeNull();
-    expect(screen.getByRole('link', { name: '执行环境' }).getAttribute('href')).toBe('/dbt/environments');
+    expect(screen.getByRole('link', { name: '执行环境' }).getAttribute('href')).toBe(
+      '/dbt/environments',
+    );
     expect(screen.queryByText('数据源')).toBeNull();
     expect(screen.queryByText('数据集')).toBeNull();
     expect(screen.queryByText('指标')).toBeNull();
@@ -57,6 +72,8 @@ describe('PlatformLayout', () => {
         subject: 'admin',
         displayName: 'Administrator',
         authVersion: 1,
+        tenant_id: 'tn_00001',
+        role: 'TENANT_MANAGER' as const,
       },
     });
 

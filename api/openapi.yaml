@@ -7,6 +7,50 @@ x-protocol-version: execution-snapshot
 x-supported-protocols:
   - execution-snapshot
 paths:
+  /api/ops/tenants:
+    post:
+      summary: 运维原子开通租户及唯一管理者
+      operationId: provisionTenant
+      security:
+      - operationsToken: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AuthTokenRequest'
+      responses:
+        '201':
+          description: 租户已开通
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [tenant_id]
+                properties:
+                  tenant_id: {type: string, pattern: '^tn_[0-9]{5}$'}
+        '401': {description: 运维凭据无效}
+        '403': {description: 缺少运维权限}
+        '409': {description: 登录名已占用或租户编号已耗尽}
+  /api/v1/tenant/accounts:
+    post:
+      summary: 租户管理者创建本租户只读账号
+      operationId: createTenantAccount
+      security: [{bearerAuth: []}]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/AuthTokenRequest'}
+      responses:
+        '201':
+          description: 只读账号已创建
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/IdentitySummary'}
+        '401': {description: 登录令牌无效}
+        '403': {description: 需要租户管理者权限}
+        '409': {description: 登录名已占用}
   /api/dbt/repository/branches:
     get:
       summary: 读取服务器全局绑定的 Git 仓库及其远端分支
@@ -34,6 +78,10 @@ paths:
           $ref: '#/components/responses/Problem'
         '502':
           $ref: '#/components/responses/Problem'
+        '403':
+          description: 当前身份无权执行此操作
+        '404':
+          description: 资源不存在或当前身份不可见
   /api/dbt/environments:
     get:
       summary: 列出执行环境（最多 200 项）
@@ -58,6 +106,8 @@ paths:
           $ref: '#/components/responses/Problem'
         '503':
           $ref: '#/components/responses/Problem'
+        '403':
+          description: 当前身份无权执行此操作
     post:
       summary: 创建不绑定源码的执行环境
       security:
@@ -81,6 +131,8 @@ paths:
           $ref: '#/components/responses/Problem'
         '503':
           $ref: '#/components/responses/Problem'
+        '403':
+          description: 当前身份无权执行此操作
       requestBody:
         required: true
         content:
@@ -111,6 +163,8 @@ paths:
           $ref: '#/components/responses/Problem'
         '503':
           $ref: '#/components/responses/Problem'
+        '403':
+          description: 当前身份无权执行此操作
       parameters:
       - &id001
         name: environmentId
@@ -142,6 +196,8 @@ paths:
           $ref: '#/components/responses/Problem'
         '503':
           $ref: '#/components/responses/Problem'
+        '403':
+          description: 当前身份无权执行此操作
       parameters:
       - *id001
       - name: expectedConfigVersion
@@ -180,6 +236,8 @@ paths:
           $ref: '#/components/responses/Problem'
         '503':
           $ref: '#/components/responses/Problem'
+        '403':
+          description: 当前身份无权执行此操作
       parameters:
         - *id001
       requestBody:
@@ -211,6 +269,8 @@ paths:
           $ref: '#/components/responses/Problem'
         '503':
           $ref: '#/components/responses/Problem'
+        '403':
+          description: 当前身份无权执行此操作
       parameters:
         - *id001
         - name: repository
@@ -265,6 +325,8 @@ paths:
           $ref: '#/components/responses/Problem'
         '503':
           $ref: '#/components/responses/Problem'
+        '403':
+          description: 当前身份无权执行此操作
       parameters:
         - &id002
           name: buildId
@@ -297,6 +359,8 @@ paths:
           $ref: '#/components/responses/Problem'
         '503':
           $ref: '#/components/responses/Problem'
+        '403':
+          description: 当前身份无权执行此操作
       parameters:
       - name: buildId
         in: path
@@ -1759,7 +1823,11 @@ components:
       - subject
       - displayName
       - authVersion
+      - tenant_id
+      - role
       properties:
+        tenant_id: {type: string, pattern: '^tn_[0-9]{5}$'}
+        role: {type: string, enum: [TENANT_MANAGER, READ_ONLY]}
         identityId:
           $ref: '#/components/schemas/Uuid'
         subject:
@@ -2269,6 +2337,10 @@ components:
       - rows
       - resultTruncated
   securitySchemes:
+    operationsToken:
+      type: apiKey
+      in: header
+      name: X-Operations-Token
     bearerAuth:
       type: http
       scheme: bearer

@@ -9,20 +9,50 @@ import com.metricplatform.persistence.redis.RedisAccessTokenStore;
 import com.metricplatform.persistence.service.AuditEventPersistenceService;
 import com.metricplatform.persistence.service.PlatformAccessTokenPersistenceService;
 import com.metricplatform.persistence.service.PlatformUserPersistenceService;
+
+import lombok.RequiredArgsConstructor;
+
+import org.springframework.beans.factory.ObjectProvider;
+import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.stereotype.Repository;
+
 import java.time.Instant;
 import java.util.UUID;
-import lombok.RequiredArgsConstructor;
-import org.springframework.beans.factory.ObjectProvider;
-import org.springframework.stereotype.Repository;
 
 /** 使用 IService 保存身份、令牌和审计记录，Redis 可用时保存短期令牌。 */
 @Repository
 @RequiredArgsConstructor
 public class PlatformIdentityStore implements PlatformIdentityRepository {
+    /** 在账号创建事务内分配租户并绑定管理者。 */
+    private static final String CREATE_TENANT =
+            """
+            insert into platform_tenant(tenant_id,manager_id)
+            values ('tn_' || lpad(nextval('tenant_number')::text,5,'0'),?) returning tenant_id
+            """;
+
+    private final JdbcTemplate jdbc;
     private final PlatformUserPersistenceService users;
+
+    public String createTenant(UUID managerId) {
+        return jdbc.queryForObject(CREATE_TENANT, String.class, managerId);
+    }
+
     private final PlatformAccessTokenPersistenceService tokens;
     private final AuditEventPersistenceService events;
     private final ObjectProvider<RedisAccessTokenStore> redisTokens;
+
+    private static final String MEMBERSHIP =
+            """
+            select u.tenant_id, t.manager_id=u.id from platform_user u
+            join platform_tenant t using(tenant_id) where u.id=? and not u.is_deleted
+            """;
+
+    public Membership membership(UUID accountId) {
+        return jdbc.queryForObject(
+                MEMBERSHIP,
+                (row, index) -> new Membership(row.getString(1), row.getBoolean(2)),
+                accountId);
+    }
 
     public User findByUsername(String username) {
         return user(
@@ -45,6 +75,7 @@ public class PlatformIdentityStore implements PlatformIdentityRepository {
     public void createUser(NewUser value) {
         PlatformUserEntity user = new PlatformUserEntity();
         user.setId(value.id());
+        user.setTenantId(value.tenantId());
         user.setUsername(value.username());
         user.setDisplayName(value.displayName());
         user.setPasswordHash(value.passwordHash());

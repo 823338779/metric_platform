@@ -6,6 +6,8 @@ const identity = {
   subject: 'fixture',
   displayName: '演示账号',
   authVersion: 1,
+  tenant_id: 'tn_00001',
+  role: 'TENANT_MANAGER' as const,
 };
 const VERSION = 'release-a';
 const BRANCH = 'production-branch';

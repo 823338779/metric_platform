@@ -118,7 +118,7 @@ test('resource tree navigation, readable lineage and versioned YAML work on desk
   const splitter = page.getByRole('separator', { name: '调整资源树宽度' });
   await splitter.focus();
   await splitter.press('ArrowRight');
-  await expect(splitter).toHaveAttribute('aria-valuenow', '308');
+  await expect(splitter).toHaveAttribute('aria-valuenow', '284');
   await expect(page.getByRole('treeitem', { name: /fct_order_items$/ })).toHaveCount(0);
   await page.goBack();
   await expect(page.getByRole('heading', { name: 'units_sold' })).toBeVisible();

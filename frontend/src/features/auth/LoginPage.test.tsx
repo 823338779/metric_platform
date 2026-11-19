@@ -36,7 +36,14 @@ it.each(['catalog', 'query'])('returns to the fixed build %s after login', async
     accessToken: TOKEN,
     tokenType: 'Bearer',
     expiresIn: 3600,
-    identity: { identityId: USER, subject: USER, displayName: USER, authVersion: 1 },
+    identity: {
+      identityId: USER,
+      subject: USER,
+      displayName: USER,
+      authVersion: 1,
+      tenant_id: 'tn_00001',
+      role: 'TENANT_MANAGER' as const,
+    },
   });
   const destination = `/dbt/builds/${BUILD}/${page}?metricResourceId=opaque`;
   render(

@@ -18,7 +18,7 @@ class EnvironmentRepositoryBindingTest {
         var command =
                 new SubmitBuildCommand(
                         "https://other.test/metrics.git", "main", null, 1, "ON_SUCCESS", "key");
-        assertThatThrownBy(() -> service.submit(UUID.randomUUID(), command, UUID.randomUUID()))
+        assertThatThrownBy(() -> service.submit(UUID.randomUUID(), command, null))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessage("仅允许使用服务器绑定的 Git 仓库");
         verifyNoInteractions(submissions, gateway);

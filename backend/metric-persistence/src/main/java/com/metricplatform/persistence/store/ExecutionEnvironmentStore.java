@@ -11,6 +11,8 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Repository;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.sql.ResultSet;
+import java.sql.SQLException;
 import java.util.List;
 import java.util.NoSuchElementException;
 import java.util.UUID;
@@ -19,27 +21,30 @@ import java.util.UUID;
 @Repository
 public class ExecutionEnvironmentStore implements EnvironmentStore {
     private static final String INSERT =
-            "insert into execution_environment(environment_id,name,config_version) values(?,?,1)";
+            "insert into execution_environment(tenant_id,environment_id,name,config_version)"
+                + " values(?,?,?,1)";
     private static final String UPDATE =
             "update execution_environment set name=?,config_version=?,updated_at=CURRENT_TIMESTAMP"
-                + " where environment_id=?";
+                    + " where environment_id=?";
     private static final String LOCK =
-            "select config_version from execution_environment where environment_id=? for update";
+            "select config_version from execution_environment where tenant_id=? and"
+                + " environment_id=? for update";
     private static final String VERSION =
             "insert into execution_environment_version(environment_id,config_version,execution)"
-                + " values(?,?,?::jsonb)";
+                    + " values(?,?,?::jsonb)";
     private static final String RESERVE =
             "insert into"
                 + " execution_namespace_owner(instance_id,adapter_type,catalog_name,schema_name,environment_id)"
                 + " values(?,?,?,?,?) on conflict do nothing";
     private static final String OWNER =
             "select environment_id from execution_namespace_owner where instance_id=? and"
-                + " adapter_type=? and catalog_name=? and schema_name=?";
+                    + " adapter_type=? and catalog_name=? and schema_name=?";
     private static final String READ =
             "select e.environment_id,e.name,e.config_version,v.execution::text from"
-                + " execution_environment e join execution_environment_version v"
-                + " using(environment_id,config_version)";
-    private static final String BY_ID = " where e.environment_id=?",
+                    + " execution_environment e join execution_environment_version v"
+                    + " using(environment_id,config_version)";
+    private static final String TENANT_FILTER = " where e.tenant_id=?";
+    private static final String BY_ID = " where e.tenant_id=? and e.environment_id=?",
             ORDER = " order by e.created_at,e.environment_id limit 200";
 
     /** 平台持久连接。 */
@@ -54,16 +59,17 @@ public class ExecutionEnvironmentStore implements EnvironmentStore {
 
     @Override
     @Transactional
-    public EnvironmentView create(EnvironmentInput input) {
+    public EnvironmentView create(String tenant, EnvironmentInput input) {
         UUID id = UUID.randomUUID();
-        jdbc.update(INSERT, id, input.name());
+        jdbc.update(INSERT, tenant, id, input.name());
         return save(id, 1, input);
     }
 
     @Override
     @Transactional
-    public EnvironmentView update(UUID id, long expectedVersion, EnvironmentInput input) {
-        var versions = jdbc.query(LOCK, (rs, index) -> rs.getLong(1), id);
+    public EnvironmentView update(
+            String tenant, UUID id, long expectedVersion, EnvironmentInput input) {
+        var versions = jdbc.query(LOCK, (rs, index) -> rs.getLong(1), tenant, id);
         if (versions.isEmpty()) throw new NoSuchElementException("环境不存在");
         if (versions.getFirst() != expectedVersion) throw conflict("ENVIRONMENT_VERSION_CONFLICT");
         long version = expectedVersion + 1;
@@ -99,18 +105,18 @@ public class ExecutionEnvironmentStore implements EnvironmentStore {
     }
 
     @Override
-    public EnvironmentView get(UUID id) {
-        var rows = jdbc.query(READ + BY_ID, this::read, id);
+    public EnvironmentView get(String tenant, UUID id) {
+        var rows = jdbc.query(READ + BY_ID, this::read, tenant, id);
         if (rows.isEmpty()) throw new NoSuchElementException("环境不存在");
         return rows.getFirst();
     }
 
     @Override
-    public List<EnvironmentView> list() {
-        return jdbc.query(READ + ORDER, this::read);
+    public List<EnvironmentView> list(String tenant) {
+        return jdbc.query(READ + TENANT_FILTER + ORDER, this::read, tenant);
     }
 
-    private EnvironmentView read(java.sql.ResultSet row, int index) throws java.sql.SQLException {
+    private EnvironmentView read(ResultSet row, int index) throws SQLException {
         try {
             return new EnvironmentView(
                     row.getObject(1, UUID.class),

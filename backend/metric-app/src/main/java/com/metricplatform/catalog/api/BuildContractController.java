@@ -2,11 +2,9 @@ package com.metricplatform.catalog.api;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
-
-import org.springframework.web.bind.annotation.*;
-
 import java.util.LinkedHashMap;
 import java.util.Map;
+import org.springframework.web.bind.annotation.*;
 
 /** 使用打包的同一 OpenAPI 供部署前核对，不读取本机源码目录。 */
 @RestController
