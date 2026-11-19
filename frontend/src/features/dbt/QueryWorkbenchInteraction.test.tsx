@@ -1,6 +1,7 @@
 import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { afterEach, beforeAll, expect, it, vi } from 'vitest';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
+import * as auth from '../../api/auth';
 import { PublishedWorkbench } from './PublishedWorkbench';
 
 afterEach(cleanup);
@@ -278,4 +279,65 @@ it('未授权的指标和维度显示原因且无法加入查询', async () => {
   fireEvent.click(dimension);
   expect(dimension.getAttribute('aria-pressed')).toBe('false');
   expect(within(group).getByRole('button', { name: '地区' }).hasAttribute('disabled')).toBe(false);
+});
+
+it('旧版接口缺少 granted 时按只读账号的模型和维度授权禁用下拉项', async () => {
+  const session = vi
+    .spyOn(auth, 'getAuthSession')
+    .mockReturnValue({ identity: { role: 'READ_ONLY' } } as auth.AuthSession);
+  try {
+    const api = page();
+    api.catalog.mockResolvedValue([
+      {
+        unique_id: 'metric-id',
+        resource_type: 'metric',
+        name: 'revenue',
+        label: '销售额',
+        granted: true,
+      },
+      ...['orders', 'customers'].map((model) => ({
+        unique_id: model,
+        resource_type: 'dimension',
+        name: 'region',
+        semanticModelName: model,
+        granted: model === 'customers',
+      })),
+    ]);
+    api.availableDimensions.mockResolvedValue({
+      buildId: 'A',
+      dimensions: [
+        {
+          optionId: 't',
+          name: 'metric_time',
+          displayName: 'metric_time',
+          granularities: ['day'],
+          operators: [],
+        },
+        ...['orders', 'customers', 'unknown'].map((model) => ({
+          optionId: model,
+          name: 'region',
+          displayName: model,
+          semanticModelName: model,
+          granularities: [],
+          operators: ['='],
+        })),
+      ],
+    });
+    fireEvent.click(await screen.findByRole('checkbox', { name: '销售额' }));
+    await screen.findByRole('button', { name: 'metric_time时间粒度' });
+    const add = screen.getByRole('button', { name: '添加分组维度' });
+    if (add.getAttribute('aria-expanded') !== 'true') fireEvent.click(add);
+    const menu = within(await screen.findByRole('region', { name: '选择分组维度' }));
+    for (const model of ['orders', 'unknown']) {
+      const option = menu.getByRole('button', { name: model });
+      expect(option.hasAttribute('disabled')).toBe(true);
+      expect(within(option).getByText('无权限')).toBeTruthy();
+      fireEvent.click(option);
+      expect(option.getAttribute('aria-pressed')).toBe('false');
+    }
+    expect(menu.getByRole('button', { name: 'customers' }).hasAttribute('disabled')).toBe(false);
+    expect(menu.getByRole('button', { name: 'metric_time' }).hasAttribute('disabled')).toBe(false);
+  } finally {
+    session.mockRestore();
+  }
 });

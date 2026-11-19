@@ -13,6 +13,7 @@ import { catalogResources, publishedResult } from './publishedResourceAdapter';
 import { businessTimeToIso } from './businessTime';
 import { useEffect, useRef, useState } from 'react';
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
+import { getAuthSession } from '../../api/auth';
 import { ApiProblem } from '../../api/httpClient';
 import {
   buildCatalogApi,
@@ -25,6 +26,7 @@ import {
 } from '../../api/buildCatalogApi';
 
 const EMPTY = '';
+const SYSTEM_TIME = 'metric_time';
 const QUERY = 'QUERY';
 const EXPLAIN = 'EXPLAIN';
 const PREVIEW = 'PREVIEW';
@@ -63,6 +65,7 @@ function FixedPublishedWorkbench({ api }: { api: BuildCatalogApi }) {
   const [submittedMode, setSubmittedMode] = useState<PublishedQuery['mode']>(QUERY);
   const [submittedMetrics, setSubmittedMetrics] = useState<string[]>([]);
   const [metrics, setMetrics] = useState<PublishedResource[]>([]);
+  const [dimensionGrants, setDimensionGrants] = useState<Map<string, boolean>>(new Map());
   const [selected, setSelected] = useState<string[]>([]);
   const [groups, setGroups] = useState<string[]>([]);
   const [grains, setGrains] = useState<Record<string, string>>({});
@@ -177,6 +180,15 @@ function FixedPublishedWorkbench({ api }: { api: BuildCatalogApi }) {
           const catalog = await api.catalog(buildId);
           const all = catalogResources(catalog).filter((item) => item.kind === 'METRIC');
           if (turn !== generation.current) return;
+          // 旧版维度选项缺少 granted，使用同一构建目录内模型与维度的联合身份。
+          const grants = new Map<string, boolean>();
+          for (const node of catalog) {
+            if (node.resource_type !== 'dimension' || !node.semanticModelName || !node.name)
+              continue;
+            const key = JSON.stringify([node.semanticModelName, node.name]);
+            grants.set(key, !grants.has(key) && node.granted === true);
+          }
+          setDimensionGrants(grants);
           setMetrics(all);
           setSelected((previous) =>
             previous.filter((id) =>
@@ -217,9 +229,20 @@ function FixedPublishedWorkbench({ api }: { api: BuildCatalogApi }) {
     function observe(value: Awaited<ReturnType<BuildCatalogApi['availableDimensions']>>) {
       if (!active) return;
       if (value.buildId !== buildId) throw new Error('选项版本不匹配');
-      setAvailableDimensions(value.dimensions);
-      const metricTime = value.dimensions.find(
-        (option) => option.displayName === 'metric_time' && option.granted !== false,
+      const reader = getAuthSession()?.identity.role === 'READ_ONLY';
+      const options = value.dimensions.map((option) => {
+        if (typeof option.granted === 'boolean' || !reader) return option;
+        const systemTime = option.name === SYSTEM_TIME && option.semanticModelName == null;
+        return {
+          ...option,
+          granted:
+            systemTime ||
+            dimensionGrants.get(JSON.stringify([option.semanticModelName, option.name])) === true,
+        };
+      });
+      setAvailableDimensions(options);
+      const metricTime = options.find(
+        (option) => option.displayName === SYSTEM_TIME && option.granted !== false,
       );
       if (metricTime) {
         const id = metricTime.optionId;
@@ -239,7 +262,7 @@ function FixedPublishedWorkbench({ api }: { api: BuildCatalogApi }) {
     return () => {
       active = false;
     };
-  }, [api, buildId, selected, metrics]);
+  }, [api, buildId, selected, metrics, dimensionGrants]);
 
   async function submit(mode: PublishedQuery['mode'], resourceId?: string) {
     const turn = submissionGeneration.current;
