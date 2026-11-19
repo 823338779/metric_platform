@@ -15,7 +15,8 @@ type CatalogApi = { queryParameter?: 'metricResourceId' } & Pick<
 > &
   Partial<MetricPlatformApi>;
 
-const ALL = 'ALL';
+const DEFAULT_KIND = 'METRIC';
+const PAGE_SIZE = 100;
 const OTHER = 'OTHER';
 const RESOURCE_PARAM = 'resourceId';
 const COPY = {
@@ -24,13 +25,11 @@ const COPY = {
   explorer: '项目资源',
   empty: '选择一个资源开始探索',
   emptyHint: '展开左侧目录，查看资源的定义、血缘与源码。',
-  more: '加载更多资源',
-  noResources: '该版本没有可展示资源',
+  noResources: '该类型暂无资源',
   noMatches: '没有匹配的资源',
   noMatchesHint: '尝试其他关键词，或切换资源类型。',
   search: '搜索资源',
   filters: '资源栏目',
-  all: '全部资源',
   other: '其他资源',
   retry: '重试',
   browse: '浏览资源类型',
@@ -49,7 +48,6 @@ const labels: Record<string, string> = {
   VIEW: '视图',
 };
 const filters = [
-  { key: ALL, label: COPY.all },
   ...Object.entries(labels).map(([key, label]) => ({ key, label })),
   { key: OTHER, label: COPY.other },
 ];
@@ -67,7 +65,7 @@ export function DbtCatalogPage({
   const { projectId = '', buildId: routeBuildId } = useParams();
   const [params, setParams] = useSearchParams();
   const requestedBuild = routeBuildId ?? params.get('buildId') ?? '';
-  const [catalog, setCatalog] = useState<DbtCatalog>();
+  const [catalog, setCatalog] = useState<Pick<DbtCatalog, 'buildId' | 'resources' | 'total'>>();
   const selected = params.get(RESOURCE_PARAM) ?? '';
   const setSelected = (id: string) =>
     setParams((current) => {
@@ -78,40 +76,23 @@ export function DbtCatalogPage({
     });
   const [located, setLocated] = useState<DbtResource>();
   const [search, setSearch] = useState('');
-  const kind = params.get('kind') ?? undefined;
-  const [page, setPage] = useState(0);
+  const kind = filters.find((filter) => filter.key === params.get(KIND_PARAM))?.key ?? DEFAULT_KIND;
   const [loadAttempt, setLoadAttempt] = useState(0);
-  const catalogScope = useRef('');
   const [treeWidth, setTreeWidth] = useState(268);
   const splitter = useRef<{ x: number; width: number } | undefined>(undefined);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const changeKind = (value: string) => {
-    setPage(0);
     setParams((current) => {
       const next = new URLSearchParams(current);
       next.delete(RESOURCE_PARAM);
-      if (value === ALL) next.delete(KIND_PARAM);
-      else next.set(KIND_PARAM, value);
+      next.set(KIND_PARAM, value);
       return next;
     });
   };
   useEffect(() => {
     let active = true;
-    // 浏览器历史也能改变筛选；新范围必须从第一页读取，不能合并旧范围的资源。
-    const scope = JSON.stringify([projectId, requestedBuild, kind, search]);
-    if (catalogScope.current !== scope) {
-      catalogScope.current = scope;
-      setCatalog(undefined);
-      if (page !== 0) {
-        setPage(0);
-        setLoading(false);
-        return () => {
-          active = false;
-        };
-      }
-    }
-    if (page === 0) setCatalog(undefined);
+    setCatalog(undefined);
     setError('');
     if (!requestedBuild) {
       setError('缺少发布版本 buildId');
@@ -119,45 +100,39 @@ export function DbtCatalogPage({
         active = false;
       };
     }
-    // 展示适配器对固定资源列表本地分页；其他资源遍历后筛选，避免漏掉后续页。
+    // 聚合当前类型的所有页后一次显示。其他资源须从完整目录中筛选未知类型。
     setLoading(true);
     const loadCatalog = async () => {
-      if (kind !== OTHER)
-        return api.getDbtCatalog(projectId, requestedBuild, search, page, 20, kind);
       const resources: DbtResource[] = [];
-      for (let index = 0; active; index++) {
-        const value = await api.getDbtCatalog(projectId, requestedBuild, search, index, 100);
-        if (value.buildId !== requestedBuild) throw new Error('目录版本与请求不一致');
-        resources.push(...value.resources.filter((resource) => !labels[resource.kind]));
-        if (value.resources.length < 100 || (index + 1) * 100 >= value.total) break;
+      for (let page = 0; active; page++) {
+        const result = await api.getDbtCatalog(
+          projectId,
+          requestedBuild,
+          search,
+          page,
+          PAGE_SIZE,
+          kind === OTHER ? undefined : kind,
+        );
+        if (!active) return;
+        if (result.buildId !== requestedBuild) {
+          setError('目录版本与请求不一致');
+          return;
+        }
+        resources.push(
+          ...result.resources.filter((resource) =>
+            kind === OTHER ? !Object.hasOwn(labels, resource.kind) : resource.kind === kind,
+          ),
+        );
+        if (!result.resources.length || (page + 1) * result.size >= result.total) break;
       }
-      return {
-        buildId: requestedBuild,
-        page,
-        size: 20,
-        total: resources.length,
-        resources: resources.slice(page * 20, (page + 1) * 20),
-      };
+      if (active)
+        setCatalog({
+          buildId: requestedBuild,
+          total: resources.length,
+          resources,
+        });
     };
     void loadCatalog()
-      .then((value) => {
-        if (active && value.buildId === requestedBuild)
-          setCatalog((previous) => ({
-            ...value,
-            resources:
-              page > 0 && previous?.buildId === value.buildId
-                ? [
-                    ...new Map(
-                      [...previous.resources, ...value.resources].map((resource) => [
-                        resource.resourceId,
-                        resource,
-                      ]),
-                    ).values(),
-                  ]
-                : value.resources,
-          }));
-        else if (active) setError('目录版本与请求不一致');
-      })
       .catch((cause: unknown) => {
         if (active)
           setError(
@@ -172,7 +147,7 @@ export function DbtCatalogPage({
     return () => {
       active = false;
     };
-  }, [api, projectId, requestedBuild, search, page, kind, loadAttempt]);
+  }, [api, projectId, requestedBuild, search, kind, loadAttempt]);
   useEffect(() => {
     setLocated(undefined);
     if (
@@ -186,7 +161,18 @@ export function DbtCatalogPage({
     void api
       .getDbtResource(projectId, selected, requestedBuild)
       .then((resource) => {
-        if (active && resource.resourceId === selected) setLocated(resource);
+        if (!active || resource.resourceId !== selected) return;
+        const targetKind = Object.hasOwn(labels, resource.kind) ? resource.kind : OTHER;
+        if (targetKind === kind) setLocated(resource);
+        else
+          setParams(
+            (current) => {
+              const next = new URLSearchParams(current);
+              next.set(KIND_PARAM, targetKind);
+              return next;
+            },
+            { replace: true },
+          );
       })
       .catch(() => {
         if (active) setError('资源定位失败，请重试');
@@ -194,7 +180,7 @@ export function DbtCatalogPage({
     return () => {
       active = false;
     };
-  }, [api, catalog, projectId, requestedBuild, selected]);
+  }, [api, catalog, projectId, requestedBuild, selected, kind, setParams]);
   const resources = useMemo(
     () => (catalog ? (located ? [...catalog.resources, located] : catalog.resources) : []),
     [catalog, located],
@@ -239,7 +225,6 @@ export function DbtCatalogPage({
               aria-label={COPY.search}
               allowClear
               onSearch={(value) => {
-                setPage(0);
                 setSearch(value);
                 setSelected('');
               }}
@@ -251,9 +236,9 @@ export function DbtCatalogPage({
                   id={FILTER_ID + filter.key}
                   type="button"
                   role="tab"
-                  aria-selected={(kind ?? ALL) === filter.key}
+                  aria-selected={kind === filter.key}
                   aria-controls={FILTER_PANEL}
-                  tabIndex={(kind ?? ALL) === filter.key ? 0 : -1}
+                  tabIndex={kind === filter.key ? 0 : -1}
                   onClick={() => changeKind(filter.key)}
                   onKeyDown={(event) => {
                     if (!FILTER_KEYS.includes(event.key)) return;
@@ -278,7 +263,7 @@ export function DbtCatalogPage({
             className="catalog-resource-panel"
             id={FILTER_PANEL}
             role="tabpanel"
-            aria-labelledby={FILTER_ID + (kind ?? ALL)}
+            aria-labelledby={FILTER_ID + kind}
             aria-busy={loading}
           >
             <ResourceTree
@@ -291,34 +276,20 @@ export function DbtCatalogPage({
               buildId={requestedBuild}
             />
             {catalog?.total === 0 && (
-              <p className="catalog-no-results">
-                {search || kind ? COPY.noMatches : COPY.noResources}
-              </p>
+              <p className="catalog-no-results">{search ? COPY.noMatches : COPY.noResources}</p>
             )}
           </div>
-          <div className="catalog-explorer-footer">
-            {actions}
-            {projectId && requestedBuild && (
-              <details className="explorer-release">
-                <summary>发布版本信息</summary>
-                <p title={requestedBuild}>buildId：{requestedBuild}</p>
-              </details>
-            )}
-            <span>
-              已加载 {catalog?.resources.length ?? 0} / {catalog?.total ?? 0} 项
-            </span>
-            {catalog && catalog.resources.length < catalog.total && (
-              <Button
-                loading={loading}
-                onClick={() => {
-                  setPage(catalog.page + 1);
-                  setLoadAttempt((value) => value + 1);
-                }}
-              >
-                {COPY.more}
-              </Button>
-            )}
-          </div>
+          {(actions || (projectId && requestedBuild)) && (
+            <div className="catalog-explorer-footer">
+              {actions}
+              {projectId && requestedBuild && (
+                <details className="explorer-release">
+                  <summary>发布版本信息</summary>
+                  <p title={requestedBuild}>buildId：{requestedBuild}</p>
+                </details>
+              )}
+            </div>
+          )}
         </aside>
         <div
           className="catalog-splitter"

@@ -34,6 +34,7 @@ test('两级目录、来源切换、版本侧栏和响应式工作区保留固�
   await page.setViewportSize({ width: 1440, height: 1000 });
   await page.emulateMedia({ reducedMotion: 'reduce' });
   await page.goto(ROOT);
+  await page.getByRole('tab', { name: '数据表', exact: true }).click();
   const tree = page.getByRole('tree', { name: '资源树' });
   const orders = tree.getByRole('treeitem', { name: TABLE, exact: true });
   await expect(orders).toHaveAttribute('aria-level', '2');
@@ -86,9 +87,9 @@ test('两级目录、来源切换、版本侧栏和响应式工作区保留固�
   await expect(context).toBeVisible();
   await page.getByRole('button', { name: '收起版本上下文' }).click();
   await page.getByText('按来源', { exact: true }).click();
-  const all = page.getByRole('tab', { name: '全部资源', exact: true });
-  await all.focus();
-  await all.press('ArrowRight');
+  const dimension = page.getByRole('tab', { name: '维度', exact: true });
+  await dimension.focus();
+  await dimension.press('ArrowLeft');
   await expect(page.getByRole('tab', { name: '指标', exact: true })).toHaveAttribute(
     'aria-selected',
     'true',

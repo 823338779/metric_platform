@@ -197,12 +197,13 @@ test('已授权指标可从资源目录查询，撤权后显示整条查询的�
   await expect(page.getByRole('button', { name: '重新构建' })).toHaveCount(0);
   await expect(page.getByRole('button', { name: '编辑配置' })).toHaveCount(0);
   await page.getByRole('link', { name: '进入构建 ' + build }).click();
-  for (const [name, access] of [
-    ['cost', '无权限'],
-    ['region', '无权限'],
-    ['orders', '有权限'],
-    ['sales', '有权限'],
+  for (const [type, name, access] of [
+    ['指标', 'cost', '无权限'],
+    ['维度', 'region', '无权限'],
+    ['数据表', 'orders', '有权限'],
+    ['指标', 'sales', '有权限'],
   ]) {
+    await page.getByRole('tab', { name: type, exact: true }).click();
     await expect(
       page
         .locator('.resource-tree-leaf')

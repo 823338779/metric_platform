@@ -1,6 +1,6 @@
 import { expect, test } from '@playwright/test';
 import { buildFixture, BUILD_A } from '../e2e-publication/build-fixture';
-test('目录分页、固定构建查询、时间序列与SQL解释', async ({ page }) => {
+test('完整指标目录、固定构建查询、时间序列与SQL解释', async ({ page }) => {
   const sql = 'select sum(amount) as revenue from orders';
   const fixture = await buildFixture(page, {
     resources: [
@@ -48,7 +48,7 @@ test('目录分页、固定构建查询、时间序列与SQL解释', async ({ pa
           },
   });
   await page.goto(`/dbt/builds/${BUILD_A}/catalog`);
-  await page.getByRole('button', { name: '加载更多资源' }).click();
+  await expect(page.getByRole('button', { name: '加载更多资源' })).toHaveCount(0);
   await expect(page.getByRole('treeitem', { name: /order_count/ })).toBeVisible();
   await page.getByRole('treeitem', { name: /revenue/ }).click();
   await page.getByRole('button', { name: '开始分析' }).click();
