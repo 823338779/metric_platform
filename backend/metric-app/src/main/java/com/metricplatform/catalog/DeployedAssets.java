@@ -6,15 +6,19 @@ import com.metricplatform.catalog.AssetGrantRepository.Entry;
 import com.metricplatform.catalog.BuildContracts.*;
 import com.metricplatform.environment.AssetOwnership;
 import com.metricplatform.identity.TenantScope;
-import java.util.*;
-import java.util.regex.Pattern;
+
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+
 import org.springframework.http.HttpStatus;
 import org.springframework.scheduling.annotation.EnableScheduling;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import org.springframework.web.server.ResponseStatusException;
+
+import java.util.*;
+import java.util.regex.Pattern;
+import java.util.stream.Collectors;
 
 /** 从服务实际生效部署登记资产；调度和按需发现使用相同路径。 */
 @Slf4j
@@ -45,18 +49,36 @@ public class DeployedAssets {
     public void reconcile() {
         for (String tenant : store.tenants()) {
             try (var scope = TenantScope.open(tenant)) {
-                discover();
-                for (var key : store.targets()) {
-                    try {
-                        current(key);
-                    } catch (RuntimeException ex) {
-                        log.warn("资产登记待重试，环境 {}", key.environmentId(), ex);
-                    }
-                }
+                refreshCatalog();
             } catch (RuntimeException ex) {
                 log.warn("租户资产发现待重试 {}", tenant, ex);
             }
         }
+    }
+
+    void refreshCatalog() {
+        long sequence = store.nextScan();
+        discover();
+        var environments =
+                store.targets().stream()
+                        .collect(Collectors.groupingBy(DeploymentKey::environmentId));
+        // 每轮对一个环境只发布一次观察，旧分支的空指针不能覆盖新分支的生效构建。
+        environments.forEach(
+                (environment, targets) -> {
+                    UUID active = null;
+                    boolean complete = true;
+                    for (var target : targets) {
+                        try {
+                            active = current(target);
+                            if (active != null) break;
+                        } catch (RuntimeException ex) {
+                            complete = false;
+                            log.warn("资产登记待重试，环境 {}", environment, ex);
+                        }
+                    }
+                    // 只用完整的否定结果清空观察，临时故障保留上次成功读取的目录。
+                    if (active != null || complete) store.observe(environment, active, sequence);
+                });
     }
 
     public void discover() {

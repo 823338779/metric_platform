@@ -32,13 +32,18 @@ public class TenantAssets {
 
     public void requireBuild(UUID build) {
         var actor = PlatformPrincipal.current();
-        if (!actor.manager() || !ownership.hasBuild(actor.tenantId(), build)) throw missing();
+        if (!actor.manager()) throw missing();
+        requireTenantBuild(build);
+    }
+
+    /** 工作区允许查看本租户构建的版本信息，源码和日志仍单独限制。 */
+    public void requireTenantBuild(UUID build) {
+        if (!ownership.hasBuild(PlatformPrincipal.current().tenantId(), build)) throw missing();
     }
 
     public void requireEnvironment(UUID environment) {
         var actor = PlatformPrincipal.current();
-        if (!actor.manager() || !ownership.hasEnvironment(actor.tenantId(), environment))
-            throw missing();
+        if (!ownership.hasEnvironment(actor.tenantId(), environment)) throw missing();
     }
 
     public boolean visible(UUID environment, UUID build) {
@@ -59,7 +64,6 @@ public class TenantAssets {
             Function<String, Page<T>> fetch,
             Predicate<T> visible,
             String... scope) {
-        if (!PlatformPrincipal.current().manager()) return new Page<>(List.of(), null);
         requireEnvironment(environment);
         var secret = ownership.cursorSecret(PlatformPrincipal.current().tenantId());
         String remote = cursor == null ? null : decode(cursor, secret, environment, scope);

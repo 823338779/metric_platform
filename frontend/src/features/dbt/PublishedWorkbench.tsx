@@ -14,7 +14,6 @@ import { businessTimeToIso } from './businessTime';
 import { useEffect, useRef, useState } from 'react';
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { ApiProblem } from '../../api/httpClient';
-import { getAuthSession } from '../../api/auth';
 import {
   buildCatalogApi,
   type BuildCatalogApi,
@@ -31,6 +30,7 @@ const EXPLAIN = 'EXPLAIN';
 const PREVIEW = 'PREVIEW';
 const DIMENSION_VALUES = 'DIMENSION_VALUES';
 const COPY = {
+  unavailable: '此构建的产物不可用。请在执行环境中选择当前部署版本。',
   context: '版本与执行环境',
   description: '选择指标，组合维度，探索数据背后的变化。',
   conditions: '查询条件',
@@ -52,7 +52,6 @@ export function PublishedWorkbench({ api = buildCatalogApi }: { api?: BuildCatal
   return <FixedPublishedWorkbench key={buildId} api={api} />;
 }
 function FixedPublishedWorkbench({ api }: { api: BuildCatalogApi }) {
-  const reader = getAuthSession()?.identity.role === 'READ_ONLY';
   const { projectId = EMPTY, buildId: routeBuildId } = useParams();
   const navigate = useNavigate();
   const [params] = useSearchParams();
@@ -101,7 +100,7 @@ function FixedPublishedWorkbench({ api }: { api: BuildCatalogApi }) {
   });
 
   useEffect(() => {
-    if (!buildId || reader) return;
+    if (!buildId) return;
     let active = true;
     let timer: ReturnType<typeof setTimeout> | undefined;
     async function read() {
@@ -129,7 +128,7 @@ function FixedPublishedWorkbench({ api }: { api: BuildCatalogApi }) {
       active = false;
       if (timer) clearTimeout(timer);
     };
-  }, [api, buildId, reader]);
+  }, [api, buildId]);
   useEffect(() => {
     // 版本改变立即清除旧选择，防止新标题下暂时展示旧目录。
     submissionGeneration.current++;
@@ -170,12 +169,15 @@ function FixedPublishedWorkbench({ api }: { api: BuildCatalogApi }) {
       setError('请从固定构建目录进入查询');
       return;
     }
+    if (!identity?.catalogAvailable) return;
     setLoading(true);
     const load = async () => {
       try {
         {
           const catalog = await api.catalog(buildId);
-          const all = catalogResources(catalog).filter((item) => item.kind === 'METRIC');
+          const all = catalogResources(catalog).filter(
+            (item) => item.kind === 'METRIC' && item.attributes.granted !== false,
+          );
           if (turn !== generation.current) return;
           setMetrics(all);
           setSelected((previous) =>
@@ -192,7 +194,7 @@ function FixedPublishedWorkbench({ api }: { api: BuildCatalogApi }) {
     return () => {
       generation.current++;
     };
-  }, [api, projectId, buildId, initialMetric, refresh]);
+  }, [api, projectId, buildId, initialMetric, refresh, identity?.catalogAvailable]);
 
   useEffect(() => {
     setSortFields((fields) => fields.filter((id) => selected.includes(id) || groups.includes(id)));
@@ -324,18 +326,13 @@ function FixedPublishedWorkbench({ api }: { api: BuildCatalogApi }) {
     granularities: item.granularities,
   }));
   const changeMetrics = (value: string[]) => setSelected(value);
+  if (identity && !identity.catalogAvailable) return <Alert type="info" title={COPY.unavailable} />;
   return (
     <section className="analysis-page query-workbench">
       <header className="analysis-heading">
         <div>
-          <Link
-            to={
-              reader
-                ? '/dbt/environments'
-                : `/dbt/builds/${encodeURIComponent(buildId)}/catalog?${params}`
-            }
-          >
-            <ArrowLeftOutlined aria-hidden /> {reader ? '返回我的资产' : '返回资源目录'}
+          <Link to={`/dbt/builds/${encodeURIComponent(buildId)}/catalog?${params}`}>
+            <ArrowLeftOutlined aria-hidden /> 返回资源目录
           </Link>
           <h1>分析探索</h1>
           <p>{COPY.description}</p>
@@ -344,32 +341,30 @@ function FixedPublishedWorkbench({ api }: { api: BuildCatalogApi }) {
           <Button
             icon={<ReloadOutlined aria-hidden />}
             loading={loading}
-            onClick={() => (reader ? navigate('/dbt/environments') : void latest())}
+            onClick={() => void latest()}
           >
-            {reader ? '选择当前已授权版本' : '刷新已发布版本'}
+            刷新已发布版本
           </Button>
         </div>
       </header>
-      {!reader && (
-        <details className="query-context" aria-label="查询上下文">
-          <summary>
-            {COPY.context}
-            <span>
-              {identity?.branchName} · {identity?.execution.schema}
-            </span>
-          </summary>
-          <p>
-            仓库：{identity?.repository} · 分支：{identity?.branchName} · 环境：
-            {identity?.execution
-              ? `${identity.execution.catalog} / ${identity.execution.schema} · 配置版本 ${identity.execution.configVersion}`
-              : undefined}
-          </p>
-          <p>
-            固定版本：<code>{buildId || '尚未选择'}</code> · 源码提交：
-            <code>{identity?.commitSha ?? '尚未读取'}</code>
-          </p>
-        </details>
-      )}
+      <details className="query-context" aria-label="查询上下文">
+        <summary>
+          {COPY.context}
+          <span>
+            {identity?.branchName} · {identity?.execution.schema}
+          </span>
+        </summary>
+        <p>
+          仓库：{identity?.repository} · 分支：{identity?.branchName} · 环境：
+          {identity?.execution
+            ? `${identity.execution.catalog} / ${identity.execution.schema} · 配置版本 ${identity.execution.configVersion}`
+            : undefined}
+        </p>
+        <p>
+          固定版本：<code>{buildId || '尚未选择'}</code> · 源码提交：
+          <code>{identity?.commitSha ?? '尚未读取'}</code>
+        </p>
+      </details>
       {identityError && (
         <Alert type="warning" title="分支身份详情读取失败，查询目标仍为上述固定 ID。" />
       )}

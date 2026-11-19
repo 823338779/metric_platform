@@ -1,3 +1,4 @@
+import { getAuthSession } from '../../api/auth';
 import { Alert, Button, Empty, Skeleton } from 'antd';
 import { ArrowRightOutlined, PlusOutlined, DatabaseOutlined } from '@ant-design/icons';
 import { useEffect, useState } from 'react';
@@ -30,6 +31,7 @@ const ADAPTER_NAMES: Record<string, string> = {
 };
 
 export function EnvironmentsPage({ api = environmentApi }: { api?: EnvironmentApi }) {
+  const manager = getAuthSession()?.identity.role === 'TENANT_MANAGER';
   const [items, setItems] = useState<ExecutionEnvironment[]>([]);
   const [editing, setEditing] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -70,14 +72,20 @@ export function EnvironmentsPage({ api = environmentApi }: { api?: EnvironmentAp
       <header className="page-heading">
         <div>
           <h2>执行环境</h2>
-          <p>{COPY.description}</p>
+          <p>{manager ? COPY.description : '选择执行环境，浏览已构建的资源。'}</p>
         </div>
-        <Button type="primary" icon={<PlusOutlined aria-hidden />} onClick={() => setEditing(true)}>
-          新建环境
-        </Button>
+        {manager && (
+          <Button
+            type="primary"
+            icon={<PlusOutlined aria-hidden />}
+            onClick={() => setEditing(true)}
+          >
+            新建环境
+          </Button>
+        )}
       </header>
       {error && <Alert type="error" title={error} />}
-      {editing && (
+      {manager && editing && (
         <section className="management-panel environment-editor">
           <header className="panel-heading">
             <h3>新建执行环境</h3>
@@ -100,7 +108,7 @@ export function EnvironmentsPage({ api = environmentApi }: { api?: EnvironmentAp
             <Skeleton active />
           </div>
         ) : !items.length ? (
-          <Empty description={COPY.empty} />
+          <Empty description={manager ? COPY.empty : '暂无执行环境'} />
         ) : (
           <div className="management-table-scroll">
             <table className="management-table">

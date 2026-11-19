@@ -131,13 +131,18 @@ export function ResourceTree({
                 {bySource ? (RESOURCE_LABELS[kind] ?? COPY.other) : path || COPY.noSource}
               </small>
             </span>
-            {kind === METRIC && resource.queryable && (
+            {kind === METRIC && resource.granted !== false && resource.queryable && (
               <Link
                 onClick={(event) => event.stopPropagation()}
                 to={`/dbt/builds/${encodeURIComponent(buildId)}/query?${new URLSearchParams({ buildId, [queryParameter ?? 'metric']: queryParameter ? resource.resourceId : resource.name })}`}
               >
                 {COPY.explore}
               </Link>
+            )}
+            {resource.granted !== undefined && (
+              <span className="resource-access" data-granted={resource.granted}>
+                {resource.granted ? '有权限' : '无权限'}
+              </span>
             )}
           </span>
         ),

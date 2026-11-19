@@ -6,13 +6,10 @@ import com.metricplatform.environment.EnvironmentContracts.*;
 import com.metricplatform.security.PlatformPrincipal;
 import java.nio.file.Path;
 import java.time.ZoneId;
-import java.util.List;
 import java.util.Locale;
-import java.util.NoSuchElementException;
 import java.util.Set;
 import java.util.UUID;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
 
 /** 校验环境物理目标，环境不拥有源码信息。 */
@@ -24,10 +21,6 @@ public class EnvironmentService {
             HOSTS = "hosts",
             PORT = "port",
             PATH = "path";
-    private static final String INSTANCE_ID = "instanceId",
-            CREDENTIAL_REF = "credentialRef",
-            CATALOG = "catalog",
-            SCHEMA = "schema";
     private static final String IDENTIFIER = "[a-z][a-z0-9_]{0,62}";
     private static final String DOT_SUFFIX = "\\.+$", EMPTY = "";
 
@@ -37,17 +30,11 @@ public class EnvironmentService {
     /** 部署维护的实例地址清单，不含环境配置。 */
     private final JsonNode instances;
 
-    /** 运维按租户批准的完整目标组合。 */
-    private final JsonNode targets;
-
     public EnvironmentService(
-            EnvironmentStore store,
-            @Value("${EXECUTION_INSTANCES:{}}") String instances,
-            @Value("${TENANT_EXECUTION_TARGETS:{}}") String targets) {
+            EnvironmentStore store, @Value("${EXECUTION_INSTANCES:{}}") String instances) {
         this.store = store;
         try {
             this.instances = new ObjectMapper().readTree(instances);
-            this.targets = new ObjectMapper().readTree(targets);
         } catch (Exception error) {
             throw new IllegalArgumentException("执行实例清单无效", error);
         }
@@ -55,12 +42,11 @@ public class EnvironmentService {
 
     public EnvironmentPage list() {
         var actor = PlatformPrincipal.current();
-        return new EnvironmentPage(actor.manager() ? store.list(actor.tenantId()) : List.of());
+        return new EnvironmentPage(store.list(actor.tenantId()));
     }
 
     public EnvironmentView get(UUID id) {
         var actor = PlatformPrincipal.current();
-        if (!actor.manager()) throw new NoSuchElementException("环境不存在");
         return store.get(actor.tenantId(), id);
     }
 
@@ -132,14 +118,6 @@ public class EnvironmentService {
             valid &= host;
         }
         if (!valid) throw new IllegalArgumentException("EXECUTION_TARGET_UNVERIFIED");
-        // 物理实例使用上面核验的标识，凭据、catalog 和 schema 必须属于同一条授权。
-        for (var allowed : targets.path(PlatformPrincipal.current().tenantId())) {
-            if (target.instanceId().equals(allowed.path(INSTANCE_ID).asText())
-                    && input.credentialRef().equals(allowed.path(CREDENTIAL_REF).asText())
-                    && input.catalog().equals(allowed.path(CATALOG).asText())
-                    && input.schema().equals(allowed.path(SCHEMA).asText())) return;
-        }
-        throw new AccessDeniedException("目标未分配给当前租户");
     }
 
     private static String normalizeHost(String host) {

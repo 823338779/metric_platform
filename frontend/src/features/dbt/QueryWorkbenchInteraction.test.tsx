@@ -15,6 +15,7 @@ beforeAll(() => {
 function page(timeLabel = '下单时间', granularities = ['day', 'month']) {
   const api = {
     build: vi.fn().mockResolvedValue({
+      catalogAvailable: true,
       buildId: 'A',
       repository: 'repo',
       branchName: 'feature/a',

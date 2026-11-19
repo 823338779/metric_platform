@@ -22,6 +22,7 @@ const Q = '33333333-3333-4333-8333-333333333333';
 function fixture() {
   return {
     build: vi.fn().mockResolvedValue({
+      catalogAvailable: true,
       buildId: B1,
       repository: 'repo/a',
       branchName: 'feature/shared',
@@ -87,6 +88,17 @@ function mount(api: unknown) {
     </MemoryRouter>,
   );
 }
+it('历史产物不可用时不读取目录或提供查询', async () => {
+  const api = fixture();
+  api.build.mockResolvedValue({ buildId: B1, catalogAvailable: false, execution: {} });
+  mount(api);
+  expect(
+    await screen.findByText('此构建的产物不可用。请在执行环境中选择当前部署版本。'),
+  ).toBeVisible();
+  expect(api.catalog).not.toHaveBeenCalled();
+  expect(screen.queryByRole('button', { name: '查询' })).not.toBeInTheDocument();
+});
+
 it('版本详情折叠时仍展示身份读取失败的原因', async () => {
   const api = fixture();
   api.build.mockRejectedValue(new Error('identity unavailable'));

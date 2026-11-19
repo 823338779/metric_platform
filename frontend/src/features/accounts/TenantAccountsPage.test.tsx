@@ -23,9 +23,22 @@ it('creates a read-only account using the current manager session', async () => 
       tenant_id: 'tn_00001',
     },
   });
-  const fetcher = vi.fn().mockResolvedValue(new Response('{}', { status: 201 }));
+  let created = false;
+  const fetcher = vi.fn(async (url: string, init: RequestInit) => {
+    if (init.method === 'POST') {
+      created = true;
+      return Response.json({ identityId: 'new-reader' }, { status: 201 });
+    }
+    if (url.endsWith('/accounts')) {
+      const accounts = [{ id: 'existing', username: 'existing' }];
+      if (created) accounts.push({ id: 'new-reader', username: 'reader' });
+      return Response.json(accounts);
+    }
+    return Response.json([]);
+  });
   vi.stubGlobal('fetch', fetcher);
   render(<TenantAccountsPage />);
+  fireEvent.click(screen.getByRole('button', { name: '新建账号' }));
   fireEvent.change(screen.getByLabelText('登录名'), { target: { value: 'reader' } });
   fireEvent.change(screen.getByLabelText('初始密码'), { target: { value: 'fixture-password' } });
   fireEvent.click(screen.getByRole('button', { name: '创建只读账号' }));
@@ -36,5 +49,7 @@ it('creates a read-only account using the current manager session', async () => 
       body: JSON.stringify({ username: 'reader', password: 'fixture-password' }),
     }),
   );
+  expect(await screen.findByRole('heading', { name: 'reader' })).toBeTruthy();
+  fireEvent.click(screen.getByRole('button', { name: '新建账号' }));
   expect((screen.getByLabelText('初始密码') as HTMLInputElement).value).toBe('');
 });

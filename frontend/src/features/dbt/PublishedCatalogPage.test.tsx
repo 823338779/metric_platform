@@ -93,3 +93,33 @@ it('固定构建链接读取历史，与Agent分支登记无关', async () => {
   await waitFor(() => expect(api.build).toHaveBeenCalledWith(B));
   expect(api.branches).not.toHaveBeenCalled();
 });
+it('直接打开已清理构建保留版本信息并提示产物不可用', async () => {
+  const buildId = 'retired';
+  const api = {
+    build: vi.fn().mockResolvedValue({
+      buildId,
+      branchName: 'main',
+      repository: 'repo',
+      execution: { environmentId: 'env' },
+      catalogAvailable: false,
+    }),
+    current: vi.fn().mockResolvedValue({ activeBuildId: 'current' }),
+    builds: vi.fn().mockResolvedValue({ items: [], nextCursor: null }),
+    deployments: vi.fn().mockResolvedValue({ items: [], nextCursor: null }),
+  };
+  render(
+    <MemoryRouter initialEntries={[`/dbt/builds/${buildId}/catalog`]}>
+      <Routes>
+        <Route
+          path="/dbt/builds/:buildId/catalog"
+          element={<PublishedCatalogPage api={api as never} />}
+        />
+      </Routes>
+    </MemoryRouter>,
+  );
+  expect(
+    await screen.findByText('此构建的产物不可用。请在执行环境中选择当前部署版本。'),
+  ).toBeVisible();
+  expect(screen.queryByText('目录已加载')).not.toBeInTheDocument();
+  expect(screen.getByRole('button', { name: '切换到当前部署' })).toBeVisible();
+});

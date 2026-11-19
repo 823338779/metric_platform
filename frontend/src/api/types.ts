@@ -16,6 +16,10 @@ export type ProblemDetails = {
 };
 // dbt 目录和查询只引用服务端已发布的 buildId，不混用旧语义对象编辑 API。
 export type DbtResource = {
+  /** 当前账号具有此资产的使用权限。非授权资源类型省略。 */
+  granted?: boolean;
+  /** 数据集预览使用的固定构建选择器。 */
+  selector?: string;
   resourceId: string;
   nativeId: string;
   kind: string;

@@ -24,6 +24,26 @@ const BASE = {
 };
 
 describe('published presentation contract', () => {
+  it('已授权数据集从目录预览，无需读取仅管理员可看的资源源码', async () => {
+    const id = 'model.shop.orders';
+    const selector = 'fqn:shop.orders';
+    const resource = vi.fn();
+    const submit = vi
+      .fn()
+      .mockResolvedValue({ buildId: RELEASE, mode: 'PREVIEW', rows: [], columns: [] });
+    const adapter = publishedResourceAdapter({
+      catalog: async () => [
+        { unique_id: id, resource_type: 'model', name: 'orders', granted: true, selector },
+      ],
+      resource,
+      submit,
+    } as unknown as BuildCatalogApi);
+    await adapter.getDbtCatalog(PROJECT, RELEASE);
+    await adapter.previewDbtDataset(PROJECT, id, RELEASE, 20);
+    expect(submit).toHaveBeenCalledWith(RELEASE, { mode: 'PREVIEW', selector, limit: 20 });
+    expect(resource).not.toHaveBeenCalled();
+  });
+
   it('预览响应丢失后重新执行仍固定原构建，且不发送幂等键', async () => {
     const submit = vi
       .fn()

@@ -44,6 +44,10 @@ export function publishedTreeResource(resource: PublishedResource): DbtResource 
   return {
     resourceId: resource.resourceId,
     nativeId: resource.nativeId,
+    granted:
+      typeof resource.attributes.granted === 'boolean' ? resource.attributes.granted : undefined,
+    selector:
+      typeof resource.attributes.selector === 'string' ? resource.attributes.selector : undefined,
     kind: resource.kind,
     name: resource.name,
     description: resource.description,
@@ -55,6 +59,7 @@ export function publishedTreeResource(resource: PublishedResource): DbtResource 
 
 const METRIC = 'metric';
 const MODEL = 'model';
+const DIMENSION = 'dimension';
 const SOURCE = 'source';
 const SEED = 'seed';
 const SNAPSHOT = 'snapshot';
@@ -87,11 +92,13 @@ export function nativeResource(id: string, node: NativeNode): PublishedResource 
   const kind: PublishedResource['kind'] =
     node.resource_type === METRIC
       ? 'METRIC'
-      : node.resource_type === NATIVE_SEMANTIC_MODEL
-        ? SEMANTIC_MODEL
-        : node.config?.materialized === VIEW
-          ? 'VIEW'
-          : 'TABLE';
+      : node.resource_type === DIMENSION
+        ? 'DIMENSION'
+        : node.resource_type === NATIVE_SEMANTIC_MODEL
+          ? SEMANTIC_MODEL
+          : node.config?.materialized === VIEW
+            ? 'VIEW'
+            : 'TABLE';
   return {
     resourceId: id,
     nativeId: id,
@@ -99,7 +106,9 @@ export function nativeResource(id: string, node: NativeNode): PublishedResource 
     name: node.name ?? id,
     displayName: node.label ?? node.name ?? id,
     description: node.description ?? null,
-    sourcePath: node.original_file_path ?? null,
+    sourcePath:
+      node.original_file_path ??
+      (typeof node.semanticModelName === 'string' ? node.semanticModelName : null),
     capabilities:
       node.resource_type === METRIC ? [QUERY] : node.resource_type === MODEL ? [PREVIEW] : [],
     attributes: node,
@@ -109,7 +118,7 @@ export function nativeResource(id: string, node: NativeNode): PublishedResource 
 export function catalogResources(catalog: NativeCatalog): PublishedResource[] {
   return catalog
     .filter((node) =>
-      [METRIC, MODEL, SOURCE, SEED, SNAPSHOT, NATIVE_SEMANTIC_MODEL].includes(
+      [METRIC, DIMENSION, MODEL, SOURCE, SEED, SNAPSHOT, NATIVE_SEMANTIC_MODEL].includes(
         node.resource_type ?? '',
       ),
     )
@@ -177,6 +186,10 @@ export function publishedResourceAdapter(api: BuildCatalogApi) {
       };
     },
     async getDbtResource(project: string, id: string, buildId: string): Promise<DbtResource> {
+      checkSession();
+      const summary = (await catalogs.get(buildId))?.find((node) => node.unique_id === id);
+      if (summary && typeof summary.granted === 'boolean')
+        return publishedTreeResource(nativeResource(id, summary));
       const value = await resource(project, id, buildId);
       return publishedTreeResource(nativeResource(id, value.resource));
     },
@@ -222,10 +235,16 @@ export function publishedResourceAdapter(api: BuildCatalogApi) {
       };
     },
     async previewDbtDataset(_project: string, id: string, buildId: string, limit: number) {
-      const node = await resource(_project, id, buildId);
+      checkSession();
+      const summary = (await catalogs.get(buildId))?.find((node) => node.unique_id === id);
+      if (summary?.granted === false) throw new Error('无权限');
+      const selector =
+        typeof summary?.selector === 'string'
+          ? summary.selector
+          : nativeSelector((await resource(_project, id, buildId)).resource);
       const value = await api.submit(buildId, {
         mode: PREVIEW,
-        selector: nativeSelector(node.resource),
+        selector,
         limit,
       });
       if (value.buildId !== buildId) throw new Error(MISMATCH);

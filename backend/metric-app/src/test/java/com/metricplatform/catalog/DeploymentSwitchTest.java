@@ -7,11 +7,40 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.metricplatform.catalog.BuildContracts.*;
 import com.metricplatform.environment.AssetOwnership;
 import com.metricplatform.identity.TenantScope;
-import java.util.*;
+
 import org.junit.jupiter.api.Test;
 import org.springframework.web.server.ResponseStatusException;
 
+import java.util.*;
+
 class DeploymentSwitchTest {
+    @Test
+    void incompleteScanKeepsLastObservationUntilActiveBuildOrConfirmedRemoval() {
+        var store = mock(AssetGrantRepository.class);
+        var assets =
+                spy(
+                        new DeployedAssets(
+                                store, mock(AssetOwnership.class), mock(BuildGateway.class)));
+        var environment = UUID.randomUUID();
+        var oldBranch = new DeploymentKey("repo", environment, "main");
+        var nextBranch = new DeploymentKey("repo", environment, "next");
+        var build = UUID.randomUUID();
+        when(store.targets()).thenReturn(List.of(oldBranch, nextBranch));
+        when(store.nextScan()).thenReturn(1L, 2L, 3L);
+        doThrow(new IllegalStateException("服务暂不可用"))
+                .doThrow(new IllegalStateException("服务暂不可用"))
+                .doReturn(null)
+                .when(assets)
+                .current(oldBranch);
+        doReturn(null, build, null).when(assets).current(nextBranch);
+        assets.refreshCatalog();
+        verify(store, never()).observe(any(), any(), anyLong());
+        assets.refreshCatalog();
+        verify(store).observe(environment, build, 2L);
+        assets.refreshCatalog();
+        verify(store).observe(environment, null, 3L);
+    }
+
     @Test
     void rejectsBuildReplacedDuringCatalogRegistration() {
         var store = mock(AssetGrantRepository.class);

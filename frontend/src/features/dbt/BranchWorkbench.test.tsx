@@ -14,6 +14,7 @@ it('运行中的A查询不绘制到B，同名指标重新读取固定构建选�
   let finish!: (value: unknown) => void;
   const api = {
     build: vi.fn(async (id: string) => ({
+      catalogAvailable: true,
       buildId: id,
       repository: 'repo',
       branchName: 'feature/a',

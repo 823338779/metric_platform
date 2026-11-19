@@ -5,6 +5,7 @@ import {
   MenuFoldOutlined,
   MenuUnfoldOutlined,
   DatabaseOutlined,
+  TeamOutlined,
 } from '@ant-design/icons';
 import { Button, Tooltip } from 'antd';
 import { useState } from 'react';
@@ -17,7 +18,7 @@ import {
   useSearchParams,
 } from 'react-router-dom';
 import { clearAuthSession, getAuthSession } from '../api/auth';
-import { MyAssets } from '../features/accounts/AssetAccess';
+import { ACCOUNTS_PATH } from '../features/accounts/TenantAccountsPage';
 
 const ENVIRONMENTS = '/dbt/environments';
 const LOGIN = '/login?reason=required';
@@ -46,10 +47,7 @@ export function PlatformLayout() {
   const { pathname } = useLocation();
   const { buildId: routeBuildId } = useParams();
   const [params] = useSearchParams();
-  const buildId =
-    getAuthSession()?.identity.role === 'TENANT_MANAGER'
-      ? (routeBuildId ?? params.get('buildId'))
-      : null;
+  const buildId = routeBuildId ?? params.get('buildId');
   const queryPage = pathname.endsWith('/query');
   const projectPath = buildId ? `/dbt/builds/${encodeURIComponent(buildId)}` : ENVIRONMENTS;
   // 工作区切换携带当前版本与资源上下文；不会静默切换到最新发布。
@@ -72,18 +70,28 @@ export function PlatformLayout() {
           </span>
         </Link>
         <span className="platform-nav-label">{COPY.management}</span>
-        {manager && <Link to="/tenant/accounts">账号管理</Link>}
+        {manager && (
+          <Tooltip title="账号管理" placement="right">
+            <Link
+              to={ACCOUNTS_PATH}
+              className={pathname === ACCOUNTS_PATH ? 'is-active' : ''}
+              aria-label="账号管理"
+              aria-current={pathname === ACCOUNTS_PATH ? 'page' : undefined}
+            >
+              <TeamOutlined aria-hidden />
+              <span className="platform-nav-text">账号管理</span>
+            </Link>
+          </Tooltip>
+        )}
         <Tooltip title={COPY.environments} placement="right">
           <Link
             to={ENVIRONMENTS}
             className={pathname.startsWith(ENVIRONMENTS) ? 'is-active' : ''}
-            aria-label={identity && !manager ? '我的资产' : COPY.environments}
+            aria-label={COPY.environments}
             aria-current={pathname.startsWith(ENVIRONMENTS) ? 'page' : undefined}
           >
             <DatabaseOutlined aria-hidden />
-            <span className="platform-nav-text">
-              {identity && !manager ? '我的资产' : COPY.environments}
-            </span>
+            <span className="platform-nav-text">{COPY.environments}</span>
           </Link>
         </Tooltip>
         {buildId && (
@@ -162,13 +170,7 @@ export function PlatformLayout() {
           </div>
         </header>
         <main className="platform-content">
-          {manager || (routeBuildId && queryPage) ? (
-            <Outlet key={identity?.identityId} />
-          ) : identity && pathname === ENVIRONMENTS ? (
-            <MyAssets key={identity.identityId} />
-          ) : (
-            <p>{pathname === ENVIRONMENTS ? '暂无可见资产' : '无权访问此页面'}</p>
-          )}
+          <Outlet key={identity?.identityId} />
         </main>
       </div>
     </div>

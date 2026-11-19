@@ -14,6 +14,7 @@ it.each([false, true])(
     });
     const api = {
       build: vi.fn().mockResolvedValue({
+        catalogAvailable: true,
         buildId: 'A',
         repository: 'repo',
         branchName: 'feature/a',
@@ -81,6 +82,7 @@ it.each([false, true])(
 it('queries with native metric names and refreshes without requesting publication', async () => {
   const api = {
     build: vi.fn().mockResolvedValue({
+      catalogAvailable: true,
       buildId: 'A',
       repository: 'repo',
       branchName: 'feature/a',

@@ -1,3 +1,5 @@
+import { MemoryRouter } from 'react-router-dom';
+import { nativeResource, publishedTreeResource } from './publishedResourceAdapter';
 import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, beforeAll, expect, it, vi } from 'vitest';
 import { DbtResourceDetail } from './DbtResourceDetail';
@@ -355,4 +357,50 @@ it('PREVIEW受理即返回未知终态时不再请求状态', async () => {
   fireEvent.click(await screen.findByRole('button', { name: '预览数据' }));
   await screen.findByText(/receipt diagnostic/);
   expect(client.getDbtQuery).not.toHaveBeenCalled();
+});
+
+it('opens analysis from the shared overview of a granted metric', async () => {
+  const explore = vi.fn();
+  const resource = publishedTreeResource(
+    nativeResource('metric.pkg.sales', { name: 'sales', resource_type: 'metric', granted: true }),
+  );
+  render(
+    <MemoryRouter>
+      <DbtResourceDetail
+        projectId=""
+        resourceId={resource.resourceId}
+        catalogSummary={resource}
+        buildId="b"
+        onSelect={vi.fn()}
+        onExplore={explore}
+      />
+    </MemoryRouter>,
+  );
+  expect(await screen.findByRole('heading', { name: '基本信息' })).toBeTruthy();
+  fireEvent.click(screen.getByRole('button', { name: /开始分析/ }));
+  expect(explore).toHaveBeenCalledWith('sales');
+  expect(screen.getByRole('tab', { name: /血缘/ }).getAttribute('aria-disabled')).toBe('true');
+  expect(screen.queryByRole('button', { name: '查看源码' })).toBeNull();
+});
+it('marks inaccessible metrics, dimensions and datasets without offering query or preview', async () => {
+  render(
+    <MemoryRouter>
+      {['metric', 'dimension', 'model'].map((kind) => (
+        <DbtResourceDetail
+          projectId=""
+          resourceId={kind}
+          onSelect={vi.fn()}
+          onExplore={vi.fn()}
+          key={kind}
+          catalogSummary={publishedTreeResource(
+            nativeResource(kind, { resource_type: kind, granted: false }),
+          )}
+          buildId="b"
+        />
+      ))}
+    </MemoryRouter>,
+  );
+  expect(await screen.findAllByText('无权限')).toHaveLength(3);
+  expect(screen.queryByRole('button', { name: /开始分析/ })).toBeNull();
+  expect(screen.queryByRole('button', { name: '预览数据' })).toBeNull();
 });

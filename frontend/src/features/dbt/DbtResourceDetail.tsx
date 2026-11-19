@@ -14,6 +14,7 @@ import { metricPlatformApi, type MetricPlatformApi } from '../../api/metricPlatf
 import type {
   DbtLineage,
   DbtQueryStatus,
+  DbtResource,
   DbtResourcePresentation,
   DbtSourceDocument,
 } from '../../api/types';
@@ -55,6 +56,7 @@ export function DbtResourceDetail({
   buildId,
   resourceId,
   tabTitle,
+  catalogSummary,
   onSelect,
   onExplore,
   onClose,
@@ -65,6 +67,8 @@ export function DbtResourceDetail({
   resourceId: string;
   /** 目录中的可读资源名称，避免将不透明身份显示为编辑器标签。 */
   tabTitle?: string;
+  /** 只有目录元数据时仍使用标准详情布局，源码和血缘需要独立读取权限。 */
+  catalogSummary?: DbtResource;
   onSelect: (resourceId: string) => void;
   onExplore?: (name: string) => void;
   onClose?: () => void;
@@ -95,6 +99,29 @@ export function DbtResourceDetail({
     setError('');
     setLineageError('');
     setSourceError('');
+    if (catalogSummary) {
+      const fields = {
+        name: catalogSummary.name,
+        resourceId: catalogSummary.resourceId,
+        ...(catalogSummary.description && { description: catalogSummary.description }),
+        ...(catalogSummary.sourcePath &&
+          (catalogSummary.kind === 'DIMENSION'
+            ? { semanticModelName: catalogSummary.sourcePath }
+            : { sourcePath: catalogSummary.sourcePath })),
+      };
+      setPresentation({
+        buildId,
+        resourceId,
+        kind: catalogSummary.kind,
+        title: catalogSummary.name,
+        queryable: catalogSummary.granted === true && catalogSummary.queryable,
+        nativeDetails: {},
+        sections: [{ title: RESOURCE_LABELS[catalogSummary.kind] ?? catalogSummary.kind, fields }],
+      });
+      return () => {
+        previewGeneration.current++;
+      };
+    }
     void api
       .getDbtPresentation(projectId, resourceId, buildId)
       .then(async (value) => {
@@ -132,10 +159,10 @@ export function DbtResourceDetail({
       active = false;
       previewGeneration.current++;
     };
-  }, [api, projectId, buildId, resourceId, retry]);
+  }, [api, projectId, buildId, resourceId, catalogSummary, retry]);
 
   useEffect(() => {
-    if (tab !== SOURCE) return;
+    if (tab !== SOURCE || catalogSummary) return;
     let active = true;
     setSource(undefined);
     setSourceError('');
@@ -152,7 +179,7 @@ export function DbtResourceDetail({
     return () => {
       active = false;
     };
-  }, [api, projectId, buildId, resourceId, tab, retry]);
+  }, [api, projectId, buildId, resourceId, tab, catalogSummary, retry]);
 
   const loadPreview = async () => {
     setTab(DETAIL);
@@ -167,8 +194,9 @@ export function DbtResourceDetail({
         return;
       }
       setPreview(submitted);
-    } catch {
-      if (generation === previewGeneration.current) setError('预览读取失败');
+    } catch (cause) {
+      if (generation === previewGeneration.current)
+        setError(cause instanceof ApiProblem ? cause.message : '预览读取失败');
     } finally {
       if (generation === previewGeneration.current) setPreviewBusy(false);
     }
@@ -210,6 +238,7 @@ export function DbtResourceDetail({
               {presentation && (
                 <Tag color="blue">{RESOURCE_LABELS[presentation.kind] ?? presentation.kind}</Tag>
               )}
+              {catalogSummary?.granted === false && <Tag color="red">无权限</Tag>}
             </div>
             <p className="resource-description">
               {(presentation?.sections
@@ -237,9 +266,11 @@ export function DbtResourceDetail({
                 开始分析
               </Button>
             )}
-            <Button icon={<CodeOutlined />} onClick={() => setTab(SOURCE)}>
-              查看源码
-            </Button>
+            {!catalogSummary && (
+              <Button icon={<CodeOutlined />} onClick={() => setTab(SOURCE)}>
+                查看源码
+              </Button>
+            )}
           </Space>
         </div>
       </header>
@@ -313,18 +344,21 @@ export function DbtResourceDetail({
                       }
                     />
                   )}
-                  <details className="resource-native">
-                    <summary>{COPY.native}</summary>
-                    <Typography.Text className="resource-id" copyable>
-                      {resourceId}
-                    </Typography.Text>
-                    <pre>{JSON.stringify(presentation.nativeDetails, null, 2)}</pre>
-                  </details>
+                  {!catalogSummary && (
+                    <details className="resource-native">
+                      <summary>{COPY.native}</summary>
+                      <Typography.Text className="resource-id" copyable>
+                        {resourceId}
+                      </Typography.Text>
+                      <pre>{JSON.stringify(presentation.nativeDetails, null, 2)}</pre>
+                    </details>
+                  )}
                   {preview && <DbtQueryResults result={preview} />}
                 </div>
               ),
             },
             {
+              disabled: !!catalogSummary,
               key: LINEAGE,
               label: COPY.lineage,
               icon: <ApartmentOutlined aria-hidden />,
@@ -343,6 +377,7 @@ export function DbtResourceDetail({
               ),
             },
             {
+              disabled: !!catalogSummary,
               key: SOURCE,
               label: COPY.source,
               icon: <CodeOutlined aria-hidden />,
@@ -369,7 +404,9 @@ export function DbtResourceDetail({
           ]}
         />
       )}
-      <footer className="resource-detail-footer">{COPY.pinned}</footer>
+      <footer className="resource-detail-footer">
+        {catalogSummary ? '资源信息来自当前固定构建' : COPY.pinned}
+      </footer>
     </section>
   );
 }

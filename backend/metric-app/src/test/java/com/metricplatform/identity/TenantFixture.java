@@ -7,14 +7,6 @@ import org.springframework.jdbc.core.JdbcTemplate;
 public final class TenantFixture {
     public static final String ID = "tn_99001";
     private static final UUID MANAGER = UUID.fromString("99000000-0000-4000-8000-000000000001");
-    public static final String TARGETS =
-            "TENANT_EXECUTION_TARGETS={\"tn_99001\":["
-                    + "{\"instanceId\":\"warehouse\",\"credentialRef\":\"test\",\"catalog\":\"default_catalog\",\"schema\":\"env_api\"},"
-                    + "{\"instanceId\":\"warehouse\",\"credentialRef\":\"test\",\"catalog\":\"default_catalog\",\"schema\":\"env_duplicate\"},"
-                    + "{\"instanceId\":\"warehouse\",\"credentialRef\":\"test\",\"catalog\":\"default_catalog\",\"schema\":\"env_stale\"},"
-                    + "{\"instanceId\":\"warehouse\",\"credentialRef\":\"test\",\"catalog\":\"default_catalog\",\"schema\":\"env_stale_next\"},"
-                    + "{\"instanceId\":\"warehouse\",\"credentialRef\":\"test\",\"catalog\":\"default_catalog\",\"schema\":\"env_retry\"},"
-                    + "{\"instanceId\":\"warehouse\",\"credentialRef\":\"test\",\"catalog\":\"default_catalog\",\"schema\":\"env_retry_new\"}]}";
 
     public static PlatformPrincipal manager(JdbcTemplate jdbc) {
         jdbc.execute(

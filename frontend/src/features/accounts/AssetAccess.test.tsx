@@ -1,7 +1,6 @@
-import { cleanup, fireEvent, render, screen } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, within } from '@testing-library/react';
 import { afterEach, expect, it, vi } from 'vitest';
-import { MemoryRouter } from 'react-router-dom';
-import { AssetGrantPanel, MyAssets } from './AssetAccess';
+import { AssetGrantPanel } from './AssetAccess';
 
 afterEach(() => {
   cleanup();
@@ -20,34 +19,98 @@ const asset = {
 it('grants an individual asset to the selected reader and can revoke it', async () => {
   let granted = false;
   const fetcher = vi.fn(async (url: string, init: RequestInit) => {
-    if (url.endsWith('/accounts')) return Response.json([{ id: 'u', username: 'reader' }]);
+    if (url.endsWith('/accounts'))
+      return Response.json([
+        { id: 'first', username: 'other' },
+        { id: 'u', username: 'reader' },
+      ]);
+    if (url.endsWith('/first/assets')) return Response.json([]);
     if (url.endsWith('/assets')) return Response.json([{ ...asset, granted }]);
     granted = init.method === 'PUT';
     return new Response(null, { status: 204 });
   });
   vi.stubGlobal('fetch', fetcher);
   render(<AssetGrantPanel />);
-  fireEvent.click(screen.getByRole('button', { name: '管理资产授权' }));
-  await screen.findByRole('option', { name: 'reader' });
-  fireEvent.change(screen.getByLabelText('授权账号'), { target: { value: 'u' } });
+  fireEvent.click(await screen.findByRole('button', { name: 'reader' }));
   fireEvent.click(await screen.findByRole('button', { name: '授予' }));
   fireEvent.click(await screen.findByRole('button', { name: '撤销' }));
   expect(await screen.findByRole('button', { name: '授予' })).toBeTruthy();
   expect(granted).toBe(false);
+  expect(fetcher).toHaveBeenCalledWith(
+    '/api/v1/tenant/accounts/u/assets/m',
+    expect.objectContaining({ method: 'DELETE' }),
+  );
 });
-it('links granted metrics to the fixed build query', async () => {
+
+it('groups grants by environment identity while keeping same-named assets separate', async () => {
+  const prod = { ...asset, environmentName: '生产' };
   vi.stubGlobal(
     'fetch',
-    vi.fn(async () => Response.json([{ ...asset, granted: true }])),
+    vi.fn(async (url: string) =>
+      Response.json(
+        url.endsWith('/accounts')
+          ? [{ id: 'u', username: 'reader' }]
+          : [
+              prod,
+              { ...prod, assetId: 'ds', kind: 'DATASET', name: 'orders' },
+              {
+                ...prod,
+                assetId: 'test',
+                environmentName: '测试',
+                target: { ...asset.target, environmentId: 'test' },
+              },
+            ],
+      ),
+    ),
   );
-  render(
-    <MemoryRouter>
-      <MyAssets />
-    </MemoryRouter>,
+  render(<AssetGrantPanel />);
+  const production = await screen.findByRole('region', { name: '生产' });
+  const test = screen.getByRole('region', { name: '测试' });
+  expect(within(production).getAllByRole('listitem')).toHaveLength(2);
+  expect(within(test).getAllByRole('listitem')).toHaveLength(1);
+  expect(within(production).getByText('sales')).toBeTruthy();
+  expect(within(test).getByText('sales')).toBeTruthy();
+});
+
+it('filters asset types within environments and keeps the selected type after granting', async () => {
+  let granted = false;
+  vi.stubGlobal(
+    'fetch',
+    vi.fn(async (url: string, init: RequestInit) => {
+      if (url.endsWith('/accounts')) return Response.json([{ id: 'u', username: 'reader' }]);
+      if (url.endsWith('/assets'))
+        return Response.json([
+          asset,
+          {
+            ...asset,
+            assetId: 'd',
+            kind: 'DIMENSION',
+            dimensionName: 'region',
+            granted,
+            target: { ...asset.target, environmentId: 'other' },
+          },
+        ]);
+      granted = url.endsWith('/u/assets/d') && init.method === 'PUT';
+      return new Response(null, { status: 204 });
+    }),
   );
-  expect((await screen.findByRole('link', { name: '查询汇总' })).getAttribute('href')).toBe(
-    '/dbt/builds/b/query?metricResourceId=metric.pkg.sales',
-  );
+  render(<AssetGrantPanel />);
+  await screen.findByText('region');
+  const filters = within(screen.getByRole('group', { name: '资产类型' }));
+  fireEvent.click(filters.getByRole('radio', { name: /维度/ }));
+  expect(screen.queryByRole('region', { name: 'env' })).toBeNull();
+  const region = within(screen.getByRole('region', { name: 'other' }));
+  expect(region.getByText('未授权')).toBeTruthy();
+  fireEvent.click(region.getByRole('button', { name: '授予' }));
+  expect(await region.findByText('已授权')).toBeTruthy();
+  expect((filters.getByRole('radio', { name: /维度/ }) as HTMLInputElement).checked).toBe(true);
+  fireEvent.click(filters.getByRole('radio', { name: /数据集/ }));
+  expect(screen.getByText('暂无数据集资产')).toBeTruthy();
+  fireEvent.click(filters.getByRole('radio', { name: /指标/ }));
+  expect(screen.getByText('sales')).toBeTruthy();
+  expect(screen.queryByText('region')).toBeNull();
+  fireEvent.click(filters.getByRole('radio', { name: /全部/ }));
+  expect(screen.getByText('region')).toBeTruthy();
 });
 
 it('lets the manager revoke a grant while its asset is absent', async () => {
@@ -63,7 +126,6 @@ it('lets the manager revoke a grant while its asset is absent', async () => {
     }),
   );
   render(<AssetGrantPanel />);
-  fireEvent.click(screen.getByRole('button', { name: '管理资产授权' }));
   await screen.findByRole('option', { name: 'reader' });
   fireEvent.change(screen.getByLabelText('授权账号'), { target: { value: 'u' } });
   expect(await screen.findByText('当前未部署')).toBeTruthy();

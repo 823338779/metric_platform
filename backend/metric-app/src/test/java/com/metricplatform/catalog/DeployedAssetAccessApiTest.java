@@ -9,6 +9,7 @@ import com.fasterxml.jackson.databind.*;
 import com.metricplatform.catalog.BuildContracts.*;
 import com.metricplatform.environment.EnvironmentBuildGateway;
 import com.metricplatform.identity.TenantAccountService;
+import com.metricplatform.identity.TenantScope;
 import com.metricplatform.identity.api.IdentityDtos.AuthTokenRequest;
 import com.metricplatform.identity.auth.PlatformAuthenticationService;
 import com.metricplatform.security.PlatformPrincipal;
@@ -27,6 +28,7 @@ class DeployedAssetAccessApiTest {
     @Autowired MockMvc mvc;
     @Autowired JdbcTemplate jdbc;
     @Autowired TenantAccountService accounts;
+    @Autowired DeployedAssets deployed;
     @MockitoBean PlatformAuthenticationService auth;
     @MockitoBean BuildGateway gateway;
     @MockitoBean EnvironmentBuildGateway environments;
@@ -76,6 +78,11 @@ class DeployedAssetAccessApiTest {
                                  {"resource_type":"semantic_model","unique_id":"semantic_model.shop.orders","name":"orders",
                                   "dimensions":[{"name":"region"}]}]
                                 """));
+        // 模拟后台登记后打开授权页，切换账号读取列表不能再访问 dbt-service。
+        try (var scope = TenantScope.open(tenant)) {
+            deployed.refreshCatalog();
+        }
+        clearInvocations(gateway);
         String management = "/api/v1/tenant/accounts/" + reader + "/assets";
         var listed =
                 mvc.perform(get(management).header("Authorization", "Bearer owner"))
@@ -85,6 +92,8 @@ class DeployedAssetAccessApiTest {
                         .getContentAsByteArray();
         var rows = json.readTree(listed);
         assertThat(rows.size()).isEqualTo(3);
+        verifyNoInteractions(gateway);
+        assertThat(rows.get(0).path("environmentName").asText()).isEqualTo(env.toString());
         var metric = rows.findValuesAsText("assetId").get(0);
         for (var item : rows)
             if (item.path("kind").asText().equals("METRIC")) metric = item.path("assetId").asText();
@@ -99,6 +108,15 @@ class DeployedAssetAccessApiTest {
                         foreignTenant);
         when(auth.authenticate("foreign"))
                 .thenReturn(actor(foreign, foreignTenant, PlatformPrincipal.Role.TENANT_MANAGER));
+        mvc.perform(get("/api/v1/assets").header("Authorization", "Bearer foreign"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.length()").value(0));
+        mvc.perform(get("/api/v1/assets").header("Authorization", "Bearer owner"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[?(@.granted == true)]", org.hamcrest.Matchers.hasSize(3)));
+        mvc.perform(get("/api/v1/assets").header("Authorization", "Bearer reader"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[?(@.granted == false)]", org.hamcrest.Matchers.hasSize(3)));
         mvc.perform(get(management).header("Authorization", "Bearer foreign"))
                 .andExpect(status().isNotFound());
         mvc.perform(put(grant).header("Authorization", "Bearer foreign"))
@@ -107,10 +125,43 @@ class DeployedAssetAccessApiTest {
                 .andExpect(status().isForbidden());
         mvc.perform(put(grant).header("Authorization", "Bearer owner"))
                 .andExpect(status().isNoContent());
+        // 同一时刻、同一租户，其他账号可以看见指标，但不能继承 reader 的授权。
+        var otherReader = UUID.randomUUID();
+        jdbc.update(
+                "insert into platform_user(id,tenant_id,username,display_name) values(?,?,?,?)",
+                otherReader,
+                tenant,
+                otherReader.toString(),
+                "other-reader");
+        when(auth.authenticate("other"))
+                .thenReturn(actor(otherReader, tenant, PlatformPrincipal.Role.READ_ONLY));
+        mvc.perform(get("/api/v1/assets").header("Authorization", "Bearer other"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[?(@.granted == false)]", org.hamcrest.Matchers.hasSize(3)));
         mvc.perform(get("/api/v1/assets").header("Authorization", "Bearer reader"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.length()").value(1))
+                .andExpect(jsonPath("$.length()").value(3))
+                .andExpect(
+                        jsonPath(
+                                "$[?(@.granted == true)].kind",
+                                org.hamcrest.Matchers.contains("METRIC")))
+                .andExpect(
+                        jsonPath(
+                                "$[?(@.granted == false)].kind",
+                                org.hamcrest.Matchers.containsInAnyOrder("DATASET", "DIMENSION")))
                 .andExpect(jsonPath("$[0].ownerId").value(owner.toString()));
+        mvc.perform(
+                        get("/api/dbt/builds/" + build + "/catalog")
+                                .header("Authorization", "Bearer reader"))
+                .andExpect(status().isOk())
+                .andExpect(
+                        jsonPath(
+                                "$[?(@.granted == true)].resource_type",
+                                org.hamcrest.Matchers.contains("metric")))
+                .andExpect(
+                        jsonPath(
+                                "$[?(@.granted == false)].resource_type",
+                                org.hamcrest.Matchers.containsInAnyOrder("dimension", "model")));
         String path = "/api/dbt/builds/" + build + "/queries";
         String summary = "{\"mode\":\"QUERY\",\"metrics\":[\"sales\"]}";
         when(gateway.query(eq(build), any()))
@@ -147,6 +198,9 @@ class DeployedAssetAccessApiTest {
         }
         mvc.perform(delete(grant).header("Authorization", "Bearer owner"))
                 .andExpect(status().isNoContent());
+        mvc.perform(get("/api/v1/assets").header("Authorization", "Bearer reader"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[?(@.granted == false)]", org.hamcrest.Matchers.hasSize(3)));
         mvc.perform(
                         post(path)
                                 .header("Authorization", "Bearer reader")

@@ -88,7 +88,7 @@ public class EnvironmentBuildController {
 
     @GetMapping("/builds/{buildId}")
     public ResponseEntity<String> get(@PathVariable UUID buildId) {
-        assets.requireBuild(buildId);
+        assets.requireTenantBuild(buildId);
         return json(gateway.getBuild(buildId), HttpStatus.OK);
     }
 

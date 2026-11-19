@@ -51,29 +51,30 @@ public class AssetGrantStore implements AssetGrantRepository {
             "update asset_build_scope set indexed=true where tenant_id=? and build_id=?";
     private static final String MEMBER =
             """
-            with a as (insert into deployed_asset(tenant_id,owner_id,environment_id,repository,branch_name,kind,node_id,dimension_name)
-            select tenant_id,manager_id,?,?,?,?,?,? from platform_tenant where tenant_id=?
-            on conflict(tenant_id,environment_id,repository,branch_name,kind,node_id,dimension_name)
+            with a as (insert into deployed_asset(tenant_id,owner_id,environment_id,kind,canonical_name,dimension_name)
+            select tenant_id,manager_id,?,?,?,? from platform_tenant where tenant_id=?
+            on conflict(tenant_id,environment_id,kind,canonical_name,dimension_name)
             do update set owner_id=excluded.owner_id returning tenant_id,asset_id)
-            insert into asset_build_member(tenant_id,asset_id,build_id,query_name,selector)
-            select tenant_id,asset_id,?,?,? from a
+            insert into asset_build_member(tenant_id,asset_id,build_id,query_name,selector,node_id)
+            select tenant_id,asset_id,?,?,?,? from a
             """;
-    private static final String FIELDS =
+    // 授权身份独立于来源，目录和查询必须使用固定构建自己的原生标识与选择器。
+    private static final String ASSET_FIELDS =
             """
-            select a.asset_id,a.owner_id,a.repository,a.environment_id,a.branch_name,a.kind,a.node_id,a.dimension_name,
-            exists(select from asset_user_grant g where g.tenant_id=a.tenant_id and g.asset_id=a.asset_id and g.user_id=?),
+            select a.asset_id,a.owner_id,b.repository,a.environment_id,b.branch_name,a.kind,m.node_id,a.dimension_name,
+            (a.owner_id=u.id or g.user_id is not null),m.query_name,m.selector
+            """;
+    private static final String ASSET_JOIN =
+            """
+            from deployed_asset a join asset_build_member m using(tenant_id,asset_id)
+            join asset_build_scope b on b.tenant_id=m.tenant_id and b.build_id=m.build_id
+            join platform_user u on u.tenant_id=a.tenant_id and u.id=?
+            left join asset_user_grant g on g.tenant_id=a.tenant_id and g.asset_id=a.asset_id and g.user_id=u.id
             """;
     private static final String MEMBERS =
-            FIELDS
-                    + """
-                    m.query_name,m.selector from deployed_asset a join asset_build_member m using(tenant_id,asset_id)
-                    where a.tenant_id=? and m.build_id=? order by a.node_id,a.dimension_name
-                    """;
-    private static final String ASSETS =
-            FIELDS
-                    + """
-                    a.node_id,'' from deployed_asset a where a.tenant_id=?
-                    """;
+            ASSET_FIELDS
+                    + ASSET_JOIN
+                    + " where a.tenant_id=? and m.build_id=? order by m.node_id,a.dimension_name";
     private static final RowMapper<Asset> ROW =
             (r, n) ->
                     new Asset(
@@ -100,7 +101,10 @@ public class AssetGrantStore implements AssetGrantRepository {
             "insert into asset_user_grant(tenant_id,user_id,asset_id) values(?,?,?) on conflict do"
                     + " nothing";
     private static final String REVOKE =
-            "delete from asset_user_grant where tenant_id=? and user_id=? and asset_id=?";
+            """
+            with removed as (delete from asset_user_grant where tenant_id=? and user_id=? and asset_id=?)
+            select exists(select from deployed_asset where tenant_id=? and asset_id=?)
+            """;
 
     /** 调度器只枚举租户编号，各租户的资产读写必须绑定对应的作用域。 */
     public List<String> tenants() {
@@ -153,15 +157,14 @@ public class AssetGrantStore implements AssetGrantRepository {
                 200,
                 (s, e) -> {
                     s.setObject(1, target.environmentId());
-                    s.setString(2, target.repository());
-                    s.setString(3, target.branchName());
-                    s.setString(4, e.kind());
-                    s.setString(5, e.nodeId());
-                    s.setString(6, e.dimensionName());
-                    s.setString(7, tenant);
-                    s.setObject(8, build);
-                    s.setString(9, e.queryName());
-                    s.setString(10, e.selector());
+                    s.setString(2, e.kind());
+                    s.setString(3, e.queryName());
+                    s.setString(4, e.dimensionName());
+                    s.setString(5, tenant);
+                    s.setObject(6, build);
+                    s.setString(7, e.queryName());
+                    s.setString(8, e.selector());
+                    s.setString(9, e.nodeId());
                 });
         jdbc.update(FINISH, tenant, build);
     }
@@ -170,17 +173,51 @@ public class AssetGrantStore implements AssetGrantRepository {
         return jdbc.query(MEMBERS, ROW, reader, TenantScope.require(), build);
     }
 
-    private static final String GRANTED_ASSETS =
-            ASSETS
-                    + " and exists(select from asset_user_grant g where g.tenant_id=a.tenant_id and"
-                    + " g.asset_id=a.asset_id and g.user_id=?) order by a.node_id,a.dimension_name";
-    private static final String BY_ASSET = ASSETS + " and a.asset_id=?";
+    private static final String NEXT_SCAN = "select nextval('asset_catalog_scan_seq')";
+    private static final String OBSERVE =
+            """
+            insert into asset_catalog_observation(tenant_id,environment_id,build_id,scan_sequence)
+            values(?,?,?,?) on conflict(tenant_id,environment_id)
+            do update set build_id=excluded.build_id,scan_sequence=excluded.scan_sequence
+            where asset_catalog_observation.scan_sequence < excluded.scan_sequence
+            """;
+    // 每个环境只展示当前观察到的构建；休眠资产继续保留用户授权。
+    private static final String ACTIVE_JOIN =
+            ASSET_JOIN
+                    + """
+                    join asset_catalog_observation o on o.tenant_id=b.tenant_id and o.environment_id=b.environment_id and o.build_id=b.build_id
+                    """;
+    private static final String LIST =
+            ASSET_FIELDS
+                    + ",m.build_id,coalesce(e.name,a.environment_id::text) "
+                    + ACTIVE_JOIN
+                    + """
+                    left join execution_environment e on e.tenant_id=a.tenant_id and e.environment_id=a.environment_id
+                    where a.tenant_id=?
+                    order by coalesce(e.name,a.environment_id::text),a.environment_id,m.node_id,a.dimension_name
+                    """;
+    private static final String BY_ASSET =
+            ASSET_FIELDS + ACTIVE_JOIN + " where a.tenant_id=? and a.asset_id=?";
     private static final String HAS_READER =
             "select exists(select from platform_user u join platform_tenant t using(tenant_id)"
-                + " where u.tenant_id=? and u.id=? and u.id<>t.manager_id)";
+                    + " where u.tenant_id=? and u.id=? and u.id<>t.manager_id)";
 
-    public List<Asset> granted(UUID reader) {
-        return jdbc.query(GRANTED_ASSETS, ROW, reader, TenantScope.require(), reader);
+    public long nextScan() {
+        return jdbc.queryForObject(NEXT_SCAN, Long.class);
+    }
+
+    public void observe(UUID environment, UUID build, long sequence) {
+        jdbc.update(OBSERVE, TenantScope.require(), environment, build, sequence);
+    }
+
+    public List<CatalogItem> list(UUID reader) {
+        return jdbc.query(
+                LIST,
+                (r, n) ->
+                        new CatalogItem(
+                                ROW.mapRow(r, n), r.getObject(12, UUID.class), r.getString(13)),
+                reader,
+                TenantScope.require());
     }
 
     public Asset asset(UUID reader, UUID asset) {
@@ -206,6 +243,9 @@ public class AssetGrantStore implements AssetGrantRepository {
     }
 
     public void revoke(UUID reader, UUID asset) {
-        jdbc.update(REVOKE, TenantScope.require(), reader, asset);
+        String tenant = TenantScope.require();
+        if (!Boolean.TRUE.equals(
+                jdbc.queryForObject(REVOKE, Boolean.class, tenant, reader, asset, tenant, asset)))
+            throw new NoSuchElementException("资产不存在");
     }
 }

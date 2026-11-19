@@ -29,7 +29,7 @@ const COPY = {
   updated: '有效部署已更新；当前页面保持固定构建，切换后重新选择资源。',
   undeployed: '当前分支尚未部署',
   choose: '请选择项目分支',
-  unavailable: '目录暂不可用',
+  unavailable: '此构建的产物不可用。请在执行环境中选择当前部署版本。',
   failed: '读取失败，请重试；已有固定版本保持不变。',
   moreBuilds: '加载更多构建历史',
   moreDeployments: '加载更多部署历史',
@@ -261,7 +261,7 @@ export function PublishedCatalogPage({ api = buildCatalogApi }: { api?: BuildCat
       )}
       {!buildId && !branchName && <p>{COPY.choose}</p>}
       <div className={`published-catalog-body${contextOpen ? ' has-context' : ''}`}>
-        {build?.catalogAvailable ? (
+        {build && build.buildId === buildId && build.catalogAvailable ? (
           <DbtCatalogPage key={buildId} api={adapter} />
         ) : build && !busy ? (
           <Alert type="info" title={COPY.unavailable} />
@@ -315,7 +315,7 @@ export function PublishedCatalogPage({ api = buildCatalogApi }: { api?: BuildCat
                     </dd>
                   </div>
                 </dl>
-                <p className="catalog-context-hint">{COPY.fixedHint}</p>
+                {build.catalogAvailable && <p className="catalog-context-hint">{COPY.fixedHint}</p>}
                 <details className="catalog-version-details">
                   <summary>{COPY.details}</summary>
                   <dl>

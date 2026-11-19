@@ -58,12 +58,10 @@ public class AssetAccessController {
 
     @GetMapping(CATALOG)
     public ResponseEntity<?> catalog(@PathVariable UUID buildId) {
-        if (!PlatformPrincipal.current().manager())
-            return ResponseEntity.ok(access.catalog(buildId));
-        ownership.requireBuild(buildId);
+        if (PlatformPrincipal.current().manager()) ownership.requireBuild(buildId);
         return ResponseEntity.ok()
                 .contentType(MediaType.APPLICATION_JSON)
-                .body(gateway.catalog(buildId).toString());
+                .body(access.catalog(buildId).toString());
     }
 
     @PostMapping(OPTIONS)

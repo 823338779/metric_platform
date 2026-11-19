@@ -505,3 +505,17 @@
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
+
+.resource-access {
+  flex: none;
+  padding: 0 4px;
+  border-radius: 3px;
+  color: #176047;
+  background: #e6f4ed;
+  font-size: 11px;
+  white-space: nowrap;
+}
+.resource-access[data-granted='false'] {
+  color: #962e27;
+  background: #fcebe8;
+}

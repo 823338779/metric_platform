@@ -1,11 +1,31 @@
 import '@testing-library/jest-dom/vitest';
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
-import { afterEach, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { Link, MemoryRouter, Route, Routes } from 'react-router-dom';
 import { EnvironmentsPage } from './EnvironmentsPage';
 import { EnvironmentDetailPage } from './EnvironmentDetailPage';
 
-afterEach(cleanup);
+import { clearAuthSession, saveAuthSession } from '../../api/auth';
+
+beforeEach(() =>
+  saveAuthSession({
+    accessToken: 'fixture',
+    tokenType: 'Bearer',
+    expiresIn: 3600,
+    identity: {
+      identityId: 'manager',
+      subject: 'manager',
+      displayName: 'Manager',
+      authVersion: 1,
+      tenant_id: 'tenant',
+      role: 'TENANT_MANAGER',
+    },
+  }),
+);
+afterEach(() => {
+  cleanup();
+  clearAuthSession();
+});
 const ID = '11111111-1111-4111-8111-111111111111';
 const BUILD = '22222222-2222-4222-8222-222222222222';
 const environment = {
@@ -233,7 +253,7 @@ it('切换查看的构建后忽略晚返回的旧日志', async () => {
   expect(screen.queryByText('旧构建日志')).not.toBeInTheDocument();
 });
 
-it('构建卡片只有一个固定版本入口，有目录时进入目录，否则进入查询工作区', async () => {
+it('仅可读取产物的构建提供目录入口', async () => {
   const api = {
     get: vi.fn().mockResolvedValue(environment),
     builds: vi.fn().mockResolvedValue({
@@ -264,10 +284,7 @@ it('构建卡片只有一个固定版本入口，有目录时进入目录，否�
     'href',
     `/dbt/builds/${BUILD}/catalog`,
   );
-  expect(screen.getByRole('link', { name: '进入构建 failed-build' })).toHaveAttribute(
-    'href',
-    '/dbt/builds/failed-build/query',
-  );
+  expect(screen.queryByRole('link', { name: '进入构建 failed-build' })).not.toBeInTheDocument();
   expect(screen.queryByRole('link', { name: '查看目录' })).not.toBeInTheDocument();
   expect(screen.queryByRole('link', { name: '查询此构建' })).not.toBeInTheDocument();
   expect(api.builds.mock.calls[0][0]).toBe(ID);

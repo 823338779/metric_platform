@@ -1,5 +1,8 @@
 package com.metricplatform.catalog;
 
+import com.fasterxml.jackson.databind.node.ArrayNode;
+import com.fasterxml.jackson.databind.node.JsonNodeFactory;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.metricplatform.catalog.AssetGrantRepository.*;
 import com.metricplatform.catalog.BuildContracts.*;
 import com.metricplatform.security.PlatformPrincipal;
@@ -15,7 +18,11 @@ import org.springframework.web.server.ResponseStatusException;
 public class AssetAccessService {
     private static final String NATIVE_ID = "unique_id",
             NATIVE_KIND = "resource_type",
-            METRIC_NODE = "metric";
+            METRIC_NODE = "metric",
+            MODEL_NODE = "model",
+            DIMENSION_NODE = "dimension",
+            GRANTED = "granted",
+            SELECTOR = "selector";
 
     /** 从服务核对当前部署及完整登记。 */
     private final DeployedAssets deployed;
@@ -33,6 +40,8 @@ public class AssetAccessService {
             UUID ownerId,
             /** 资产所在部署目标。 */
             DeploymentKey target,
+            /** 目录中显示的执行环境名称。 */
+            String environmentName,
             /** 资产类型。 */
             String kind,
             /** dbt 节点唯一标识。 */
@@ -43,9 +52,9 @@ public class AssetAccessService {
             String name,
             /** 数据集预览的精确选择器。 */
             String selector,
-            /** 当前生效构建，休眠授权为空。 */
+            /** 当前生效构建。 */
             UUID buildId,
-            /** 选中账号持有该资产使用权。 */
+            /** 查询列表所对应的账号具有该资产使用权（含所有者）。 */
             boolean granted) {}
 
     private GrantedQuery query(UUID build) {
@@ -68,20 +77,40 @@ public class AssetAccessService {
         return query(build).dimensions(input);
     }
 
-    public List<Map<String, String>> catalog(UUID build) {
-        // 普通用户工作台只需指标名称；不转发原生节点、依赖或项目源码。
-        return query(build).readable().stream()
-                .filter(a -> DeployedAssets.METRIC.equals(a.entry().kind()))
-                .map(
-                        a ->
-                                Map.of(
-                                        NATIVE_ID,
-                                        a.entry().nodeId(),
-                                        NATIVE_KIND,
-                                        METRIC_NODE,
-                                        DeployedAssets.NAME,
-                                        a.entry().queryName()))
-                .toList();
+    public ArrayNode catalog(UUID build) {
+        var actor = PlatformPrincipal.current();
+        ArrayNode rows = JsonNodeFactory.instance.arrayNode();
+        // 管理者保留原生目录。指标与模型可直接使用，模型内维度从登记记录逐项补齐。
+        if (actor.manager()) {
+            for (var raw : gateway.catalog(build)) {
+                ObjectNode node = raw.deepCopy();
+                String kind = node.path(NATIVE_KIND).asText();
+                if (METRIC_NODE.equals(kind) || MODEL_NODE.equals(kind)) node.put(GRANTED, true);
+                rows.add(node);
+            }
+        }
+        var members =
+                actor.manager() ? store.members(build, actor.identityId()) : query(build).assets();
+        // 只读目录仅公开定位资产与发起授权操作所需的字段，不返回源码。
+        for (var asset : members) {
+            var entry = asset.entry();
+            boolean dimension = DeployedAssets.DIMENSION.equals(entry.kind());
+            if (actor.manager() && !dimension) continue;
+            var row = rows.addObject();
+            row.put(NATIVE_ID, dimension ? asset.assetId().toString() : entry.nodeId());
+            row.put(DeployedAssets.NAME, dimension ? entry.dimensionName() : entry.queryName());
+            row.put(GRANTED, asset.granted());
+            if (dimension) {
+                row.put(NATIVE_KIND, DIMENSION_NODE);
+                row.put(DeployedAssets.MODEL_NAME, entry.queryName());
+            } else if (DeployedAssets.DATASET.equals(entry.kind())) {
+                row.put(NATIVE_KIND, MODEL_NODE);
+                if (asset.granted()) row.put(SELECTOR, entry.selector());
+            } else {
+                row.put(NATIVE_KIND, METRIC_NODE);
+            }
+        }
+        return rows;
     }
 
     public List<Account> readers() {
@@ -98,52 +127,31 @@ public class AssetAccessService {
         var actor = PlatformPrincipal.current();
         if (selectedReader != null) requireReader(selectedReader);
         var user = selectedReader != null ? selectedReader : actor.identityId();
-        // 后台负责自动登记，列表读取同时补齐新部署，避免等待下一次定时同步。
-        List<DeploymentKey> targets;
-        if (actor.manager()) {
-            deployed.discover();
-            targets = store.targets();
-        } else {
-            targets = store.granted(user).stream().map(Asset::target).distinct().toList();
-        }
-        var rows = new ArrayList<View>();
-        Set<UUID> active = new HashSet<>();
-        for (var target : targets) {
-            UUID build = deployed.current(target);
-            if (build == null) continue;
-            var members = store.members(build, user);
-            if (!actor.manager()) members = new GrantedQuery(build, members, gateway).readable();
-            for (var a : members) {
-                active.add(a.assetId());
-                rows.add(view(a, build));
-            }
-        }
-        if (selectedReader != null)
-            for (var a : store.granted(user)) {
-                if (!active.contains(a.assetId())) rows.add(view(a, null));
-            }
-        return rows;
+        // 授权状态实时关联当前账号，目录观察由后台维护。
+        return store.list(user).stream().map(this::view).toList();
     }
 
-    private View view(Asset a, UUID build) {
+    private View view(CatalogItem item) {
+        var a = item.asset();
         var e = a.entry();
         return new View(
                 a.assetId(),
                 a.ownerId(),
                 a.target(),
+                item.environmentName(),
                 e.kind(),
                 e.nodeId(),
                 e.dimensionName(),
                 e.queryName(),
                 e.selector(),
-                build,
+                item.build(),
                 a.granted());
     }
 
     public void set(UUID reader, UUID asset, boolean grant) {
         requireReader(reader);
-        var a = store.asset(reader, asset);
         if (grant) {
+            var a = store.asset(reader, asset);
             UUID build = deployed.current(a.target());
             if (build == null
                     || store.members(build, reader).stream()

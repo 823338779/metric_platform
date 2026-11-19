@@ -8,6 +8,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.metricplatform.identity.TenantFixture;
 import com.metricplatform.identity.auth.PlatformAuthenticationService;
+import com.metricplatform.security.PlatformPrincipal;
 import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -22,7 +23,6 @@ import org.springframework.test.web.servlet.MockMvc;
 
 @SpringBootTest(
         properties = {
-            TenantFixture.TARGETS,
             "EXECUTION_INSTANCES={\"warehouse\":{\"type\":\"starrocks\",\"hosts\":[\"localhost\",\"127.0.0.1\"],\"port\":9030}}"
         })
 @AutoConfigureMockMvc
@@ -118,6 +118,73 @@ class EnvironmentApiTest {
         "credentialRef":"test","catalog":"default_catalog","schema":"%s","threads":2,"businessTimezone":"Asia/Shanghai"}
         """
                 .formatted(schema);
+    }
+
+    @Test
+    void onlyTenantManagerCanCreateAndUpdateEnvironmentWithoutAssetGrants() throws Exception {
+        var manager = TenantFixture.manager(jdbc);
+        when(authentication.authenticate("reader"))
+                .thenReturn(
+                        new PlatformPrincipal(
+                                UUID.randomUUID(),
+                                "reader",
+                                "reader",
+                                null,
+                                1,
+                                manager.tenantId(),
+                                PlatformPrincipal.Role.READ_ONLY));
+        String body = input("env_manager_only");
+        mvc.perform(
+                        post(ROOT)
+                                .header("Authorization", "Bearer reader")
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content(body))
+                .andExpect(status().isForbidden());
+        var created =
+                mvc.perform(
+                                post(ROOT)
+                                        .header("Authorization", "Bearer environment-test")
+                                        .contentType(MediaType.APPLICATION_JSON)
+                                        .content(body))
+                        .andExpect(status().isCreated())
+                        .andReturn();
+        String id =
+                new ObjectMapper()
+                        .readTree(created.getResponse().getContentAsByteArray())
+                        .path("environmentId")
+                        .asText();
+        mvc.perform(get(ROOT).header("Authorization", "Bearer reader"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.items[*].environmentId", org.hamcrest.Matchers.hasItem(id)));
+        mvc.perform(
+                        post(ROOT + "/" + id + "/builds")
+                                .header("Authorization", "Bearer reader")
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content(
+                                        """
+                                        {"repository":"https://example.test/metrics.git","branchName":"main","expectedConfigVersion":1,
+                                         "deploymentPolicy":"ON_SUCCESS","idempotencyKey":"blocked"}
+                                        """))
+                .andExpect(status().isForbidden());
+        mvc.perform(get(ROOT + "/" + id).header("Authorization", "Bearer reader"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.environmentId").value(id));
+        String path = ROOT + "/" + id + "?expectedConfigVersion=1";
+        String updated = input("env_manager_updated");
+        mvc.perform(
+                        put(path)
+                                .header("Authorization", "Bearer reader")
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content(updated))
+                .andExpect(status().isForbidden());
+        mvc.perform(
+                        put(path)
+                                .header("Authorization", "Bearer environment-test")
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content(updated))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.configVersion").value(2))
+                .andExpect(jsonPath("$.execution.schema").value("env_manager_updated"));
     }
 
     @Test

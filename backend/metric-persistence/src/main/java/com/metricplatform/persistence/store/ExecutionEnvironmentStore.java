@@ -48,7 +48,7 @@ public class ExecutionEnvironmentStore implements EnvironmentStore {
                     + " using(tenant_id,environment_id,config_version)";
     private static final String TENANT_FILTER = " where e.tenant_id=?";
     private static final String BY_ID = " where e.tenant_id=? and e.environment_id=?",
-            ORDER = " order by e.created_at,e.environment_id limit 200";
+            ORDER = " order by e.created_at,e.environment_id";
 
     /** 平台持久连接。 */
     private final JdbcTemplate jdbc;

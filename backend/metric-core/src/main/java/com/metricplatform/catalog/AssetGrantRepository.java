@@ -10,7 +10,7 @@ public interface AssetGrantRepository {
     record Entry(
             /** 指标、维度或数据集。 */
             String kind,
-            /** 稳定 dbt 节点身份。 */
+            /** 此构建中的 dbt 节点标识。 */
             String nodeId,
             /** 模型内维度名称，其他类型为空。 */
             String dimensionName,
@@ -59,7 +59,19 @@ public interface AssetGrantRepository {
 
     List<Asset> members(UUID build, UUID reader);
 
-    List<Asset> granted(UUID reader);
+    record CatalogItem(
+            /** 带当前账号权限的资产。 */
+            Asset asset,
+            /** 最近登记的生效构建。 */
+            UUID build,
+            /** 当前环境名称，历史环境使用环境编号。 */
+            String environmentName) {}
+
+    long nextScan();
+
+    void observe(UUID environment, UUID build, long sequence);
+
+    List<CatalogItem> list(UUID reader);
 
     Asset asset(UUID reader, UUID asset);
 

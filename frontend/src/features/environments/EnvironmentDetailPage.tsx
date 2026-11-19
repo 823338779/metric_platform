@@ -1,3 +1,4 @@
+import { getAuthSession } from '../../api/auth';
 import { Alert, Button, Card, Empty, Tag } from 'antd';
 import { useEffect, useRef, useState } from 'react';
 import { Link, useParams, useSearchParams } from 'react-router-dom';
@@ -57,7 +58,6 @@ const DETAIL_STYLE = {
 };
 const BUILD_ROOT = '/dbt/builds/';
 const CATALOG_PATH = '/catalog';
-const QUERY_PATH = '/query';
 const DEPLOY_ON_SUCCESS = 'ON_SUCCESS';
 const DATE_LOCALE = 'zh-CN';
 const DATE_OPTIONS: Intl.DateTimeFormatOptions = {
@@ -140,6 +140,7 @@ function SelectedEnvironment({
   api: EnvironmentApi;
   environmentId: string;
 }) {
+  const manager = getAuthSession()?.identity.role === 'TENANT_MANAGER';
   const [params, setParams] = useSearchParams();
   const [environment, setEnvironment] = useState<ExecutionEnvironment | null>(null);
   const [page, setPage] = useState<EnvironmentBuildPage>({ items: [], nextCursor: null });
@@ -235,9 +236,11 @@ function SelectedEnvironment({
                 <h2>{environment.name}</h2>
                 <p>{environment.execution.connection.instanceId}</p>
               </div>
-              <Button icon={<SettingOutlined aria-hidden />} onClick={() => setEditing(!editing)}>
-                {editing ? COPY.cancel : '编辑配置'}
-              </Button>
+              {manager && (
+                <Button icon={<SettingOutlined aria-hidden />} onClick={() => setEditing(!editing)}>
+                  {editing ? COPY.cancel : '编辑配置'}
+                </Button>
+              )}
             </div>
             <dl className="environment-summary">
               <div>
@@ -256,7 +259,7 @@ function SelectedEnvironment({
               </div>
             </dl>
           </header>
-          {editing && (
+          {manager && editing && (
             <Card className="environment-editor" title="环境配置">
               <EnvironmentForm
                 key={environment.configVersion}
@@ -274,21 +277,23 @@ function SelectedEnvironment({
               />
             </Card>
           )}
-          <Card
-            className="build-submission-panel"
-            title={
-              <span>
-                <BuildOutlined aria-hidden /> 发起构建
-              </span>
-            }
-          >
-            <BuildSubmissionForm
-              key={environmentId}
-              environment={environment}
-              api={api}
-              onSubmitted={() => setRefresh((value) => value + 1)}
-            />
-          </Card>
+          {manager && (
+            <Card
+              className="build-submission-panel"
+              title={
+                <span>
+                  <BuildOutlined aria-hidden /> 发起构建
+                </span>
+              }
+            >
+              <BuildSubmissionForm
+                key={environmentId}
+                environment={environment}
+                api={api}
+                onSubmitted={() => setRefresh((value) => value + 1)}
+              />
+            </Card>
+          )}
         </>
       )}
       <Card
@@ -303,7 +308,9 @@ function SelectedEnvironment({
           </Button>
         }
       >
-        <p className="section-description">{COPY.historyHint}</p>
+        <p className="section-description">
+          {manager ? COPY.historyHint : '选择构建版本，查看资源目录并查询已授权的数据。'}
+        </p>
         <form
           className="deployment-filter"
           onSubmit={(event) => {
@@ -354,13 +361,17 @@ function SelectedEnvironment({
               <div className={DETAIL_STYLE.row}>
                 <div className={DETAIL_STYLE.source}>
                   <strong>
-                    <Link
-                      className={DETAIL_STYLE.entry}
-                      aria-label={`${COPY.enterBuild} ${build.buildId}`}
-                      to={`${BUILD_ROOT}${build.buildId}${build.catalogAvailable ? CATALOG_PATH : QUERY_PATH}`}
-                    >
-                      <BranchesOutlined aria-hidden /> {build.branchName}
-                    </Link>
+                    {build.catalogAvailable ? (
+                      <Link
+                        className={DETAIL_STYLE.entry}
+                        aria-label={`${COPY.enterBuild} ${build.buildId}`}
+                        to={`${BUILD_ROOT}${build.buildId}${CATALOG_PATH}`}
+                      >
+                        <BranchesOutlined aria-hidden /> {build.branchName}
+                      </Link>
+                    ) : (
+                      build.branchName
+                    )}
                   </strong>
                   <code title={build.commitSha ?? undefined}>
                     {build.commitSha?.slice(0, 8) ?? COPY.pendingCommit}
@@ -378,7 +389,7 @@ function SelectedEnvironment({
                       : COPY.noTime}
                   </time>
                 </div>
-                {environment && (
+                {manager && environment && (
                   <RebuildAction
                     build={build}
                     environment={environment}
@@ -388,17 +399,19 @@ function SelectedEnvironment({
                   />
                 )}
               </div>
-              <div className={DETAIL_STYLE.actions}>
-                <Button
-                  type="link"
-                  aria-expanded={logBuild === build.buildId}
-                  onClick={() =>
-                    setLogBuild((current) => (current === build.buildId ? null : build.buildId))
-                  }
-                >
-                  {logBuild === build.buildId ? COPY.hideLogs : COPY.showLogs}
-                </Button>
-              </div>
+              {manager && (
+                <div className={DETAIL_STYLE.actions}>
+                  <Button
+                    type="link"
+                    aria-expanded={logBuild === build.buildId}
+                    onClick={() =>
+                      setLogBuild((current) => (current === build.buildId ? null : build.buildId))
+                    }
+                  >
+                    {logBuild === build.buildId ? COPY.hideLogs : COPY.showLogs}
+                  </Button>
+                </div>
+              )}
             </div>
             <div className={DETAIL_STYLE.details}>
               <dl>
