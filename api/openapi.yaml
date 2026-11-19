@@ -33,6 +33,25 @@ paths:
         '403': {description: 缺少运维权限}
         '409': {description: 登录名已占用或租户编号已耗尽}
   /api/v1/tenant/accounts:
+    get:
+      summary: 列出本租户可授权的只读账号
+      operationId: listTenantReaders
+      security: [{bearerAuth: []}]
+      responses:
+        '200':
+          description: 只读账号列表
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  required: [id, username]
+                  properties:
+                    id: {type: string, format: uuid}
+                    username: {type: string}
+        '401': {description: 登录令牌无效}
+        '403': {description: 需要租户管理者权限}
     post:
       summary: 租户管理者创建本租户只读账号
       operationId: createTenantAccount
@@ -51,6 +70,56 @@ paths:
         '401': {description: 登录令牌无效}
         '403': {description: 需要租户管理者权限}
         '409': {description: 登录名已占用}
+  /api/v1/assets:
+    get:
+      summary: 查看本人的当前可用资产
+      operationId: listMyAssets
+      security: [{bearerAuth: []}]
+      responses:
+        '200':
+          description: 资产列表，普通用户只收到已授权且当前生效的资产
+          content:
+            application/json:
+              schema: {type: array, items: {$ref: '#/components/schemas/AssetAccess'}}
+        '401': {description: 登录令牌无效}
+  /api/v1/tenant/accounts/{userId}/assets:
+    parameters:
+      - {name: userId, in: path, required: true, schema: {type: string, format: uuid}}
+    get:
+      summary: 管理者查看账号的可授权资产与暂未部署的既有授权
+      operationId: listAccountAssets
+      security: [{bearerAuth: []}]
+      responses:
+        '200':
+          description: 资产列表，普通用户只收到已授权且当前生效的资产
+          content:
+            application/json:
+              schema: {type: array, items: {$ref: '#/components/schemas/AssetAccess'}}
+        '401': {description: 登录令牌无效}
+        '403': {description: 需要租户管理者权限}
+        '404': {description: 本租户账号不存在}
+  /api/v1/tenant/accounts/{userId}/assets/{assetId}:
+    parameters:
+      - {name: userId, in: path, required: true, schema: {type: string, format: uuid}}
+      - {name: assetId, in: path, required: true, schema: {type: string, format: uuid}}
+    put:
+      summary: 向本租户账号授予单项已部署资产的使用权
+      operationId: grantAsset
+      security: [{bearerAuth: []}]
+      responses:
+        '204': {description: 操作成功，重复请求幂等}
+        '401': {description: 登录令牌无效}
+        '403': {description: 需要租户管理者权限}
+        '404': {description: 本租户账号或资产不存在}
+    delete:
+      summary: 撤销资产使用权，可撤销暂未部署资产
+      operationId: revokeAsset
+      security: [{bearerAuth: []}]
+      responses:
+        '204': {description: 操作成功，重复请求幂等}
+        '401': {description: 登录令牌无效}
+        '403': {description: 需要租户管理者权限}
+        '404': {description: 本租户账号或资产不存在}
   /api/dbt/repository/branches:
     get:
       summary: 读取服务器全局绑定的 Git 仓库及其远端分支
@@ -688,6 +757,7 @@ paths:
   /api/dbt/builds/{buildId}/available-dimensions:
     post:
       summary: 可用维度
+      description: 普通用户需持有所选所有指标权限，返回当前构建中可唯一解析且已授权的维度选项。
       operationId: available_dimensions_builds__build_id__available_dimensions_post
       parameters:
         - name: buildId
@@ -756,7 +826,8 @@ paths:
         - bearerAuth: []
   /api/dbt/builds/{buildId}/queries:
     post:
-      summary: Submit
+      summary: 提交固定构建查询
+      description: 普通用户仅可查询当前生效构建。缺少任一显式引用的指标、维度或预览数据集权限返回 403，整条查询不执行。
       operationId: submit_builds__build_id__queries_post
       parameters:
         - name: buildId
@@ -826,6 +897,7 @@ paths:
   /api/dbt/builds/{buildId}/catalog:
     get:
       summary: 读取固定构建的原生资源列表
+      description: 管理者读取完整原生目录；普通用户工作台仅收到已授权指标的名称、类型和原生标识。
       operationId: catalog_builds__build_id__catalog_get
       parameters:
       - name: buildId
@@ -1051,6 +1123,26 @@ paths:
                     type: object
 components:
   schemas:
+    AssetAccess:
+      type: object
+      required: [assetId, ownerId, target, kind, nodeId, dimensionName, name, selector, buildId, granted]
+      properties:
+        assetId: {type: string, format: uuid, description: 平台稳定资产标识}
+        ownerId: {type: string, format: uuid, description: 租户管理者账号}
+        target:
+          type: object
+          required: [repository, environmentId, branchName]
+          properties:
+            repository: {type: string}
+            environmentId: {type: string, format: uuid}
+            branchName: {type: string}
+        kind: {type: string, enum: [METRIC, DIMENSION, DATASET]}
+        nodeId: {type: string, description: dbt 节点 unique_id}
+        dimensionName: {type: string, description: 模型内维度名，其他类型为空字符串}
+        name: {type: string, description: 查询名称或维度所属模型名，历史授权可显示节点标识}
+        selector: {type: string, description: 当前数据集的精确预览选择器}
+        buildId: {type: [string, 'null'], format: uuid, description: 当前构建，暂未部署时为空}
+        granted: {type: boolean, description: 指定账号是否具有显式使用授权}
     ExecutionSnapshot:
       additionalProperties: false
       properties:

@@ -17,20 +17,12 @@ public class PublishedCatalogController {
     public static final String ROOT = "/api/dbt";
     private static final String BUILD = "/builds/{buildId}",
             RESOURCE = BUILD + "/resources/{resourceId}";
-    private static final String CATALOG = "/catalog",
-            LINEAGE = "/lineage",
-            AVAILABLE_DIMENSIONS = "/available-dimensions";
+    private static final String LINEAGE = "/lineage";
 
     /** 服务权威的固定构建目录与可用维度接口。 */
     private final BuildGateway gateway;
 
     private final TenantAssets assets;
-
-    @GetMapping(BUILD + CATALOG)
-    public ResponseEntity<String> catalog(@PathVariable UUID buildId) {
-        assets.requireBuild(buildId);
-        return nativeJson(gateway.catalog(buildId));
-    }
 
     @GetMapping(RESOURCE)
     public ResourceView resource(@PathVariable UUID buildId, @PathVariable String resourceId) {
@@ -50,17 +42,5 @@ public class PublishedCatalogController {
             com.fasterxml.jackson.databind.JsonNode value) {
         // MVC 使用 Jackson 3，直接输出 Jackson 2 原生 JSON，避免节点内省破坏结构。
         return ResponseEntity.ok().contentType(MediaType.APPLICATION_JSON).body(value.toString());
-    }
-
-    @PostMapping(BUILD + AVAILABLE_DIMENSIONS)
-    public ResponseEntity<AvailableDimensionsView> availableDimensions(
-            @PathVariable UUID buildId, @RequestBody String request) {
-        assets.requireBuild(buildId);
-        return ResponseEntity.ok()
-                .body(
-                        gateway.availableDimensions(
-                                buildId,
-                                BuildRequestParser.parse(
-                                        request, AvailableDimensionsRequest.class)));
     }
 }

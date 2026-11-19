@@ -62,7 +62,7 @@ test('环境配置独立于源码，构建历史进入固定目录和查询', as
   await page.getByLabel('构建分支').selectOption('feature/browser');
   await page.getByRole('button', { name: '发起构建', exact: true }).click();
   await expect(page.getByRole('article').getByText('SUCCEEDED', { exact: true })).toBeVisible();
-  await page.getByRole('link', { name: '查看目录' }).click();
+  await page.getByRole('link', { name: `进入构建 ${BUILD_A}`, exact: true }).click();
   await expect(page).toHaveURL(new RegExp(`/builds/${BUILD_A}/catalog`));
   await expect(
     page.getByRole('link', { name: 'default_catalog / env_browser', exact: true }).first(),

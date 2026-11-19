@@ -17,6 +17,7 @@ import {
   useSearchParams,
 } from 'react-router-dom';
 import { clearAuthSession, getAuthSession } from '../api/auth';
+import { MyAssets } from '../features/accounts/AssetAccess';
 
 const ENVIRONMENTS = '/dbt/environments';
 const LOGIN = '/login?reason=required';
@@ -76,11 +77,13 @@ export function PlatformLayout() {
           <Link
             to={ENVIRONMENTS}
             className={pathname.startsWith(ENVIRONMENTS) ? 'is-active' : ''}
-            aria-label={COPY.environments}
+            aria-label={identity && !manager ? '我的资产' : COPY.environments}
             aria-current={pathname.startsWith(ENVIRONMENTS) ? 'page' : undefined}
           >
             <DatabaseOutlined aria-hidden />
-            <span className="platform-nav-text">{COPY.environments}</span>
+            <span className="platform-nav-text">
+              {identity && !manager ? '我的资产' : COPY.environments}
+            </span>
           </Link>
         </Tooltip>
         {buildId && (
@@ -159,8 +162,10 @@ export function PlatformLayout() {
           </div>
         </header>
         <main className="platform-content">
-          {manager ? (
+          {manager || (routeBuildId && queryPage) ? (
             <Outlet key={identity?.identityId} />
+          ) : identity && pathname === ENVIRONMENTS ? (
+            <MyAssets key={identity.identityId} />
           ) : (
             <p>{pathname === ENVIRONMENTS ? '暂无可见资产' : '无权访问此页面'}</p>
           )}

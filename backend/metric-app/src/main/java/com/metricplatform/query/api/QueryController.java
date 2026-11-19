@@ -1,5 +1,6 @@
 package com.metricplatform.query.api;
 
+import com.metricplatform.catalog.AssetAccessService;
 import com.metricplatform.catalog.BuildContracts.*;
 import com.metricplatform.catalog.api.BuildRequestParser;
 import com.metricplatform.query.QueryService;
@@ -23,19 +24,16 @@ public class QueryController {
     private final QueryService service;
 
     private final TenantAssets assets;
+    private final AssetAccessService access;
 
     @PostMapping(QueryController.SUBMIT)
     public ResponseEntity<ResultPage> submit(
             @PathVariable UUID buildId,
             @RequestBody String request,
             @AuthenticationPrincipal PlatformPrincipal principal) {
-        principal.requireManager();
-        assets.requireBuild(buildId);
-        return ResponseEntity.ok()
-                .body(
-                        service.submit(
-                                buildId,
-                                BuildRequestParser.parse(request, QueryRequest.class),
-                                principal.identityId()));
+        if (principal.manager()) assets.requireBuild(buildId);
+        var input = BuildRequestParser.parse(request, QueryRequest.class);
+        if (!principal.manager()) input = access.check(buildId, input);
+        return ResponseEntity.ok().body(service.submit(buildId, input, principal.identityId()));
     }
 }

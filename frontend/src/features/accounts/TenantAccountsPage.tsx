@@ -2,6 +2,7 @@ import { useState, type FormEvent } from 'react';
 import { Button, Card, Input, Space } from 'antd';
 import { createHttpClient, ApiProblem } from '../../api/httpClient';
 import { getAuthSession } from '../../api/auth';
+import { AssetGrantPanel } from './AssetAccess';
 
 export const ACCOUNTS_PATH = '/tenant/accounts';
 const API_PATH = '/tenant/accounts';
@@ -65,6 +66,7 @@ export function TenantAccountsPage() {
           <span role="status">{message}</span>
         </Space>
       </form>
+      <AssetGrantPanel />
     </Card>
   );
 }

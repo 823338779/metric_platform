@@ -14,6 +14,7 @@ import { businessTimeToIso } from './businessTime';
 import { useEffect, useRef, useState } from 'react';
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { ApiProblem } from '../../api/httpClient';
+import { getAuthSession } from '../../api/auth';
 import {
   buildCatalogApi,
   type BuildCatalogApi,
@@ -51,6 +52,7 @@ export function PublishedWorkbench({ api = buildCatalogApi }: { api?: BuildCatal
   return <FixedPublishedWorkbench key={buildId} api={api} />;
 }
 function FixedPublishedWorkbench({ api }: { api: BuildCatalogApi }) {
+  const reader = getAuthSession()?.identity.role === 'READ_ONLY';
   const { projectId = EMPTY, buildId: routeBuildId } = useParams();
   const navigate = useNavigate();
   const [params] = useSearchParams();
@@ -99,7 +101,7 @@ function FixedPublishedWorkbench({ api }: { api: BuildCatalogApi }) {
   });
 
   useEffect(() => {
-    if (!buildId) return;
+    if (!buildId || reader) return;
     let active = true;
     let timer: ReturnType<typeof setTimeout> | undefined;
     async function read() {
@@ -127,7 +129,7 @@ function FixedPublishedWorkbench({ api }: { api: BuildCatalogApi }) {
       active = false;
       if (timer) clearTimeout(timer);
     };
-  }, [api, buildId]);
+  }, [api, buildId, reader]);
   useEffect(() => {
     // 版本改变立即清除旧选择，防止新标题下暂时展示旧目录。
     submissionGeneration.current++;
@@ -302,6 +304,7 @@ function FixedPublishedWorkbench({ api }: { api: BuildCatalogApi }) {
       }
     } catch (failure) {
       if (turn === submissionGeneration.current) {
+        if (failure instanceof ApiProblem && failure.problem.status === 403) setResult(null);
         setError(errorText(failure));
       }
     } finally {
@@ -325,8 +328,14 @@ function FixedPublishedWorkbench({ api }: { api: BuildCatalogApi }) {
     <section className="analysis-page query-workbench">
       <header className="analysis-heading">
         <div>
-          <Link to={`/dbt/builds/${encodeURIComponent(buildId)}/catalog?${params}`}>
-            <ArrowLeftOutlined aria-hidden /> 返回资源目录
+          <Link
+            to={
+              reader
+                ? '/dbt/environments'
+                : `/dbt/builds/${encodeURIComponent(buildId)}/catalog?${params}`
+            }
+          >
+            <ArrowLeftOutlined aria-hidden /> {reader ? '返回我的资产' : '返回资源目录'}
           </Link>
           <h1>分析探索</h1>
           <p>{COPY.description}</p>
@@ -335,30 +344,32 @@ function FixedPublishedWorkbench({ api }: { api: BuildCatalogApi }) {
           <Button
             icon={<ReloadOutlined aria-hidden />}
             loading={loading}
-            onClick={() => void latest()}
+            onClick={() => (reader ? navigate('/dbt/environments') : void latest())}
           >
-            刷新已发布版本
+            {reader ? '选择当前已授权版本' : '刷新已发布版本'}
           </Button>
         </div>
       </header>
-      <details className="query-context" aria-label="查询上下文">
-        <summary>
-          {COPY.context}
-          <span>
-            {identity?.branchName} · {identity?.execution.schema}
-          </span>
-        </summary>
-        <p>
-          仓库：{identity?.repository} · 分支：{identity?.branchName} · 环境：
-          {identity?.execution
-            ? `${identity.execution.catalog} / ${identity.execution.schema} · 配置版本 ${identity.execution.configVersion}`
-            : undefined}
-        </p>
-        <p>
-          固定版本：<code>{buildId || '尚未选择'}</code> · 源码提交：
-          <code>{identity?.commitSha ?? '尚未读取'}</code>
-        </p>
-      </details>
+      {!reader && (
+        <details className="query-context" aria-label="查询上下文">
+          <summary>
+            {COPY.context}
+            <span>
+              {identity?.branchName} · {identity?.execution.schema}
+            </span>
+          </summary>
+          <p>
+            仓库：{identity?.repository} · 分支：{identity?.branchName} · 环境：
+            {identity?.execution
+              ? `${identity.execution.catalog} / ${identity.execution.schema} · 配置版本 ${identity.execution.configVersion}`
+              : undefined}
+          </p>
+          <p>
+            固定版本：<code>{buildId || '尚未选择'}</code> · 源码提交：
+            <code>{identity?.commitSha ?? '尚未读取'}</code>
+          </p>
+        </details>
+      )}
       {identityError && (
         <Alert type="warning" title="分支身份详情读取失败，查询目标仍为上述固定 ID。" />
       )}
