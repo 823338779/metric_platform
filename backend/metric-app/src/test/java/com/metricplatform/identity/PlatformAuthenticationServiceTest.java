@@ -1,8 +1,10 @@
 package com.metricplatform.identity;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -22,6 +24,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 
 @ExtendWith(MockitoExtension.class)
@@ -61,7 +64,13 @@ class PlatformAuthenticationServiceTest {
                         2,
                         0,
                         null);
-        when(identities.findByUsername("admin")).thenReturn(user);
+        when(identities.findLoginTenant("admin")).thenReturn("tn_00001");
+        when(identities.findByUsername("admin"))
+                .thenAnswer(
+                        call -> {
+                            assertThat(TenantScope.require()).isEqualTo("tn_00001");
+                            return user;
+                        });
         when(identities.membership(userId))
                 .thenReturn(new PlatformIdentityRepository.Membership("tn_00001", true));
 
@@ -88,5 +97,25 @@ class PlatformAuthenticationServiceTest {
                         eq(NOW),
                         eq(NOW.plus(Duration.ofHours(10))));
         assertThat(tokenHash.getValue()).hasSize(64);
+        assertThat(TenantScope.current()).isNull();
+    }
+
+    @Test
+    void unknownUsernameDoesNotCreateATenantScope() {
+        assertThatThrownBy(() -> service.login(new AuthTokenRequest("missing", "bad"), "127.0.0.1"))
+                .isInstanceOf(BadCredentialsException.class);
+        verify(identities, never()).findByUsername(any());
+        verify(rateLimiter).recordFailure("127.0.0.1", "missing");
+        assertThat(TenantScope.current()).isNull();
+    }
+
+    @Test
+    void boundRequestCannotDiscoverAnotherTokensTenant() {
+        try (var scope = TenantScope.open("tn_00001")) {
+            assertThatThrownBy(() -> service.authenticate("other-tenant-token"))
+                    .isInstanceOf(BadCredentialsException.class);
+            verify(identities, never()).findTokenTenant(any(), any());
+            assertThat(TenantScope.require()).isEqualTo("tn_00001");
+        }
     }
 }

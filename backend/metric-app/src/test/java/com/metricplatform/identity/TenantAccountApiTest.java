@@ -1,14 +1,19 @@
 package com.metricplatform.identity;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.util.HexFormat;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
+import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.test.web.servlet.MockMvc;
@@ -26,7 +31,9 @@ class TenantAccountApiTest {
     }
 
     @Autowired MockMvc mvc;
+    @Autowired StringRedisTemplate redis;
     private static final String ACCOUNTS = "/api/v1/tenant/accounts", LOGIN = "/api/v1/auth/token";
+    private static final String TOKEN_TENANT_FIELD = "tenant_id";
 
     @Test
     void managerCreatesReaderWhoseSessionCannotCreateAccounts() throws Exception {
@@ -48,6 +55,14 @@ class TenantAccountApiTest {
                         .get("tenant_id")
                         .asText();
         String managerToken = login(manager, tenant, "TENANT_MANAGER");
+        // 运维请求即使同时携带有效业务令牌，仍按独立凭据开通新租户。
+        mvc.perform(
+                        post("/api/ops/tenants")
+                                .header("Authorization", managerToken)
+                                .header("X-Operations-Token", "fixture-only")
+                                .contentType("application/json")
+                                .content(account()))
+                .andExpect(status().isCreated());
         String reader = account();
         mvc.perform(
                         post(ACCOUNTS)
@@ -66,6 +81,26 @@ class TenantAccountApiTest {
         mvc.perform(get("/api/v1/auth/me").header("Authorization", readerToken))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.tenant_id").value(tenant));
+
+        // 升级前 Redis 未记录签发租户的令牌按账号定位；显式租户与账号不同时立即拒绝。
+        String digest =
+                HexFormat.of()
+                        .formatHex(
+                                MessageDigest.getInstance("SHA-256")
+                                        .digest(
+                                                readerToken
+                                                        .substring("Bearer ".length())
+                                                        .getBytes(StandardCharsets.UTF_8)));
+        String key = "metric-platform:auth-token:" + digest;
+        assertThat(redis.opsForHash().get(key, TOKEN_TENANT_FIELD)).isEqualTo(tenant);
+        redis.opsForHash().delete(key, TOKEN_TENANT_FIELD);
+        mvc.perform(get("/api/v1/auth/me").header("Authorization", readerToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.tenant_id").value(tenant));
+        redis.opsForHash()
+                .put(key, TOKEN_TENANT_FIELD, tenant.equals("tn_99999") ? "tn_99998" : "tn_99999");
+        mvc.perform(get("/api/v1/auth/me").header("Authorization", readerToken))
+                .andExpect(status().isUnauthorized());
     }
 
     private String login(String body, String tenant, String role) throws Exception {

@@ -10,7 +10,6 @@ import com.metricplatform.environment.EnvironmentBuildGateway;
 import com.metricplatform.environment.EnvironmentContracts;
 import com.metricplatform.identity.TenantFixture;
 import com.metricplatform.identity.auth.PlatformAuthenticationService;
-import com.metricplatform.security.PlatformPrincipal;
 import java.util.*;
 import java.util.TreeSet;
 import java.util.UUID;
@@ -43,21 +42,15 @@ class BuildApiContractTest {
     @MockitoBean EnvironmentBuildGateway environmentBuilds;
     @MockitoBean PlatformAuthenticationService authentication;
     private static final String ROOT = "/api/dbt", TOKEN = "test-v3";
-    private final UUID build = UUID.randomUUID(), user = UUID.randomUUID();
+    private final UUID build = UUID.randomUUID();
+
+    private UUID user;
 
     @BeforeEach
     void login() {
-        TenantFixture.bind(jdbc, ENVIRONMENT_ID, build);
-        when(authentication.authenticate(TOKEN))
-                .thenReturn(
-                        new PlatformPrincipal(
-                                user,
-                                "test",
-                                "Test",
-                                null,
-                                1,
-                                TenantFixture.ID,
-                                PlatformPrincipal.Role.TENANT_MANAGER));
+        var manager = TenantFixture.bind(jdbc, ENVIRONMENT_ID, build);
+        user = manager.identityId();
+        when(authentication.authenticate(TOKEN)).thenReturn(manager);
     }
 
     @Test

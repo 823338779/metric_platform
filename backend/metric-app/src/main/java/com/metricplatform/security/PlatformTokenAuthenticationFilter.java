@@ -1,5 +1,6 @@
 package com.metricplatform.security;
 
+import com.metricplatform.identity.TenantScope;
 import com.metricplatform.identity.auth.PlatformAuthenticationService;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
@@ -41,6 +42,16 @@ public final class PlatformTokenAuthenticationFilter extends OncePerRequestFilte
                 SecurityContextHolder.clearContext();
             }
         }
-        chain.doFilter(request, response);
+        var authenticated = SecurityContextHolder.getContext().getAuthentication();
+        // 业务 SQL 的租户来自已验证身份，请求结束时必须清理线程上的作用域。
+        if (authenticated != null
+                && authenticated.isAuthenticated()
+                && authenticated.getPrincipal() instanceof PlatformPrincipal principal) {
+            try (var scope = TenantScope.open(principal.tenantId())) {
+                chain.doFilter(request, response);
+            }
+        } else {
+            chain.doFilter(request, response);
+        }
     }
 }

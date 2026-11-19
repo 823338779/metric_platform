@@ -4,6 +4,7 @@ import com.metricplatform.identity.api.TenantOperationsController;
 import jakarta.servlet.http.HttpServletResponse;
 import java.nio.charset.StandardCharsets;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.boot.web.servlet.FilterRegistrationBean;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.core.annotation.Order;
@@ -21,6 +22,15 @@ import org.springframework.security.web.authentication.UsernamePasswordAuthentic
 @EnableWebSecurity
 public class PlatformSecurityConfig {
     private static final String OPS_HEADER = "X-Operations-Token";
+
+    /** Bearer 过滤器只挂载在业务安全链，运维开通接口独立认证。 */
+    @Bean
+    FilterRegistrationBean<PlatformTokenAuthenticationFilter> tokenFilterRegistration(
+            PlatformTokenAuthenticationFilter filter) {
+        var registration = new FilterRegistrationBean<>(filter);
+        registration.setEnabled(false);
+        return registration;
+    }
 
     /** 独立处理运维请求，业务令牌不能取得租户开通权限。 */
     @Bean

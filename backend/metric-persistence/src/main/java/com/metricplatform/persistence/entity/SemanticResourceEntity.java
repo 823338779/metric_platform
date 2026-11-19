@@ -3,15 +3,17 @@ package com.metricplatform.persistence.entity;
 import com.baomidou.mybatisplus.annotation.TableField;
 import com.baomidou.mybatisplus.annotation.TableName;
 import com.metricplatform.persistence.typehandler.JsonbTypeHandler;
-import java.util.UUID;
+
 import lombok.Getter;
 import lombok.Setter;
+
+import java.util.UUID;
 
 /** releaseId 与 resourceId 组成主键，按复合条件查询和删除。 */
 @Getter
 @Setter
 @TableName(value = "semantic_resource", autoResultMap = true)
-public class SemanticResourceEntity {
+public class SemanticResourceEntity extends TenantOwnedEntity {
     /** 所属发布版本。 */
     private UUID releaseId;
 

@@ -42,6 +42,7 @@ public class EnvironmentBuildService {
         var fixed = submissions.reserve(actor.tenantId(), actor.identityId(), environment, command);
         JsonNode result = gateway.submit(fixed);
         submissions.accepted(
+                actor.tenantId(),
                 actor.identityId(),
                 command.idempotencyKey(),
                 UUID.fromString(result.path(BUILD_ID).asText()));

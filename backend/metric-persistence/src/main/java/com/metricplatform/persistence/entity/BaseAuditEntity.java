@@ -1,15 +1,25 @@
 package com.metricplatform.persistence.entity;
 
 import com.baomidou.mybatisplus.annotation.FieldFill;
+import com.baomidou.mybatisplus.annotation.FieldStrategy;
 import com.baomidou.mybatisplus.annotation.TableField;
 import com.baomidou.mybatisplus.annotation.TableLogic;
-import java.time.Instant;
+
 import lombok.Getter;
 import lombok.Setter;
+
+import java.time.Instant;
 
 @Getter
 @Setter
 public abstract class BaseAuditEntity {
+    /** 记录归属由 SQL 租户拦截器写入，实体更新不能转移归属。 */
+    @TableField(
+            value = "tenant_id",
+            insertStrategy = FieldStrategy.NEVER,
+            updateStrategy = FieldStrategy.NEVER)
+    private String tenantId;
+
     @TableField(value = "created_at", fill = FieldFill.INSERT)
     private Instant createdAt;
 

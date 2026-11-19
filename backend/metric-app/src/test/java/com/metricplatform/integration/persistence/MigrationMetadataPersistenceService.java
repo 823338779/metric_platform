@@ -1,5 +1,6 @@
 package com.metricplatform.integration.persistence;
 
+import com.baomidou.mybatisplus.annotation.InterceptorIgnore;
 import com.baomidou.mybatisplus.annotation.TableName;
 import com.baomidou.mybatisplus.core.mapper.BaseMapper;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
@@ -24,7 +25,9 @@ public class MigrationMetadataPersistenceService
     }
 }
 
+// 仅测试使用的 information_schema 元数据不包含业务租户列。
 @Mapper
+@InterceptorIgnore(tenantLine = "true")
 interface MigrationMetadataMapper extends BaseMapper<MigrationMetadataRow> {
     @Select(
             "select count(*) from information_schema.tables "

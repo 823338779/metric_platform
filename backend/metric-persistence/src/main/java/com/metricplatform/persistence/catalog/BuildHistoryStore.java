@@ -4,6 +4,8 @@ import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.metricplatform.catalog.BuildContracts.*;
 import com.metricplatform.catalog.BuildHistoryRepository;
+import com.metricplatform.environment.AssetOwnership;
+import com.metricplatform.identity.TenantScope;
 
 import org.springframework.stereotype.Repository;
 import org.springframework.transaction.annotation.Transactional;
@@ -21,12 +23,17 @@ public class BuildHistoryStore implements BuildHistoryRepository {
     /** 负责 MyBatis 行锁及版本条件更新的持久化服务。 */
     private final com.metricplatform.persistence.service.BuildHistoryPersistenceService persistence;
 
+    /** 验证服务摘要内每个构建、环境确实属于消费租户。 */
+    private final AssetOwnership ownership;
+
     private final ObjectMapper mapper =
             new ObjectMapper().disable(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES);
 
     public BuildHistoryStore(
-            com.metricplatform.persistence.service.BuildHistoryPersistenceService persistence) {
+            com.metricplatform.persistence.service.BuildHistoryPersistenceService persistence,
+            AssetOwnership ownership) {
         this.persistence = persistence;
+        this.ownership = ownership;
     }
 
     public String cursor() {
@@ -51,7 +58,11 @@ public class BuildHistoryStore implements BuildHistoryRepository {
                         || !view.buildId().toString().equals(event.objectId())
                         || !Objects.equals(view.repository(), event.repository())
                         || view.buildStatus() == null
-                        || view.execution() == null)
+                        || view.execution() == null
+                        || !ownership.hasBuild(
+                                TenantScope.require(),
+                                view.execution().environmentId(),
+                                view.buildId()))
                     throw new IllegalArgumentException("构建摘要身份或必需字段无效");
                 var row = new com.metricplatform.persistence.entity.BuildHistoryEntity();
                 row.setBuildId(UUID.fromString(event.objectId()));
@@ -63,6 +74,7 @@ public class BuildHistoryStore implements BuildHistoryRepository {
                 row.setSummary(json(event.summary()));
                 persistence.apply(row);
             } else if (TARGET.equals(event.objectType()) || ATTEMPT.equals(event.objectType())) {
+                verifyDeployment(event);
                 var row = new com.metricplatform.persistence.entity.DeploymentHistoryEntity();
                 row.setObjectType(event.objectType());
                 row.setObjectId(event.objectId());
@@ -77,6 +89,35 @@ public class BuildHistoryStore implements BuildHistoryRepository {
         if (number(page.nextCursor()) != last) throw new IllegalArgumentException("变化页游标与事实序号不一致");
         if (persistence.advance(page.nextCursor(), expectedCursor) != 1)
             throw new IllegalStateException("历史水位提交冲突");
+    }
+
+    private void verifyDeployment(ChangeRecord event) {
+        // 目标可能尚未部署，也可能包含来自另一构建的最新尝试，逐项校验实际引用。
+        if (TARGET.equals(event.objectType())) {
+            var target = mapper.convertValue(event.summary(), DeploymentTargetView.class);
+            if (target.environmentId() != null
+                    || target.activeBuildId() != null
+                    || target.latestAttempt() == null) {
+                verifyOwner(target.environmentId(), target.activeBuildId());
+            }
+            if (target.latestAttempt() != null) {
+                verifyOwner(
+                        target.latestAttempt().environmentId(), target.latestAttempt().buildId());
+            }
+        } else {
+            var attempt = mapper.convertValue(event.summary(), DeploymentAttemptView.class);
+            verifyOwner(attempt.environmentId(), attempt.buildId());
+        }
+    }
+
+    private void verifyOwner(UUID environmentId, UUID buildId) {
+        String tenant = TenantScope.require();
+        boolean owned;
+        if (buildId == null)
+            owned = environmentId != null && ownership.hasEnvironment(tenant, environmentId);
+        else if (environmentId == null) owned = ownership.hasBuild(tenant, buildId);
+        else owned = ownership.hasBuild(tenant, environmentId, buildId);
+        if (!owned) throw new IllegalArgumentException("部署历史引用了未归属当前租户的构建或环境");
     }
 
     public BuildPage list(BuildFilter filter) {
@@ -103,8 +144,9 @@ public class BuildHistoryStore implements BuildHistoryRepository {
                         : persistence.cursor().getSyncedAt().toString());
     }
 
-    /** 本地分页游标绑定可选仓库、分支及首次变化序号；省略的筛选条件也是作用域。 */
-    private record PageCursor(String repository, String branchName, long firstSequence) {}
+    /** 本地分页游标绑定租户、可选仓库、分支及首次变化序号。 */
+    private record PageCursor(
+            String tenantId, String repository, String branchName, long firstSequence) {}
 
     private long pageOffset(BuildFilter filter) {
         if (filter.cursor() == null) return 0;
@@ -112,10 +154,11 @@ public class BuildHistoryStore implements BuildHistoryRepository {
             var cursor =
                     mapper.readValue(
                             Base64.getUrlDecoder().decode(filter.cursor()), PageCursor.class);
-            if (!Objects.equals(cursor.repository(), filter.repository())
+            if (!TenantScope.require().equals(cursor.tenantId())
+                    || !Objects.equals(cursor.repository(), filter.repository())
                     || !Objects.equals(cursor.branchName(), filter.branchName())
                     || cursor.firstSequence() < 0)
-                throw new IllegalArgumentException("历史游标不属于当前仓库和分支");
+                throw new IllegalArgumentException("历史游标不属于当前租户、仓库和分支");
             return cursor.firstSequence();
         } catch (java.io.IOException e) {
             throw new IllegalArgumentException("历史游标无效", e);
@@ -126,7 +169,11 @@ public class BuildHistoryStore implements BuildHistoryRepository {
         return Base64.getUrlEncoder()
                 .withoutPadding()
                 .encodeToString(
-                        json(new PageCursor(filter.repository(), filter.branchName(), sequence))
+                        json(new PageCursor(
+                                        TenantScope.require(),
+                                        filter.repository(),
+                                        filter.branchName(),
+                                        sequence))
                                 .getBytes(java.nio.charset.StandardCharsets.UTF_8));
     }
 

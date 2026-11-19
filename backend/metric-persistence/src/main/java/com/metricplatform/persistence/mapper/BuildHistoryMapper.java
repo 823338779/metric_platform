@@ -14,13 +14,14 @@ public interface BuildHistoryMapper extends BaseMapper<BuildHistoryEntity> {
             "insert into"
                 + " build_history(build_id,repository,branch_name,object_version,first_sequence,last_sequence,summary)"
                 + " values(#{buildId},#{repository},#{branchName},#{objectVersion},#{firstSequence},#{lastSequence},#{summary}::jsonb)"
-                + " on conflict(build_id) do update set"
+                + " on conflict(tenant_id,build_id) do update set"
                 + " repository=excluded.repository,branch_name=excluded.branch_name,object_version=excluded.object_version,last_sequence=excluded.last_sequence,summary=excluded.summary,synced_at=CURRENT_TIMESTAMP"
                 + " where build_history.object_version<excluded.object_version";
     String LIST =
-            "select build_id,summary::text,first_sequence,synced_at from build_history where"
-                + " (#{repository}::text is null or repository=#{repository}) and (#{branch}::text is null or branch_name=#{branch})"
-                + " and first_sequence>#{after} order by first_sequence limit #{limit}";
+            "select tenant_id,build_id,summary::text,first_sequence,synced_at from build_history"
+                + " where (#{repository}::text is null or repository=#{repository}) and"
+                + " (#{branch}::text is null or branch_name=#{branch}) and first_sequence>#{after}"
+                + " order by first_sequence limit #{limit}";
 
     @Insert(UPSERT)
     int upsert(BuildHistoryEntity row);

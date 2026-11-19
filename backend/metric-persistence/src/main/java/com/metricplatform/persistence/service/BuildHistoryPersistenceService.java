@@ -17,14 +17,18 @@ public class BuildHistoryPersistenceService
         extends ServiceImpl<BuildHistoryMapper, BuildHistoryEntity> {
     /** 历史消费者的原子水位 Mapper。 */
     private final HistoryCursorMapper cursors;
+
     /** 部署事实摘要 Mapper。 */
     private final DeploymentHistoryMapper deployments;
 
     public HistoryCursorEntity cursor() {
-        return cursors.read();
+        HistoryCursorEntity row = cursors.read();
+        return row == null ? new HistoryCursorEntity() : row;
     }
 
     public String lock() {
+        // 首次消费时创建本租户独立的水位行，与后续锁定及推进共享事务。
+        cursors.initialize();
         return cursors.lock().getCursor();
     }
 

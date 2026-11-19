@@ -9,5 +9,5 @@ public interface BuildSubmissionStore {
     SnapshotBuildRequest reserve(
             String tenant, UUID actor, UUID environment, SubmitBuildCommand command);
 
-    void accepted(UUID actor, String key, UUID buildId);
+    void accepted(String tenant, UUID actor, String key, UUID buildId);
 }

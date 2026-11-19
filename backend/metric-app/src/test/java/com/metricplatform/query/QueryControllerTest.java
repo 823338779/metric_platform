@@ -12,7 +12,6 @@ import com.metricplatform.environment.EnvironmentBuildGateway;
 import com.metricplatform.environment.EnvironmentContracts;
 import com.metricplatform.identity.TenantFixture;
 import com.metricplatform.identity.auth.PlatformAuthenticationService;
-import com.metricplatform.security.PlatformPrincipal;
 import java.util.*;
 import java.util.UUID;
 import org.junit.jupiter.api.*;
@@ -109,17 +108,8 @@ class QueryControllerTest {
 
     @BeforeEach
     void prepare() {
-        TenantFixture.bind(jdbc, ENVIRONMENT_ID, build);
-        when(authentication.authenticate("query-test"))
-                .thenReturn(
-                        new PlatformPrincipal(
-                                UUID.randomUUID(),
-                                "user",
-                                "User",
-                                null,
-                                1,
-                                TenantFixture.ID,
-                                PlatformPrincipal.Role.TENANT_MANAGER));
+        var manager = TenantFixture.bind(jdbc, ENVIRONMENT_ID, build);
+        when(authentication.authenticate("query-test")).thenReturn(manager);
         when(gateway.getBuild(build))
                 .thenReturn(
                         new BuildView(

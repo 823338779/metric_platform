@@ -1,6 +1,7 @@
 package com.metricplatform.identity.auth;
 
 import com.metricplatform.identity.PlatformIdentityRepository;
+import com.metricplatform.identity.TenantScope;
 import com.metricplatform.identity.api.IdentityDtos.AuthTokenRequest;
 import com.metricplatform.identity.api.IdentityDtos.AuthTokenResponse;
 import com.metricplatform.identity.api.IdentityDtos.IdentitySummary;
@@ -16,13 +17,16 @@ import java.util.Base64;
 import java.util.HexFormat;
 import java.util.Locale;
 import java.util.UUID;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+@Slf4j
 @Service
 public class PlatformAuthenticationService {
+    private static final String UNKNOWN_ACCOUNT_FAILURE = "登录失败：无法确定账号所属租户";
     private static final String ACTIVE = "ACTIVE", BEARER = "Bearer";
     private final PlatformIdentityProperties properties;
     private final LoginRateLimiter rateLimiter;
@@ -52,13 +56,29 @@ public class PlatformAuthenticationService {
         String username = normalize(request.username());
         rateLimiter.checkAllowed(remoteAddress, username);
 
-        PlatformIdentityRepository.User user = identities.findByUsername(username);
+        // 只有尚未认证的请求可以根据登录名发现租户；已有会话只能在本租户核验账号。
+        String tenant = TenantScope.current();
+        if (tenant == null) tenant = identities.findLoginTenant(username);
+        if (tenant == null) {
+            passwordEncoder.matches(request.password(), dummyPasswordHash);
+            rateLimiter.recordFailure(remoteAddress, username);
+            log.warn(UNKNOWN_ACCOUNT_FAILURE);
+            throw invalidCredentials();
+        }
+        try (var scope = TenantScope.open(tenant)) {
+            return loginInTenant(username, request.password(), remoteAddress);
+        }
+    }
+
+    private AuthTokenResponse loginInTenant(
+            String username, String password, String remoteAddress) {
+        var user = identities.findByUsername(username);
         Instant now = clock.instant();
         String storedHash =
                 user == null || user.passwordHash() == null || user.passwordHash().isBlank()
                         ? dummyPasswordHash
                         : user.passwordHash();
-        boolean passwordMatches = passwordEncoder.matches(request.password(), storedHash);
+        boolean passwordMatches = passwordEncoder.matches(password, storedHash);
         boolean eligible =
                 user != null
                         && ACTIVE.equals(user.status())
@@ -89,7 +109,17 @@ public class PlatformAuthenticationService {
             throw invalidCredentials();
         }
         Instant now = clock.instant();
-        PlatformIdentityRepository.Token token = identities.findToken(hash(rawToken), now);
+        String tokenHash = hash(rawToken);
+        String tenant = TenantScope.current();
+        if (tenant == null) tenant = identities.findTokenTenant(tokenHash, now);
+        if (tenant == null) throw invalidCredentials();
+        try (var scope = TenantScope.open(tenant)) {
+            return authenticateInTenant(tokenHash, now);
+        }
+    }
+
+    private PlatformPrincipal authenticateInTenant(String tokenHash, Instant now) {
+        var token = identities.findToken(tokenHash, now);
         if (token == null) throw invalidCredentials();
 
         PlatformIdentityRepository.User user = identities.findById(token.identityId());

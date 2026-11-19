@@ -39,7 +39,10 @@ public class TenantAccountService {
                 throw new ResponseStatusException(HttpStatus.CONFLICT, "租户编号已耗尽");
             throw failure;
         }
-        createAccount(input, manager, tenant);
+        // 运维入口只可绑定数据库刚分配的租户，新账号与租户在同一事务提交。
+        try (var scope = TenantScope.open(tenant)) {
+            createAccount(input, manager, tenant);
+        }
         return tenant;
     }
 

@@ -2,16 +2,25 @@ package com.metricplatform.persistence.config;
 
 import com.baomidou.mybatisplus.annotation.DbType;
 import com.baomidou.mybatisplus.extension.plugins.MybatisPlusInterceptor;
+import com.baomidou.mybatisplus.extension.plugins.handler.TenantLineHandler;
 import com.baomidou.mybatisplus.extension.plugins.inner.OptimisticLockerInnerInterceptor;
 import com.baomidou.mybatisplus.extension.plugins.inner.PaginationInnerInterceptor;
+import com.baomidou.mybatisplus.extension.plugins.inner.TenantLineInnerInterceptor;
+import com.metricplatform.identity.TenantScope;
 import com.metricplatform.persistence.typehandler.UuidTypeHandler;
-import java.time.Clock;
-import java.util.UUID;
+
+import net.sf.jsqlparser.expression.StringValue;
+import net.sf.jsqlparser.schema.Column;
+
 import org.apache.ibatis.session.SqlSessionFactory;
 import org.springframework.beans.BeansException;
 import org.springframework.beans.factory.config.BeanPostProcessor;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+
+import java.time.Clock;
+import java.util.List;
+import java.util.UUID;
 
 @Configuration
 public class MybatisConfiguration {
@@ -43,6 +52,29 @@ public class MybatisConfiguration {
     @Bean
     MybatisPlusInterceptor mybatisPlusInterceptor() {
         MybatisPlusInterceptor interceptor = new MybatisPlusInterceptor();
+        // 优先约束租户，确保分页计数、行锁和更新都作用于同一租户。
+        interceptor.addInnerInterceptor(
+                new TenantLineInnerInterceptor(
+                        new TenantLineHandler() {
+                            @Override
+                            public StringValue getTenantId() {
+                                return new StringValue(TenantScope.require());
+                            }
+
+                            @Override
+                            public boolean ignoreInsert(
+                                    List<Column> columns, String tenantIdColumn) {
+                                // 默认实现会信任 SQL 自带的租户值。所有 Mapper 写入都必须由拦截器分配。
+                                if (columns.stream()
+                                        .anyMatch(
+                                                column ->
+                                                        tenantIdColumn.equalsIgnoreCase(
+                                                                column.getUnquotedColumnName()))) {
+                                    throw new IllegalStateException("Mapper 不能显式指定租户列");
+                                }
+                                return false;
+                            }
+                        }));
         interceptor.addInnerInterceptor(new OptimisticLockerInnerInterceptor());
         interceptor.addInnerInterceptor(new PaginationInnerInterceptor(DbType.POSTGRE_SQL));
         return interceptor;

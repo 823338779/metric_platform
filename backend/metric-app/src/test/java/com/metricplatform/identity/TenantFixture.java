@@ -35,9 +35,10 @@ public final class TenantFixture {
                 PlatformPrincipal.Role.TENANT_MANAGER);
     }
 
-    public static void bind(JdbcTemplate jdbc, UUID env, UUID build) {
-        manager(jdbc);
+    public static PlatformPrincipal bind(JdbcTemplate jdbc, UUID env, UUID build) {
+        var owner = manager(jdbc);
         jdbc.update("insert into build_ownership values(?,?,?)", build, env, ID);
+        return owner;
     }
 
     private TenantFixture() {}

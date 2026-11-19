@@ -14,7 +14,7 @@ import java.util.UUID;
 @Getter
 @Setter
 @TableName("semantic_query")
-public class SemanticQueryEntity {
+public class SemanticQueryEntity extends TenantOwnedEntity {
     /** 平台查询任务标识。 */
     @TableId(type = IdType.INPUT)
     private UUID queryId;

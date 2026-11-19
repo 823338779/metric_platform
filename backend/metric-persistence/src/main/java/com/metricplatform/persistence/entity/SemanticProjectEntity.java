@@ -3,16 +3,18 @@ package com.metricplatform.persistence.entity;
 import com.baomidou.mybatisplus.annotation.IdType;
 import com.baomidou.mybatisplus.annotation.TableId;
 import com.baomidou.mybatisplus.annotation.TableName;
-import java.time.OffsetDateTime;
-import java.util.UUID;
+
 import lombok.Getter;
 import lombok.Setter;
+
+import java.time.OffsetDateTime;
+import java.util.UUID;
 
 /** 受控 语义项目绑定与当前发布指针。 */
 @Getter
 @Setter
 @TableName("semantic_project")
-public class SemanticProjectEntity {
+public class SemanticProjectEntity extends TenantOwnedEntity {
     /** 固定项目标识。 */
     @TableId(type = IdType.INPUT)
     private String projectId;

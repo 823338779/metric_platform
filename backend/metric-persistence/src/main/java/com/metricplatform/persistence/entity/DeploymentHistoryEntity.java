@@ -9,7 +9,7 @@ import lombok.Setter;
 @Getter
 @Setter
 @TableName("deployment_history")
-public class DeploymentHistoryEntity {
+public class DeploymentHistoryEntity extends TenantOwnedEntity {
     /** 对象类型。 */
     private String objectType;
 

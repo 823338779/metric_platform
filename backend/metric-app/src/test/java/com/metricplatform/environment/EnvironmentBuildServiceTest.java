@@ -8,6 +8,7 @@ import com.metricplatform.catalog.BuildContracts.ErrorView;
 import com.metricplatform.catalog.BuildGateway;
 import com.metricplatform.environment.EnvironmentContracts.*;
 import com.metricplatform.identity.TenantFixture;
+import com.metricplatform.identity.TenantScope;
 import com.metricplatform.security.PlatformPrincipal;
 import java.util.List;
 import java.util.UUID;
@@ -35,16 +36,19 @@ class EnvironmentBuildServiceTest {
     @MockitoBean EnvironmentBuildGateway gateway;
 
     private PlatformPrincipal actor;
+    private TenantScope scope;
 
     @BeforeEach
     void login() {
         actor = TenantFixture.manager(jdbc);
+        scope = TenantScope.open(actor.tenantId());
         SecurityContextHolder.getContext()
                 .setAuthentication(new UsernamePasswordAuthenticationToken(actor, null, List.of()));
     }
 
     @AfterEach
     void logout() {
+        scope.close();
         SecurityContextHolder.clearContext();
     }
 

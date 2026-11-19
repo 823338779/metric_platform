@@ -5,16 +5,18 @@ import com.baomidou.mybatisplus.annotation.TableField;
 import com.baomidou.mybatisplus.annotation.TableId;
 import com.baomidou.mybatisplus.annotation.TableName;
 import com.metricplatform.persistence.typehandler.JsonbTypeHandler;
-import java.time.OffsetDateTime;
-import java.util.UUID;
+
 import lombok.Getter;
 import lombok.Setter;
+
+import java.time.OffsetDateTime;
+import java.util.UUID;
 
 /** 发布候选的持久记录；业务规则由 core 和发布用例决定。 */
 @Getter
 @Setter
 @TableName(value = "semantic_release", autoResultMap = true)
-public class SemanticReleaseEntity {
+public class SemanticReleaseEntity extends TenantOwnedEntity {
     /** 平台发布版本 ID。 */
     @TableId(type = IdType.INPUT)
     private UUID releaseId;

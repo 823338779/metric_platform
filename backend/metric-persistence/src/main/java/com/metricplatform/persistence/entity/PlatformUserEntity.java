@@ -15,9 +15,6 @@ import java.util.UUID;
 public class PlatformUserEntity extends BaseAuditEntity {
     @TableId private UUID id;
 
-    /** 账号唯一所属租户。 */
-    private String tenantId;
-
     private String username;
     private String displayName;
     private String passwordHash;

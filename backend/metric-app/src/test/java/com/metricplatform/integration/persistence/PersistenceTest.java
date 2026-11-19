@@ -2,6 +2,8 @@ package com.metricplatform.integration.persistence;
 
 import static org.assertj.core.api.Assertions.*;
 
+import com.metricplatform.identity.TenantFixture;
+import com.metricplatform.identity.TenantScope;
 import com.metricplatform.persistence.store.CatalogStore;
 import com.metricplatform.persistence.store.QueryStore;
 import com.metricplatform.persistence.store.ReleaseStore;
@@ -29,16 +31,26 @@ class PersistenceTest {
     @Autowired QueryStore queries;
     @Autowired CatalogStore catalog;
     private String projectId;
+    private TenantScope scope;
 
     @BeforeEach
     void setup() {
+        TenantFixture.manager(jdbc);
+        scope = TenantScope.open(TenantFixture.ID);
         projectId = "p" + UUID.randomUUID().toString().replace("-", "");
         releases.bindProject(projectId, "repo", "project", "starrocks-profile");
     }
 
     @AfterEach
     void cleanup() {
-        jdbc.update("delete from semantic_project where project_id = ?", projectId);
+        try {
+            jdbc.update(
+                    "delete from semantic_project where tenant_id=? and project_id=?",
+                    TenantFixture.ID,
+                    projectId);
+        } finally {
+            scope.close();
+        }
     }
 
     @Test
@@ -53,14 +65,17 @@ class PersistenceTest {
                 }) {
             assertThat(
                             jdbc.queryForObject(
-                                    "select count(*) from information_schema.tables where table_name = ?",
+                                    "select count(*) from information_schema.tables where"
+                                            + " table_name = ?",
                                     Integer.class,
                                     table))
                     .isEqualTo(1);
         }
         assertThat(
                         jdbc.queryForObject(
-                                "select col_description('semantic_release'::regclass, attnum) from pg_attribute where attrelid='semantic_release'::regclass and attname='cleanup_state'",
+                                "select col_description('semantic_release'::regclass, attnum) from"
+                                        + " pg_attribute where attrelid='semantic_release'::regclass"
+                                        + " and attname='cleanup_state'",
                                 String.class))
                 .isNotBlank();
     }
@@ -114,18 +129,15 @@ class PersistenceTest {
     void concurrentObservationHasOneCandidate() throws Exception {
         var latch = new CountDownLatch(1);
         try (var executor = Executors.newVirtualThreadPerTaskExecutor()) {
-            var one =
-                    executor.submit(
-                            () -> {
-                                latch.await();
-                                return releases.observe(projectId, revision('a', '1'), "config-1");
-                            });
-            var two =
-                    executor.submit(
-                            () -> {
-                                latch.await();
-                                return releases.observe(projectId, revision('a', '1'), "config-1");
-                            });
+            java.util.concurrent.Callable<ReleaseStore.ObservationResult> task =
+                    () -> {
+                        latch.await();
+                        try (var worker = TenantScope.open(TenantFixture.ID)) {
+                            return releases.observe(projectId, revision('a', '1'), "config-1");
+                        }
+                    };
+            var one = executor.submit(task);
+            var two = executor.submit(task);
             latch.countDown();
             assertThat(one.get().releaseId()).isEqualTo(two.get().releaseId());
         }

@@ -1,15 +1,17 @@
 package com.metricplatform.persistence.entity;
 
 import com.baomidou.mybatisplus.annotation.TableName;
-import java.util.UUID;
+
 import lombok.Getter;
 import lombok.Setter;
+
+import java.util.UUID;
 
 /** 同一发布版本内的原生血缘边。 */
 @Getter
 @Setter
 @TableName("semantic_dependency")
-public class SemanticDependencyEntity {
+public class SemanticDependencyEntity extends TenantOwnedEntity {
     /** 所属发布版本。 */
     private UUID releaseId;
 

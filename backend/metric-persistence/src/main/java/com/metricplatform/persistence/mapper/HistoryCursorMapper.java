@@ -8,14 +8,20 @@ import org.apache.ibatis.annotations.*;
 /** 游标行锁与 CAS 同时约束并行同步器。 */
 @Mapper
 public interface HistoryCursorMapper extends BaseMapper<HistoryCursorEntity> {
+    String INITIALIZE =
+            "insert into history_cursor(consumer) values('build-history') on"
+                + " conflict(tenant_id,consumer) do nothing";
     String READ = "select * from history_cursor where consumer='build-history'";
     String LOCK = READ + " for update";
     String ADVANCE =
             "update history_cursor set cursor=#{next},synced_at=CURRENT_TIMESTAMP where"
-                + " consumer='build-history' and cursor is not distinct from #{expected}";
+                    + " consumer='build-history' and cursor is not distinct from #{expected}";
 
     @Select(READ)
     HistoryCursorEntity read();
+
+    @Insert(INITIALIZE)
+    int initialize();
 
     @Select(LOCK)
     HistoryCursorEntity lock();

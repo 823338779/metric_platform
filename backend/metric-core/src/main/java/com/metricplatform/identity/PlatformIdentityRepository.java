@@ -39,6 +39,9 @@ public interface PlatformIdentityRepository {
 
     Membership membership(UUID accountId);
 
+    /** 登录前按全局唯一登录名确定所属租户，未知登录名返回 null。 */
+    String findLoginTenant(String username);
+
     User findByUsername(String username);
 
     User findById(UUID identityId);
@@ -58,6 +61,9 @@ public interface PlatformIdentityRepository {
             long authVersion,
             Instant issuedAt,
             Instant expiresAt);
+
+    /** 认证前仅凭服务端计算的令牌摘要定位签发租户。 */
+    String findTokenTenant(String tokenHash, Instant now);
 
     Token findToken(String tokenHash, Instant now);
 

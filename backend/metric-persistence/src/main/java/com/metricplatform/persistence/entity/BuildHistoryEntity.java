@@ -11,7 +11,7 @@ import java.util.UUID;
 @Getter
 @Setter
 @TableName("build_history")
-public class BuildHistoryEntity {
+public class BuildHistoryEntity extends TenantOwnedEntity {
     /** 构建唯一身份。 */
     @TableId(type = IdType.INPUT)
     private UUID buildId;

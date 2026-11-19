@@ -12,7 +12,7 @@ public interface DeploymentHistoryMapper extends BaseMapper<DeploymentHistoryEnt
             "insert into"
                 + " deployment_history(object_type,object_id,repository,object_version,last_sequence,summary)"
                 + " values(#{objectType},#{objectId},#{repository},#{objectVersion},#{lastSequence},#{summary}::jsonb)"
-                + " on conflict(object_type,object_id) do update set"
+                + " on conflict(tenant_id,object_type,object_id) do update set"
                 + " object_version=excluded.object_version,last_sequence=excluded.last_sequence,summary=excluded.summary,synced_at=CURRENT_TIMESTAMP"
                 + " where deployment_history.object_version<excluded.object_version";
 
