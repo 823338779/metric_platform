@@ -1,7 +1,6 @@
 package com.metricplatform.catalog;
 
 import static com.metricplatform.catalog.BindingEvidence.*;
-
 import static org.springframework.http.HttpStatus.*;
 
 import com.metricplatform.catalog.AssetGrantRepository.Asset;
@@ -11,13 +10,10 @@ import com.metricplatform.ontology.OntologyContracts.*;
 import com.metricplatform.ontology.OntologyProblem;
 import com.metricplatform.ontology.OntologyStore;
 import com.metricplatform.security.PlatformPrincipal;
-
+import java.util.*;
 import lombok.RequiredArgsConstructor;
-
 import org.springframework.stereotype.Service;
 import org.springframework.web.server.ResponseStatusException;
-
-import java.util.*;
 
 @Service
 @RequiredArgsConstructor
@@ -81,7 +77,9 @@ public class OntologyBindingService {
             } catch (ResponseStatusException ex) {
                 if (ex.getStatusCode().value() == 410) throw problem(DEPLOYMENT_CHANGED);
                 throw problem(UPSTREAM_UNAVAILABLE);
-            } catch (BuildGateway.Failure | IllegalStateException ex) {
+            } catch (BuildGateway.Failure ex) {
+                throw problem(failureReason(ex));
+            } catch (IllegalStateException ex) {
                 throw problem(UPSTREAM_UNAVAILABLE);
             }
             if (build == null) continue;
@@ -101,11 +99,23 @@ public class OntologyBindingService {
     }
 
     private Model model(Deployment current, List<Asset> members, UUID id) {
-        var matches = members.stream().filter(a -> id.equals(a.assetId())).toList();
-        if (matches.isEmpty()) return new Model(ASSET_NOT_DEPLOYED, Map.of());
-        if (matches.size() > 1) return new Model(AMBIGUOUS_ASSET, Map.of());
-        String node = matches.getFirst().entry().nodeId();
         try {
+            var matches = members.stream().filter(a -> id.equals(a.assetId())).toList();
+            if (matches.isEmpty()) {
+                var name = assets.datasetName(current.target().environmentId(), id);
+                if (name.isPresent()) {
+                    var catalog = gateway.catalog(current.build());
+                    int matching = 0;
+                    for (var node : catalog) {
+                        if ("model".equals(node.path("resource_type").asText())
+                                && name.get().equals(node.path("name").asText())
+                                && ++matching > 1) return new Model(AMBIGUOUS_ASSET, Map.of());
+                    }
+                }
+                return new Model(ASSET_NOT_DEPLOYED, Map.of());
+            }
+            if (matches.size() > 1) return new Model(AMBIGUOUS_ASSET, Map.of());
+            String node = matches.getFirst().entry().nodeId();
             var view = gateway.resource(current.build(), node);
             if (view == null
                     || !current.build().equals(view.buildId())
@@ -139,8 +149,14 @@ public class OntologyBindingService {
             }
             return new Model(MATCHED, columns);
         } catch (BuildGateway.Failure ex) {
-            return new Model(UPSTREAM_UNAVAILABLE, Map.of());
+            return new Model(failureReason(ex), Map.of());
         }
+    }
+
+    private static BindingEvidence failureReason(BuildGateway.Failure ex) {
+        return SERVICE_AUTHENTICATION_FAILED.name().equals(ex.error().code())
+                ? SERVICE_AUTHENTICATION_FAILED
+                : UPSTREAM_UNAVAILABLE;
     }
 
     public BindingReport check(Scope scope, Topology graph) {
@@ -156,14 +172,7 @@ public class OntologyBindingService {
         } else {
             var cached =
                     store.readReport(scope, active.build(), graph.revision())
-                            .filter(
-                                    previous ->
-                                            previous.findings().stream()
-                                                    .noneMatch(
-                                                            f ->
-                                                                    UPSTREAM_UNAVAILABLE
-                                                                            .name()
-                                                                            .equals(f.reason())));
+                            .filter(OntologyBindingService::canReuse);
             report =
                     cached.orElseGet(
                             () ->
@@ -184,6 +193,14 @@ public class OntologyBindingService {
         return Objects.equals(active, latest)
                 ? report
                 : unavailableReport(scope, graph, DEPLOYMENT_CHANGED);
+    }
+
+    private static boolean canReuse(BindingReport report) {
+        return report.findings().stream()
+                .noneMatch(
+                        f ->
+                                UPSTREAM_UNAVAILABLE.name().equals(f.reason())
+                                        || SERVICE_AUTHENTICATION_FAILED.name().equals(f.reason()));
     }
 
     private BindingReport unavailableReport(Scope scope, Topology graph, BindingEvidence reason) {
@@ -306,6 +323,9 @@ public class OntologyBindingService {
 
     private static OntologyProblem problem(BindingEvidence reason) {
         return switch (reason) {
+            case SERVICE_AUTHENTICATION_FAILED ->
+                    new OntologyProblem(
+                            BAD_GATEWAY, reason.name(), "dbt-service 认证失败，请检查平台与服务的令牌配置");
             case AMBIGUOUS_DEPLOYMENT ->
                     new OntologyProblem(CONFLICT, reason.name(), "环境有多个活动部署目标");
             case DEPLOYMENT_CHANGED ->

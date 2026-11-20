@@ -1,25 +1,23 @@
 package com.metricplatform.catalog;
 
 import static com.metricplatform.ontology.OntologyContracts.BindingStatus.*;
-
 import static org.assertj.core.api.Assertions.*;
 import static org.mockito.Mockito.*;
 
 import com.metricplatform.catalog.AssetGrantRepository.Asset;
 import com.metricplatform.catalog.AssetGrantRepository.Entry;
 import com.metricplatform.catalog.BuildContracts.DeploymentKey;
+import com.metricplatform.catalog.BuildContracts.ErrorView;
 import com.metricplatform.catalog.BuildContracts.ResourceView;
 import com.metricplatform.identity.TenantScope;
 import com.metricplatform.ontology.OntologyContracts.*;
 import com.metricplatform.ontology.OntologyStore;
 import com.metricplatform.security.PlatformPrincipal;
-
+import java.util.*;
 import org.junit.jupiter.api.*;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.server.ResponseStatusException;
-
-import java.util.*;
 
 class OntologyBindingServiceTest {
     final Scope scope = new Scope("tn_00001", UUID.randomUUID());
@@ -180,6 +178,44 @@ class OntologyBindingServiceTest {
         assertThatThrownBy(() -> service.bindRelation(scope, build, order, key, order, buyer))
                 .isInstanceOf(ResponseStatusException.class)
                 .hasMessageContaining("422");
+    }
+
+    @Test
+    void serviceCredentialFailuresKeepTheirNonretryableGatewayError() {
+        var error =
+                new BuildGateway.Failure(
+                        502,
+                        new ErrorView(
+                                "SERVICE_AUTHENTICATION_FAILED",
+                                "dbt-service authentication failed",
+                                false,
+                                null,
+                                null));
+        when(gateway.resource(build, "model.shop.orders")).thenThrow(error);
+        assertThatThrownBy(() -> service.columns(scope, asset, build))
+                .isInstanceOfSatisfying(
+                        ResponseStatusException.class,
+                        ex -> {
+                            assertThat(ex.getStatusCode().value()).isEqualTo(502);
+                            assertThat(ex.getBody().getProperties())
+                                    .containsEntry("code", "SERVICE_AUTHENTICATION_FAILED")
+                                    .containsEntry("retryable", false);
+                        });
+        var report = service.check(scope, graph);
+        assertThat(report.findings())
+                .contains(
+                        new Finding(
+                                "OBJECT", order.id(), UNVERIFIED, "SERVICE_AUTHENTICATION_FAILED"));
+        when(store.readReport(scope, build, graph.revision())).thenReturn(Optional.of(report));
+        reset(gateway);
+        metadata(build, Map.of("order_id", Map.of("data_type", "bigint")));
+        assertThat(service.check(scope, graph).findings())
+                .contains(new Finding("PROPERTY", key.id(), COMPATIBLE, "MATCHED"));
+        when(deployed.current(target)).thenThrow(error);
+        assertThatThrownBy(() -> service.datasets(scope))
+                .isInstanceOfSatisfying(
+                        ResponseStatusException.class,
+                        ex -> assertThat(ex.getStatusCode().value()).isEqualTo(502));
     }
 
     @Test

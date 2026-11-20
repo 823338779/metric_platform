@@ -3,6 +3,7 @@ package com.metricplatform.catalog;
 import com.metricplatform.catalog.BuildContracts.DeploymentKey;
 
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 
 /** 持久化稳定资产身份、固定构建成员与用户使用权。 */
@@ -58,6 +59,8 @@ public interface AssetGrantRepository {
     void register(UUID build, DeploymentKey target, List<Entry> entries);
 
     List<Asset> members(UUID build, UUID reader);
+
+    Optional<String> datasetName(UUID environment, UUID asset);
 
     record CatalogItem(
             /** 带当前账号权限的资产。 */

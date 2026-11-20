@@ -14,6 +14,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
 import java.util.NoSuchElementException;
+import java.util.Optional;
 import java.util.UUID;
 
 /** 仅存储授权身份和固定构建成员；当前发布事实由服务提供。 */
@@ -39,6 +40,11 @@ public class AssetGrantStore implements AssetGrantRepository {
 
     public List<DeploymentKey> targets() {
         return mapper.targets(TenantScope.require());
+    }
+
+    @Override
+    public Optional<String> datasetName(UUID environment, UUID asset) {
+        return mapper.datasetName(TenantScope.require(), environment, asset);
     }
 
     public DeploymentKey target(UUID build) {

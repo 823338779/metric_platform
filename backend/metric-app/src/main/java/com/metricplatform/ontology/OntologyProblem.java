@@ -1,9 +1,8 @@
 package com.metricplatform.ontology;
 
+import java.util.List;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.server.ResponseStatusException;
-
-import java.util.List;
 
 public final class OntologyProblem extends ResponseStatusException {
     private final String code;

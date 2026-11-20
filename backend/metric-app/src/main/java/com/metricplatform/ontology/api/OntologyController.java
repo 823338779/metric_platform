@@ -6,13 +6,10 @@ import com.metricplatform.ontology.OntologyException;
 import com.metricplatform.ontology.OntologyProblem;
 import com.metricplatform.ontology.OntologyService;
 import com.metricplatform.ontology.OntologyService.*;
-
+import java.util.UUID;
 import lombok.RequiredArgsConstructor;
-
 import org.springframework.http.*;
 import org.springframework.web.bind.annotation.*;
-
-import java.util.UUID;
 
 @RestController
 @RequestMapping("/api/dbt/environments/{environmentId}/ontology")

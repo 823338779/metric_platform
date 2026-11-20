@@ -31,6 +31,11 @@ public interface AssetGrantMapper {
 
     List<DeploymentKey> targets(@Param("tenant") String tenant);
 
+    Optional<String> datasetName(
+            @Param("tenant") String tenant,
+            @Param("environment") UUID environment,
+            @Param("asset") UUID asset);
+
     Optional<DeploymentKey> target(@Param("tenant") String tenant, @Param("build") UUID build);
 
     Optional<Boolean> indexed(@Param("tenant") String tenant, @Param("build") UUID build);

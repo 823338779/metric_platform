@@ -14,15 +14,13 @@ import com.metricplatform.identity.TenantScope;
 import com.metricplatform.ontology.*;
 import com.metricplatform.ontology.OntologyContracts.*;
 import com.metricplatform.security.PlatformPrincipal;
-
+import java.util.*;
 import org.junit.jupiter.api.*;
 import org.springframework.http.MediaType;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
-
-import java.util.*;
 
 class OntologyControllerTest {
     final Scope scope = new Scope("tn_00001", UUID.randomUUID());
@@ -106,8 +104,43 @@ class OntologyControllerTest {
     }
 
     @Test
+    void replacingReferencedDatasetReportsBlockersBeforeContactingDeployment() throws Exception {
+        var key = new Property(UUID.randomUUID(), "ID", "id", "BIGINT");
+        var order =
+                new ObjectType(
+                        UUID.randomUUID(), "Order", "", UUID.randomUUID(), key.id(), List.of(key));
+        var link =
+                new Relation(
+                        UUID.randomUUID(),
+                        "Parent order",
+                        "",
+                        order.id(),
+                        key.id(),
+                        order.id(),
+                        key.id(),
+                        Cardinality.MANY_TO_ONE);
+        when(store.read(scope)).thenReturn(new Topology(5, List.of(order), List.of(link)));
+        var replacement =
+                new ObjectType(
+                        order.id(), order.name(), "", UUID.randomUUID(), key.id(), List.of(key));
+        mvc.perform(
+                        put(base + "/objects/" + order.id())
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content(
+                                        json.writeValueAsBytes(
+                                                Map.of(
+                                                        "expectedRevision",
+                                                        5,
+                                                        "object",
+                                                        replacement))))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.references[0].id").value(link.id().toString()));
+        verifyNoInteractions(bindings);
+    }
+
+    @Test
     void renameDoesNotPerformUpstreamMetadataReads() throws Exception {
-        var property = new Property(UUID.randomUUID(), "ID", "id", null);
+        var property = new Property(UUID.randomUUID(), "ID", "id", "BIGINT");
         var original =
                 new ObjectType(
                         UUID.randomUUID(),
@@ -126,15 +159,61 @@ class OntologyControllerTest {
                         List.of(property));
         when(store.read(scope)).thenReturn(new Topology(3, List.of(original), List.of()));
         when(store.updateObject(scope, 3, renamed)).thenReturn(4L);
+        var payload = json.valueToTree(Map.of("expectedRevision", 3, "object", renamed));
+        ((com.fasterxml.jackson.databind.node.ObjectNode) payload.at("/object/properties/0"))
+                .remove("declaredType");
         mvc.perform(
                         put(base + "/objects/" + original.id())
                                 .contentType(MediaType.APPLICATION_JSON)
-                                .content(
-                                        json.writeValueAsBytes(
-                                                Map.of("expectedRevision", 3, "object", renamed))))
+                                .content(json.writeValueAsBytes(payload)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.revision").value(4));
         verifyNoInteractions(bindings);
+    }
+
+    @Test
+    void selectingAnExistingPropertyAsPrimaryChecksItsCurrentBinding() throws Exception {
+        var oldKey = new Property(UUID.randomUUID(), "ID", "id", null);
+        var nextKey = new Property(UUID.randomUUID(), "Code", "code", null);
+        var old =
+                new ObjectType(
+                        UUID.randomUUID(),
+                        "Order",
+                        "",
+                        UUID.randomUUID(),
+                        oldKey.id(),
+                        List.of(oldKey, nextKey));
+        var updated =
+                new ObjectType(
+                        old.id(),
+                        old.name(),
+                        old.description(),
+                        old.datasetAssetId(),
+                        nextKey.id(),
+                        old.properties());
+        var build = UUID.randomUUID();
+        when(store.read(scope)).thenReturn(new Topology(4, List.of(old), List.of()));
+        when(bindings.bindObject(scope, build, updated, Set.of(nextKey.id())))
+                .thenThrow(
+                        new OntologyProblem(
+                                org.springframework.http.HttpStatus.UNPROCESSABLE_ENTITY,
+                                "COLUMN_UNDECLARED",
+                                "当前构建未声明选定的字段"));
+        mvc.perform(
+                        put(base + "/objects/" + old.id())
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content(
+                                        json.writeValueAsBytes(
+                                                Map.of(
+                                                        "expectedRevision",
+                                                        4,
+                                                        "sourceBuildId",
+                                                        build,
+                                                        "object",
+                                                        updated))))
+                .andExpect(status().isUnprocessableEntity())
+                .andExpect(jsonPath("$.code").value("COLUMN_UNDECLARED"));
+        verify(store, never()).updateObject(any(), anyLong(), any());
     }
 
     @Test

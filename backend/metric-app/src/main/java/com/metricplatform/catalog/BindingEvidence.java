@@ -4,7 +4,6 @@ import static com.metricplatform.ontology.OntologyContracts.BindingStatus.*;
 
 import com.metricplatform.ontology.OntologyContracts.BindingStatus;
 import com.metricplatform.ontology.OntologyContracts.Finding;
-
 import java.util.Locale;
 import java.util.UUID;
 
@@ -12,6 +11,7 @@ enum BindingEvidence {
     MATCHED(COMPATIBLE),
     NO_DEPLOYMENT(UNVERIFIED),
     UPSTREAM_UNAVAILABLE(UNVERIFIED),
+    SERVICE_AUTHENTICATION_FAILED(UNVERIFIED),
     DEPLOYMENT_CHANGED(UNVERIFIED),
     AMBIGUOUS_DEPLOYMENT(NEEDS_REPAIR),
     ASSET_NOT_DEPLOYED(NEEDS_REPAIR),

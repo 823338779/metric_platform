@@ -46,6 +46,7 @@ paths:
         '404': {description: 当前范围内无此资源, content: {application/problem+json: {schema: {$ref: '#/components/schemas/OntologyProblem'}}}}
         '409': {description: 编辑序号、引用或活动部署冲突, content: {application/problem+json: {schema: {$ref: '#/components/schemas/OntologyProblem'}}}}
         '422': {description: 字段绑定或本体定义不合法, content: {application/problem+json: {schema: {$ref: '#/components/schemas/OntologyProblem'}}}}
+        '502': {description: dbt-service 凭据无效，code 为 SERVICE_AUTHENTICATION_FAILED，retryable 为 false, content: {application/problem+json: {schema: {$ref: '#/components/schemas/OntologyProblem'}}}}
         '503': {description: 图库或依赖暂不可用, content: {application/problem+json: {schema: {$ref: '#/components/schemas/OntologyProblem'}}}}
   /api/dbt/environments/{environmentId}/ontology/datasets/{assetId}/columns:
     parameters:
@@ -69,6 +70,7 @@ paths:
         '404': {description: 当前范围内无此资源, content: {application/problem+json: {schema: {$ref: '#/components/schemas/OntologyProblem'}}}}
         '409': {description: 编辑序号、引用或活动部署冲突, content: {application/problem+json: {schema: {$ref: '#/components/schemas/OntologyProblem'}}}}
         '422': {description: 字段绑定或本体定义不合法, content: {application/problem+json: {schema: {$ref: '#/components/schemas/OntologyProblem'}}}}
+        '502': {description: dbt-service 凭据无效，code 为 SERVICE_AUTHENTICATION_FAILED，retryable 为 false, content: {application/problem+json: {schema: {$ref: '#/components/schemas/OntologyProblem'}}}}
         '503': {description: 图库或依赖暂不可用, content: {application/problem+json: {schema: {$ref: '#/components/schemas/OntologyProblem'}}}}
   /api/dbt/environments/{environmentId}/ontology/objects:
     parameters:
@@ -94,6 +96,7 @@ paths:
         '404': {description: 当前范围内无此资源, content: {application/problem+json: {schema: {$ref: '#/components/schemas/OntologyProblem'}}}}
         '409': {description: 编辑序号、引用或活动部署冲突, content: {application/problem+json: {schema: {$ref: '#/components/schemas/OntologyProblem'}}}}
         '422': {description: 字段绑定或本体定义不合法, content: {application/problem+json: {schema: {$ref: '#/components/schemas/OntologyProblem'}}}}
+        '502': {description: dbt-service 凭据无效，code 为 SERVICE_AUTHENTICATION_FAILED，retryable 为 false, content: {application/problem+json: {schema: {$ref: '#/components/schemas/OntologyProblem'}}}}
         '503': {description: 图库或依赖暂不可用, content: {application/problem+json: {schema: {$ref: '#/components/schemas/OntologyProblem'}}}}
   /api/dbt/environments/{environmentId}/ontology/objects/{id}:
     parameters:
@@ -120,6 +123,7 @@ paths:
         '404': {description: 当前范围内无此资源, content: {application/problem+json: {schema: {$ref: '#/components/schemas/OntologyProblem'}}}}
         '409': {description: 编辑序号、引用或活动部署冲突, content: {application/problem+json: {schema: {$ref: '#/components/schemas/OntologyProblem'}}}}
         '422': {description: 字段绑定或本体定义不合法, content: {application/problem+json: {schema: {$ref: '#/components/schemas/OntologyProblem'}}}}
+        '502': {description: dbt-service 凭据无效，code 为 SERVICE_AUTHENTICATION_FAILED，retryable 为 false, content: {application/problem+json: {schema: {$ref: '#/components/schemas/OntologyProblem'}}}}
         '503': {description: 图库或依赖暂不可用, content: {application/problem+json: {schema: {$ref: '#/components/schemas/OntologyProblem'}}}}
     delete:
       operationId: deleteOntologyObject
@@ -164,6 +168,7 @@ paths:
         '404': {description: 当前范围内无此资源, content: {application/problem+json: {schema: {$ref: '#/components/schemas/OntologyProblem'}}}}
         '409': {description: 编辑序号、引用或活动部署冲突, content: {application/problem+json: {schema: {$ref: '#/components/schemas/OntologyProblem'}}}}
         '422': {description: 字段绑定或本体定义不合法, content: {application/problem+json: {schema: {$ref: '#/components/schemas/OntologyProblem'}}}}
+        '502': {description: dbt-service 凭据无效，code 为 SERVICE_AUTHENTICATION_FAILED，retryable 为 false, content: {application/problem+json: {schema: {$ref: '#/components/schemas/OntologyProblem'}}}}
         '503': {description: 图库或依赖暂不可用, content: {application/problem+json: {schema: {$ref: '#/components/schemas/OntologyProblem'}}}}
   /api/dbt/environments/{environmentId}/ontology/relations/{id}:
     parameters:
@@ -190,6 +195,7 @@ paths:
         '404': {description: 当前范围内无此资源, content: {application/problem+json: {schema: {$ref: '#/components/schemas/OntologyProblem'}}}}
         '409': {description: 编辑序号、引用或活动部署冲突, content: {application/problem+json: {schema: {$ref: '#/components/schemas/OntologyProblem'}}}}
         '422': {description: 字段绑定或本体定义不合法, content: {application/problem+json: {schema: {$ref: '#/components/schemas/OntologyProblem'}}}}
+        '502': {description: dbt-service 凭据无效，code 为 SERVICE_AUTHENTICATION_FAILED，retryable 为 false, content: {application/problem+json: {schema: {$ref: '#/components/schemas/OntologyProblem'}}}}
         '503': {description: 图库或依赖暂不可用, content: {application/problem+json: {schema: {$ref: '#/components/schemas/OntologyProblem'}}}}
     delete:
       operationId: deleteOntologyRelation

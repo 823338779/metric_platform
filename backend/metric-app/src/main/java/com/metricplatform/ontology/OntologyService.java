@@ -8,12 +8,9 @@ import com.metricplatform.catalog.OntologyBindingService.Datasets;
 import com.metricplatform.environment.EnvironmentService;
 import com.metricplatform.ontology.OntologyContracts.*;
 import com.metricplatform.security.PlatformPrincipal;
-
-import lombok.RequiredArgsConstructor;
-
-import org.springframework.stereotype.Service;
-
 import java.util.*;
+import lombok.RequiredArgsConstructor;
+import org.springframework.stereotype.Service;
 
 @Service
 @RequiredArgsConstructor
@@ -71,7 +68,6 @@ public class OntologyService {
                 || object.id() == null
                 || object.datasetAssetId() == null
                 || object.properties() == null
-                || object.properties().isEmpty()
                 || pathId != null && !pathId.equals(object.id())) throw invalid("对象、属性或数据集无效");
         var original =
                 graph.objects().stream()
@@ -84,25 +80,58 @@ public class OntologyService {
             for (var p : original.properties()) previous.put(p.id(), p);
         }
         var changed = new HashSet<UUID>();
+        boolean primaryChanged =
+                original != null
+                        && !original.primaryPropertyId().equals(object.primaryPropertyId());
+        var properties = new ArrayList<Property>();
         for (var property : object.properties()) {
             if (property == null
                     || property.id() == null
                     || property.columnName() == null
                     || property.columnName().isBlank()) throw invalid("属性必须带有 ID 和绑定字段");
             var old = previous.get(property.id());
+            if (old != null
+                    && old.columnName().equals(property.columnName())
+                    && property.declaredType() == null) {
+                property =
+                        new Property(
+                                property.id(),
+                                property.name(),
+                                property.columnName(),
+                                old.declaredType());
+            }
+            properties.add(property);
             if (old == null
                     || !old.columnName().equals(property.columnName())
-                    || !Objects.equals(old.declaredType(), property.declaredType()))
+                    || !Objects.equals(old.declaredType(), property.declaredType())
+                    || primaryChanged && property.id().equals(object.primaryPropertyId()))
                 changed.add(property.id());
         }
+        var normalized =
+                new ObjectType(
+                        object.id(),
+                        object.name(),
+                        object.description(),
+                        object.datasetAssetId(),
+                        object.primaryPropertyId(),
+                        properties);
+        if (original != null) OntologyReferences.checkUpdate(graph, original, normalized);
         var verified =
                 changed.isEmpty()
-                        ? object
-                        : bindings.bindObject(scope, request.sourceBuildId(), object, changed);
-        long revision =
-                pathId == null
-                        ? store.createObject(scope, graph.revision(), verified)
-                        : store.updateObject(scope, graph.revision(), verified);
+                        ? normalized
+                        : bindings.bindObject(scope, request.sourceBuildId(), normalized, changed);
+        long revision;
+        if (pathId == null) {
+            revision =
+                    store.createObject(
+                            scope, graph.revision(), verified, request.sourceBuildId(), changed);
+        } else if (!changed.isEmpty()) {
+            revision =
+                    store.updateObject(
+                            scope, graph.revision(), verified, request.sourceBuildId(), changed);
+        } else {
+            revision = store.updateObject(scope, graph.revision(), verified);
+        }
         return new Saved(object.id(), revision);
     }
 
@@ -119,7 +148,8 @@ public class OntologyService {
                         .findFirst()
                         .orElse(null);
         checkTarget(pathId, previous);
-        if (previous == null || !sameEndpoints(previous, relation)) {
+        boolean bindingChanged = previous == null || !sameEndpoints(previous, relation);
+        if (bindingChanged) {
             var source = object(graph, relation.sourceObjectId());
             var target = object(graph, relation.targetObjectId());
             bindings.bindRelation(
@@ -130,10 +160,18 @@ public class OntologyService {
                     target,
                     property(target, relation.targetPropertyId()));
         }
-        long revision =
-                pathId == null
-                        ? store.createRelation(scope, graph.revision(), relation)
-                        : store.updateRelation(scope, graph.revision(), relation);
+        long revision;
+        if (previous == null) {
+            revision =
+                    store.createRelation(
+                            scope, graph.revision(), relation, request.sourceBuildId());
+        } else if (bindingChanged) {
+            revision =
+                    store.updateRelation(
+                            scope, graph.revision(), relation, request.sourceBuildId());
+        } else {
+            revision = store.updateRelation(scope, graph.revision(), relation);
+        }
         return new Saved(relation.id(), revision);
     }
 

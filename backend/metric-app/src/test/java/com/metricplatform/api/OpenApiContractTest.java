@@ -4,11 +4,9 @@ import static org.assertj.core.api.Assertions.*;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
-
-import org.junit.jupiter.api.Test;
-
 import java.nio.file.*;
 import java.util.List;
+import org.junit.jupiter.api.Test;
 
 class OpenApiContractTest {
     @Test

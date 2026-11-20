@@ -22,6 +22,12 @@
         where tenant_id = #{tenant}
     </select>
 
+    <select id="datasetName" resultType="string">
+        select canonical_name from deployed_asset
+        where tenant_id = #{tenant} and environment_id = #{environment}
+          and asset_id = #{asset} and kind = 'DATASET'
+    </select>
+
     <select id="target" resultType="com.metricplatform.catalog.BuildContracts$DeploymentKey">
         select repository, environment_id, branch_name from asset_build_scope
         where tenant_id = #{tenant} and build_id = #{build}

@@ -2,18 +2,64 @@ package com.metricplatform.persistence.ontology;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static com.metricplatform.ontology.OntologyException.Code.*;
+import static org.awaitility.Awaitility.await;
+import static org.mockito.Mockito.*;
 
 import com.metricplatform.ontology.OntologyContracts.*;
 import com.metricplatform.ontology.OntologyException;
+import java.util.Arrays;
 import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.Callable;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.Executors;
+import java.util.concurrent.FutureTask;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 import org.junit.jupiter.api.Test;
+import org.neo4j.driver.Driver;
+import org.neo4j.driver.Session;
+import org.neo4j.driver.exceptions.ServiceUnavailableException;
 
 class Neo4jOntologyStoreTest extends OntologyGraphFixture {
+    @Test
+    void overlappingReadsShareFailedInitializationAndNextReadCanRecover() throws Exception {
+        var disconnected = mock(Session.class);
+        var entered = new CountDownLatch(1);
+        var release = new CountDownLatch(1);
+        var attempts = new AtomicInteger();
+        when(disconnected.run(anyString())).thenAnswer(call -> {
+            attempts.incrementAndGet();
+            entered.countDown();
+            assertTrue(release.await(10, TimeUnit.SECONDS));
+            throw new ServiceUnavailableException("offline");
+        });
+        var connection = mock(Driver.class);
+        when(connection.session()).thenReturn(disconnected);
+        var recovering = new Neo4jOntologyStore(connection);
+        Callable<OntologyException.Code> read = () ->
+                assertThrows(OntologyException.class, () -> recovering.read(scope)).code();
+        var first = new FutureTask<>(read);
+        var second = new FutureTask<>(read);
+        Thread.ofPlatform().start(first);
+        try {
+            assertTrue(entered.await(5, TimeUnit.SECONDS));
+            Thread waiter = Thread.ofPlatform().start(second);
+            await().atMost(5, TimeUnit.SECONDS).until(() ->
+                    (waiter.getState() == Thread.State.BLOCKED || waiter.getState() == Thread.State.WAITING)
+                    && Arrays.stream(waiter.getStackTrace()).anyMatch(frame ->
+                            frame.getClassName().equals(Neo4jOntologyStore.class.getName())));
+        } finally {
+            release.countDown();
+        }
+        assertEquals(UNAVAILABLE, first.get(5, TimeUnit.SECONDS));
+        assertEquals(UNAVAILABLE, second.get(5, TimeUnit.SECONDS));
+        assertEquals(1, attempts.get());
+        when(connection.session()).thenAnswer(call -> driver.session());
+        assertEquals(0, recovering.read(scope).revision());
+    }
+
     @Test
     void isolatesDefinitionsAndRollsBackInvalidProperties() {
         assertEquals(0, store.read(scope).revision());

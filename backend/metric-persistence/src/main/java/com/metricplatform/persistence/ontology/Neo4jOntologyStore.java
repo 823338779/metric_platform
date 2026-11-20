@@ -6,6 +6,7 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.metricplatform.ontology.OntologyContracts.*;
 import com.metricplatform.ontology.OntologyException;
+import com.metricplatform.ontology.OntologyReferences;
 import com.metricplatform.ontology.OntologyStore;
 import java.util.*;
 import java.util.function.BiConsumer;
@@ -25,14 +26,36 @@ public final class Neo4jOntologyStore implements OntologyStore {
             "MATCH ()-[r:ONTOLOGY_RELATION " + KEY + "]->() DELETE r";
     private static final ObjectMapper JSON = new ObjectMapper();
     private final Driver driver;
-    private volatile boolean initialized;
+    private volatile SchemaAttempt initialization = new SchemaAttempt();
+
+    private static final class SchemaAttempt {
+        private volatile boolean ready;
+        private RuntimeException failure;
+    }
 
     public Neo4jOntologyStore(Driver driver) {
         this.driver = driver;
     }
 
-    private synchronized void initialize(Session session) {
-        if (initialized) return;
+    private void initialize(Session session) {
+        var attempt = initialization;
+        if (attempt.ready) return;
+        synchronized (attempt) {
+            if (attempt.ready) return;
+            if (attempt.failure != null) throw attempt.failure;
+            try {
+                createConstraints(session);
+                attempt.ready = true;
+            } catch (RuntimeException ex) {
+                // 等待同一次初始化的请求共享失败结果，后续独立请求可以重试。
+                attempt.failure = ex;
+                initialization = new SchemaAttempt();
+                throw ex;
+            }
+        }
+    }
+
+    private static void createConstraints(Session session) {
         for (String constraint : List.of(
                 "ontology_scope IF NOT EXISTS FOR (n:OntologyScope) REQUIRE (n.tenantId, n.environmentId)",
                 "ontology_object IF NOT EXISTS FOR (n:OntologyObject) REQUIRE (n.tenantId, n.environmentId, n.id)",
@@ -40,12 +63,11 @@ public final class Neo4jOntologyStore implements OntologyStore {
                 "ontology_relation IF NOT EXISTS FOR ()-[n:ONTOLOGY_RELATION]-() REQUIRE (n.tenantId, n.environmentId, n.id)")) {
             session.run("CREATE CONSTRAINT " + constraint + " IS UNIQUE").consume();
         }
-        initialized = true;
     }
 
     private <T> T transaction(TransactionCallback<T> work) {
         try (var session = driver.session()) {
-            if (!initialized) initialize(session);
+            initialize(session);
             return session.executeWrite(work);
         } catch (Neo4jException ex) {
             var unavailable = new OntologyException(UNAVAILABLE, "本体图库暂时不可用");
@@ -124,19 +146,19 @@ public final class Neo4jOntologyStore implements OntologyStore {
     }
 
     @Override
-    public long createObject(Scope scope, long expected, ObjectType object) {
-        return writeObject(scope, expected, object, true);
+    public long createObject(Scope scope, long expected, ObjectType object, UUID buildId, Set<UUID> verified) {
+        return writeObject(scope, expected, object, true, buildId, verified);
     }
 
     @Override
-    public long updateObject(Scope scope, long expected, ObjectType object) {
-        return writeObject(scope, expected, object, false);
+    public long updateObject(Scope scope, long expected, ObjectType object, UUID buildId, Set<UUID> verified) {
+        return writeObject(scope, expected, object, false, buildId, verified);
     }
 
-    private long writeObject(Scope scope, long expected, ObjectType object, boolean create) {
+    private long writeObject(Scope scope, long expected, ObjectType object, boolean create, UUID buildId, Set<UUID> verified) {
         return mutate(scope, expected, (tx, graph) -> {
             require(object != null && object.id() != null && hasText(object.name()) && object.datasetAssetId() != null
-                    && object.primaryPropertyId() != null && object.properties() != null, "对象名称、数据集和主键不能为空");
+                    && object.properties() != null, "对象名称、数据集和属性不能为空");
             var old = graph.objects().stream().filter(o -> o.id().equals(object.id())).findFirst();
             checkTarget(create, old.isPresent());
 
@@ -145,22 +167,15 @@ public final class Neo4jOntologyStore implements OntologyStore {
                 require(p != null && p.id() != null && hasText(p.name()) && hasText(p.columnName()), "属性名称和绑定列不能为空");
                 require(properties.put(p.id(), p) == null, "属性 ID 重复");
             }
-            require(properties.containsKey(object.primaryPropertyId()), "主键必须是本对象的属性");
             for (ObjectType other : graph.objects()) {
                 if (!other.id().equals(object.id())) {
                     require(other.properties().stream().noneMatch(p -> properties.containsKey(p.id())), "属性已有其他所属对象");
                 }
             }
-            old.ifPresent(previous -> {
-                boolean datasetChanged = !previous.datasetAssetId().equals(object.datasetAssetId());
-                var changed = new HashSet<UUID>();
-                for (Property p : previous.properties()) {
-                    Property next = properties.get(p.id());
-                    if (next == null || !p.columnName().equals(next.columnName())
-                            || !Objects.equals(p.declaredType(), next.declaredType())) changed.add(p.id());
-                }
-                checkReferences(graph, object.id(), datasetChanged, changed);
-            });
+            var changed = OntologyReferences.checkUpdate(graph, old.orElse(null), object);
+            require(properties.containsKey(object.primaryPropertyId()), "主键必须是本对象的属性");
+            require(verified != null && properties.keySet().containsAll(verified)
+                    && (verified.isEmpty() || buildId != null), "属性的核验依据无效");
 
             tx.run("MATCH " + SCOPE_NODE + " MERGE " + OBJECT + " MERGE (s)-[:HAS_OBJECT]->(o) "
                     + "SET o.name=$name, o.description=$description, o.datasetAssetId=$asset, o.primaryPropertyId=$primary",
@@ -174,6 +189,13 @@ public final class Neo4jOntologyStore implements OntologyStore {
                 row.put("columnName", p.columnName());
                 row.put("declaredType", p.declaredType());
                 row.put("position", rows.size());
+                if (verified.contains(p.id())) {
+                    row.put("checkedBuildId", buildId.toString());
+                    row.put("checkedRevision", graph.revision() + 1);
+                } else if (changed.contains(p.id())) {
+                    row.put("checkedBuildId", null);
+                    row.put("checkedRevision", null);
+                }
                 rows.add(row);
             }
             var args = params(scope, "id", object.id(), "rows", rows);
@@ -188,19 +210,11 @@ public final class Neo4jOntologyStore implements OntologyStore {
         });
     }
 
-    private static void checkReferences(Topology graph, UUID objectId, boolean all, Set<UUID> changedProperties) {
-        var references = graph.relations().stream()
-                .filter(r -> (r.sourceObjectId().equals(objectId) && (all || changedProperties.contains(r.sourcePropertyId())))
-                        || (r.targetObjectId().equals(objectId) && (all || changedProperties.contains(r.targetPropertyId()))))
-                .map(r -> new Reference(r.id(), r.name())).toList();
-        if (!references.isEmpty()) throw new OntologyException(CONFLICT, "请先处理引用此绑定的关系", references);
-    }
-
     @Override
     public long deleteObject(Scope scope, long expected, UUID id) {
         return mutate(scope, expected, (tx, graph) -> {
             checkTarget(false, graph.objects().stream().anyMatch(o -> o.id().equals(id)));
-            checkReferences(graph, id, true, Set.of());
+            OntologyReferences.checkDelete(graph, id);
             tx.run("MATCH " + OBJECT + " OPTIONAL MATCH (o)-[:HAS_PROPERTY]->(p:OntologyProperty " + SCOPE
                     + ") DETACH DELETE p, o", params(scope, "id", id)).consume();
         });
@@ -220,33 +234,43 @@ public final class Neo4jOntologyStore implements OntologyStore {
     }
 
     @Override
-    public long createRelation(Scope scope, long expected, Relation relation) {
-        return writeRelation(scope, expected, relation, true);
+    public long createRelation(Scope scope, long expected, Relation relation, UUID buildId) {
+        return writeRelation(scope, expected, relation, true, buildId);
     }
 
     @Override
-    public long updateRelation(Scope scope, long expected, Relation relation) {
-        return writeRelation(scope, expected, relation, false);
+    public long updateRelation(Scope scope, long expected, Relation relation, UUID buildId) {
+        return writeRelation(scope, expected, relation, false, buildId);
     }
 
-    private long writeRelation(Scope scope, long expected, Relation r, boolean create) {
+    private long writeRelation(Scope scope, long expected, Relation r, boolean create, UUID buildId) {
         return mutate(scope, expected, (tx, graph) -> {
             require(r != null && r.id() != null && hasText(r.name()) && r.cardinality() != null
                     && r.sourceObjectId() != null && r.sourcePropertyId() != null
                     && r.targetObjectId() != null && r.targetPropertyId() != null, "关系需要名称、基数和两端属性");
-            checkTarget(create, graph.relations().stream().anyMatch(v -> v.id().equals(r.id())));
+            var old = graph.relations().stream().filter(v -> v.id().equals(r.id())).findFirst();
+            checkTarget(create, old.isPresent());
             checkEndpoint(graph, r.sourceObjectId(), r.sourcePropertyId());
             checkEndpoint(graph, r.targetObjectId(), r.targetPropertyId());
             var args = params(scope, "id", r.id(), "source", r.sourceObjectId(), "target", r.targetObjectId(),
                     "sourceProperty", r.sourcePropertyId(), "targetProperty", r.targetPropertyId(),
-                    "name", r.name(), "description", r.description(), "cardinality", r.cardinality().name());
+                    "name", r.name(), "description", r.description(), "cardinality", r.cardinality().name(),
+                    "build", buildId, "checkedRevision", buildId == null ? null : graph.revision() + 1);
+            if (buildId == null && old.isPresent()
+                    && old.get().sourceObjectId().equals(r.sourceObjectId()) && old.get().targetObjectId().equals(r.targetObjectId())
+                    && old.get().sourcePropertyId().equals(r.sourcePropertyId()) && old.get().targetPropertyId().equals(r.targetPropertyId())) {
+                tx.run("MATCH ()-[r:ONTOLOGY_RELATION " + KEY + "]->() "
+                        + "SET r.name=$name, r.description=$description, r.cardinality=$cardinality", args).consume();
+                return;
+            }
             if (!create) tx.run(DELETE_RELATION, args).consume();
             tx.run("""
                     MATCH (a:OntologyObject {tenantId: $tenant, environmentId: $env, id: $source}),
                           (b:OntologyObject {tenantId: $tenant, environmentId: $env, id: $target})
                     CREATE (a)-[r:ONTOLOGY_RELATION {tenantId: $tenant, environmentId: $env, id: $id}]->(b)
                     SET r.sourcePropertyId=$sourceProperty, r.targetPropertyId=$targetProperty,
-                        r.name=$name, r.description=$description, r.cardinality=$cardinality
+                        r.name=$name, r.description=$description, r.cardinality=$cardinality,
+                        r.checkedBuildId=$build, r.checkedRevision=$checkedRevision
                     """, args).consume();
         });
     }

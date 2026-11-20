@@ -6,19 +6,16 @@ import com.metricplatform.catalog.AssetGrantRepository.Entry;
 import com.metricplatform.catalog.BuildContracts.*;
 import com.metricplatform.environment.AssetOwnership;
 import com.metricplatform.identity.TenantScope;
-
+import java.util.*;
+import java.util.regex.Pattern;
+import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-
 import org.springframework.http.HttpStatus;
 import org.springframework.scheduling.annotation.EnableScheduling;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import org.springframework.web.server.ResponseStatusException;
-
-import java.util.*;
-import java.util.regex.Pattern;
-import java.util.stream.Collectors;
 
 /** 从服务实际生效部署登记资产；调度和按需发现使用相同路径。 */
 @Slf4j
@@ -165,7 +162,14 @@ public class DeployedAssets {
                 default -> throw new IllegalStateException("未知资源类型");
             }
         }
-        return entries;
+        // 不同包可声明同名节点。按环境授权的稳定身份无法区分它们，只登记无歧义的成员。
+        var counts = new HashMap<List<String>, Integer>();
+        for (var entry : entries) counts.merge(assetKey(entry), 1, Integer::sum);
+        return entries.stream().filter(entry -> counts.get(assetKey(entry)) == 1).toList();
+    }
+
+    private static List<String> assetKey(Entry entry) {
+        return List.of(entry.kind(), entry.queryName(), entry.dimensionName());
     }
 
     private JsonNode detail(UUID build, String id) {

@@ -5,12 +5,74 @@ import static com.metricplatform.ontology.OntologyException.Code.*;
 
 import com.metricplatform.ontology.OntologyContracts.*;
 import com.metricplatform.ontology.OntologyException;
+import java.util.Arrays;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
 
 class OntologyMutationsTest extends OntologyGraphFixture {
+    @Test
+    void recordsBuildEvidenceOnlyForVerifiedMappingsAndPreservesItOnRename() {
+        UUID firstBuild = UUID.randomUUID(), secondBuild = UUID.randomUUID();
+        var order = object("订单");
+        var key = order.properties().getFirst();
+        var buyer = new Property(UUID.randomUUID(), "客户", "customer_id", "INTEGER");
+        var initial = new ObjectType(order.id(), order.name(), "", order.datasetAssetId(), key.id(), List.of(key, buyer));
+        store.createObject(scope, 0, initial, firstBuild, Set.of(key.id(), buyer.id()));
+        var customer = object("客户");
+        store.createObject(scope, 1, customer, firstBuild, Set.of(customer.primaryPropertyId()));
+        var edge = relation("下单客户", initial, customer);
+        store.createRelation(scope, 2, edge, firstBuild);
+        var changed = new Property(buyer.id(), buyer.name(), "buyer_id", "INTEGER");
+        var rebound = new ObjectType(order.id(), "订单信息", "", order.datasetAssetId(), key.id(), List.of(key, changed));
+        store.updateObject(scope, 3, rebound, secondBuild, Set.of(buyer.id()));
+        var redirected = new Relation(edge.id(), edge.name(), "", order.id(), buyer.id(), edge.targetObjectId(),
+                edge.targetPropertyId(), edge.cardinality());
+        store.updateRelation(scope, 4, redirected, secondBuild);
+        var renamed = new Relation(edge.id(), "买家", "", order.id(), buyer.id(), edge.targetObjectId(),
+                edge.targetPropertyId(), edge.cardinality());
+        store.updateRelation(scope, 5, renamed);
+        var renamedObject = new ObjectType(order.id(), "销售订单", "", order.datasetAssetId(), key.id(), List.of(key, changed));
+        store.updateObject(scope, 6, renamedObject);
+        try (var session = driver.session()) {
+            Map<String, Object> params = Map.of("tenant", scope.tenantId(), "env", scope.environmentId().toString());
+            var markers = session.run("""
+                    MATCH (p:OntologyProperty {tenantId:$tenant, environmentId:$env})
+                    RETURN p.id AS id, p.checkedBuildId AS build, p.checkedRevision AS revision
+                    UNION ALL
+                    MATCH ()-[r:ONTOLOGY_RELATION {tenantId:$tenant, environmentId:$env}]->()
+                    RETURN r.id AS id, r.checkedBuildId AS build, r.checkedRevision AS revision
+                    """, params).list(row -> List.of(row.get(0).asString(), row.get(1).asString(), row.get(2).asLong()));
+            assertEquals(Set.of(
+                    List.of(key.id().toString(), firstBuild.toString(), 1L),
+                    List.of(buyer.id().toString(), secondBuild.toString(), 4L),
+                    List.of(customer.primaryPropertyId().toString(), firstBuild.toString(), 2L),
+                    List.of(edge.id().toString(), secondBuild.toString(), 5L)), Set.copyOf(markers));
+        }
+        var newPrimary = new ObjectType(order.id(), renamedObject.name(), "", order.datasetAssetId(), buyer.id(), List.of(key, changed));
+        assertEquals(8, store.updateObject(scope, 7, newPrimary, secondBuild, Set.of(buyer.id())));
+        assertEquals(List.of(renamed), store.read(scope).relations());
+    }
+
+    @Test
+    void removingReferencedPrimaryKeyReturnsBlockingRelationBeforeKeyValidation() {
+        var order = object("订单");
+        var customer = object("客户");
+        store.createObject(scope, 0, order);
+        store.createObject(scope, 1, customer);
+        var buyer = relation("下单客户", order, customer);
+        store.createRelation(scope, 2, buyer);
+        for (UUID primary : Arrays.asList(order.primaryPropertyId(), null)) {
+            var missingKey = new ObjectType(order.id(), order.name(), "", order.datasetAssetId(), primary, List.of());
+            var conflict = assertThrows(OntologyException.class, () -> store.updateObject(scope, 3, missingKey));
+            assertEquals(CONFLICT, conflict.code());
+            assertEquals(List.of(new Reference(buyer.id(), buyer.name())), conflict.references());
+        }
+        assertEquals(3, store.read(scope).revision());
+    }
+
     @Test
     void replacesPrimaryKeyAtomicallyAndKeepsOtherScopesIndependent() {
         var original = object("订单");
