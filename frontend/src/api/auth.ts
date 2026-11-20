@@ -2,7 +2,7 @@ const STORAGE_KEY = 'metric-platform.auth-session';
 const DEFAULT_PATH = '/dbt/environments';
 // 登录后保留环境列表或指定环境，限制为实际存在的路由。
 const ENVIRONMENT_PATH =
-  /^\/dbt\/environments(?:\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})?$/i;
+  /^\/dbt\/environments(?:\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}(?:\/ontology)?)?$/i;
 const FIXED_BUILD_PATH =
   /^\/dbt\/builds\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\/(catalog|query)$/i;
 

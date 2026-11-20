@@ -13,6 +13,7 @@ export type ProblemDetails = {
   buildId?: string;
   /** 服务声明是否允许重试。 */
   retryable?: boolean;
+  references?: { id: string; name: string }[];
 };
 // dbt 目录和查询只引用服务端已发布的 buildId，不混用旧语义对象编辑 API。
 export type DbtResource = {

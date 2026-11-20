@@ -43,6 +43,12 @@
   align-items: center;
   gap: 20px;
 }
+.environment-management-actions {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  flex-wrap: wrap;
+}
 .environment-detail-title h2 {
   margin: 0;
   font-size: 32px;

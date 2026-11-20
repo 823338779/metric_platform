@@ -237,9 +237,15 @@ function SelectedEnvironment({
                 <p>{environment.execution.connection.instanceId}</p>
               </div>
               {manager && (
-                <Button icon={<SettingOutlined aria-hidden />} onClick={() => setEditing(!editing)}>
-                  {editing ? COPY.cancel : '编辑配置'}
-                </Button>
+                <div className="environment-management-actions">
+                  <Link to={`/dbt/environments/${environmentId}/ontology`}>本体建模</Link>
+                  <Button
+                    icon={<SettingOutlined aria-hidden />}
+                    onClick={() => setEditing(!editing)}
+                  >
+                    {editing ? COPY.cancel : '编辑配置'}
+                  </Button>
+                </div>
               )}
             </div>
             <dl className="environment-summary">

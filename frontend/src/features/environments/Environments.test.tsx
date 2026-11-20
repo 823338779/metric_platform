@@ -5,7 +5,7 @@ import { Link, MemoryRouter, Route, Routes } from 'react-router-dom';
 import { EnvironmentsPage } from './EnvironmentsPage';
 import { EnvironmentDetailPage } from './EnvironmentDetailPage';
 
-import { clearAuthSession, saveAuthSession } from '../../api/auth';
+import { clearAuthSession, getAuthSession, saveAuthSession } from '../../api/auth';
 
 beforeEach(() =>
   saveAuthSession({
@@ -104,6 +104,23 @@ function mountLogs(logs: unknown) {
     logs,
   });
 }
+
+it.each(['TENANT_MANAGER', 'READ_ONLY'] as const)(
+  '按 %s 权限展示本环境的建模入口',
+  async (role) => {
+    const session = getAuthSession()!;
+    saveAuthSession({ ...session, identity: { ...session.identity, role } });
+    mount({
+      get: vi.fn().mockResolvedValue(environment),
+      builds: vi.fn().mockResolvedValue({ items: [], nextCursor: null }),
+    });
+    await screen.findByText('测试环境');
+    const link = screen.queryByRole('link', { name: '本体建模' });
+    if (role === 'TENANT_MANAGER')
+      expect(link).toHaveAttribute('href', `/dbt/environments/${ID}/ontology`);
+    else expect(link).not.toBeInTheDocument();
+  },
+);
 
 it('历史记录直接展示四项身份信息、不展示配置版本，日志支持就地收起', async () => {
   const showLogsLabel = '查看日志';
