@@ -15,6 +15,7 @@ type Selection = { kind: 'object' | 'relation'; id?: string; deleting?: boolean 
 const reasons: Record<string, string> = {
   NO_DEPLOYMENT: '此环境尚无可绑定的数据集',
   UPSTREAM_UNAVAILABLE: '部署服务暂时不可用',
+  SERVICE_AUTHENTICATION_FAILED: '平台连接部署服务的凭据无效',
   AMBIGUOUS_DEPLOYMENT: '无法唯一定位当前部署',
   DEPLOYMENT_CHANGED: '当前部署已切换',
   ASSET_NOT_DEPLOYED: '当前部署中未找到绑定资产',
@@ -55,16 +56,21 @@ function EnvironmentOntology({ environmentId }: { environmentId: string }) {
   const [busy, setBusy] = useState(false);
   const pending = useRef(false);
   const [failure, setFailure] = useState<Error>();
-  const blocker = useBlocker(dirty);
+  const [candidateVersion, setCandidateVersion] = useState(0);
+  const [candidateError, setCandidateError] = useState('');
+  const blocker = useBlocker(() => (dirty || busy) && !!getAuthSession());
   useEffect(() => {
-    if (!dirty) return;
+    if (blocker.state === 'blocked' && !dirty && !busy && !failure) blocker.proceed();
+  }, [blocker, dirty, busy, failure]);
+  useEffect(() => {
+    if (!dirty && !busy) return;
     const guard = (event: BeforeUnloadEvent) => {
       event.preventDefault();
       event.returnValue = '';
     };
     window.addEventListener('beforeunload', guard);
     return () => window.removeEventListener('beforeunload', guard);
-  }, [dirty]);
+  }, [dirty, busy]);
   useEffect(() => {
     let active = true;
     setLoading(true);
@@ -90,6 +96,8 @@ function EnvironmentOntology({ environmentId }: { environmentId: string }) {
     setSelection({ kind, id, deleting });
     setFailure(undefined);
     setDirty(false);
+    setCandidateVersion(0);
+    setCandidateError('');
   }, []);
   function close() {
     setSelection(undefined);
@@ -126,6 +134,30 @@ function EnvironmentOntology({ environmentId }: { environmentId: string }) {
         ) ?? [])
       : [];
   const problem = failure instanceof ApiProblem ? failure.problem : undefined;
+  const deploymentChanged = problem?.code === 'DEPLOYMENT_CHANGED';
+  async function refreshCandidates() {
+    if (pending.current || !graph) return;
+    pending.current = true;
+    setBusy(true);
+    setCandidateError('');
+    try {
+      const latest = await ontologyApi.get(environmentId);
+      if (latest.revision !== graph.revision) {
+        setFailure(
+          new ApiProblem({ status: 409, title: '编辑冲突', detail: '本体已被修改，请刷新后重试' }),
+        );
+        return;
+      }
+      setGraph(latest);
+      setCandidateVersion((value) => value + 1);
+      setFailure(undefined);
+    } catch (reason) {
+      setCandidateError(reason instanceof Error ? reason.message : '读取当前候选失败');
+    } finally {
+      pending.current = false;
+      setBusy(false);
+    }
+  }
   const findings = (kind: Finding['kind'], id?: string) =>
     graph?.bindingReport.findings.filter(
       (f) => f.kind === kind && (kind === 'ENVIRONMENT' || f.id === id),
@@ -156,12 +188,14 @@ function EnvironmentOntology({ environmentId }: { environmentId: string }) {
       </header>
       {blocker.state === 'blocked' && (
         <div role="alertdialog" aria-label="放弃未保存的修改" className="ontology-notice">
-          <p>离开后将放弃此环境中未保存的修改。</p>
+          <p>{busy ? '正在等待服务器响应。' : '离开后将放弃此环境中未保存的修改。'}</p>
           <div className="ontology-actions">
             <Button onClick={() => blocker.reset()}>留在此页</Button>
-            <Button danger onClick={() => blocker.proceed()}>
-              放弃并离开
-            </Button>
+            {!busy && (
+              <Button danger onClick={() => blocker.proceed()}>
+                放弃并离开
+              </Button>
+            )}
           </div>
         </div>
       )}
@@ -176,7 +210,7 @@ function EnvironmentOntology({ environmentId }: { environmentId: string }) {
               {problem?.references?.length ? (
                 <p>引用此项的关系：{problem.references.map((r) => r.name).join('、')}</p>
               ) : null}
-              {problem?.status === 409 && (
+              {problem?.status === 409 && !deploymentChanged && (
                 <div>
                   请核对最新的拓扑及部署后再提交。{' '}
                   <Button onClick={reload}>放弃本次编辑并刷新</Button>
@@ -186,6 +220,16 @@ function EnvironmentOntology({ environmentId }: { environmentId: string }) {
           }
         />
       )}
+      {selection &&
+        !selection.deleting &&
+        (deploymentChanged || (selection.kind === 'relation' && !graph?.bindingReport.buildId)) && (
+          <div className="ontology-actions">
+            <Button loading={busy} onClick={refreshCandidates}>
+              刷新绑定候选
+            </Button>
+            {candidateError && <span role="alert">{candidateError}</span>}
+          </div>
+        )}
       {graph && !loading && (
         <>
           <Health findings={findings('ENVIRONMENT')} />
@@ -229,6 +273,8 @@ function EnvironmentOntology({ environmentId }: { environmentId: string }) {
                   environmentId={environmentId}
                   original={object}
                   busy={busy}
+                  candidateVersion={candidateVersion}
+                  deploymentChanged={deploymentChanged}
                   onChange={() => setDirty(true)}
                   onClose={close}
                   onSave={(value, buildId) =>
@@ -249,6 +295,8 @@ function EnvironmentOntology({ environmentId }: { environmentId: string }) {
                   original={relation}
                   buildId={graph.bindingReport.buildId}
                   busy={busy}
+                  refreshed={candidateVersion > 0}
+                  deploymentChanged={deploymentChanged}
                   onChange={() => setDirty(true)}
                   onClose={close}
                   onSave={(value, buildId) =>

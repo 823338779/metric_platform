@@ -6,6 +6,7 @@ import { getAuthSession, saveAuthSession, clearAuthSession } from '../../api/aut
 import { environmentApi } from '../../api/environmentApi';
 import { ontologyApi } from '../../api/ontologyApi';
 import { ApiProblem } from '../../api/httpClient';
+import { PlatformLayout } from '../../layout/PlatformLayout';
 import { OntologyPage } from './OntologyPage';
 
 const order = {
@@ -27,14 +28,20 @@ function mount() {
   const router = createMemoryRouter(
     [
       {
-        path,
-        element: (
-          <>
-            <Link to="/dbt/environments/prod/ontology">切换环境</Link>
-            <OntologyPage />
-          </>
-        ),
+        element: <PlatformLayout />,
+        children: [
+          {
+            path,
+            element: (
+              <>
+                <Link to="/dbt/environments/prod/ontology">切换环境</Link>
+                <OntologyPage />
+              </>
+            ),
+          },
+        ],
       },
+      { path: '/login', element: <p>登录页</p> },
     ],
     { initialEntries: ['/dbt/environments/test/ontology'] },
   );
@@ -160,4 +167,143 @@ it('生产环境图加载后迟到的测试环境响应被忽略', async () => {
   await screen.findByText('生产环境');
   await act(async () => resolve({ ...graph, objects: [{ ...order, name: '仅测试环境订单' }] }));
   expect(screen.queryByText('仅测试环境订单')).not.toBeInTheDocument();
+});
+
+it('仅切换到已映射的主键也核对当前构建', async () => {
+  const property = { id: 'new-key', name: '新键', columnName: 'id', declaredType: 'BIGINT' };
+  vi.mocked(ontologyApi.get).mockResolvedValue({
+    ...graph,
+    objects: [{ ...order, properties: [...order.properties, property] }],
+  });
+  const write = vi.spyOn(ontologyApi, 'saveObject').mockResolvedValue({ id: 'order', revision: 4 });
+  mount();
+  fireEvent.click(await screen.findByRole('button', { name: '编辑对象 订单' }));
+  await screen.findAllByRole('option', { name: 'id · BIGINT' });
+  fireEvent.change(screen.getByLabelText('声明主键'), { target: { value: property.id } });
+  fireEvent.click(screen.getByRole('button', { name: '保存对象' }));
+  await waitFor(() =>
+    expect(write).toHaveBeenCalledWith(
+      'test',
+      3,
+      'build',
+      expect.objectContaining({
+        primaryPropertyId: property.id,
+        properties: [...order.properties, property],
+      }),
+      false,
+    ),
+  );
+});
+
+it('部署切换后在当前表单重新确认对象映射', async () => {
+  const changed = new ApiProblem({
+    title: '冲突',
+    detail: '部署已切换',
+    status: 409,
+    code: 'DEPLOYMENT_CHANGED',
+  });
+  const write = vi
+    .spyOn(ontologyApi, 'saveObject')
+    .mockRejectedValueOnce(changed)
+    .mockResolvedValue({ id: 'order', revision: 4 });
+  mount();
+  fireEvent.click(await screen.findByRole('button', { name: '编辑对象 订单' }));
+  await screen.findByRole('option', { name: 'id · BIGINT' });
+  fireEvent.change(screen.getByLabelText('绑定列 1'), { target: { value: 'id' } });
+  fireEvent.change(screen.getByLabelText('对象名称'), { target: { value: '我的订单' } });
+  fireEvent.click(screen.getByRole('button', { name: '保存对象' }));
+  vi.mocked(ontologyApi.get).mockResolvedValue({
+    ...graph,
+    bindingReport: { ...graph.bindingReport, buildId: 'next' },
+  });
+  vi.mocked(ontologyApi.datasets).mockResolvedValue({
+    buildId: 'next',
+    datasets: [{ assetId: 'orders', name: '订单数据集' }],
+  });
+  vi.mocked(ontologyApi.columns).mockResolvedValue({
+    buildId: 'next',
+    assetId: 'orders',
+    columns: [{ name: 'id', declaredType: 'BIGINT' }],
+  });
+  fireEvent.click(await screen.findByRole('button', { name: '刷新绑定候选' }));
+  expect(screen.getByLabelText('对象名称')).toHaveValue('我的订单');
+  const confirm = await screen.findByRole('button', { name: '确认绑定并保存对象' });
+  await waitFor(() => expect(confirm).toBeEnabled());
+  fireEvent.click(confirm);
+  await waitFor(() =>
+    expect(write).toHaveBeenLastCalledWith(
+      'test',
+      3,
+      'next',
+      expect.objectContaining({ name: '我的订单' }),
+      false,
+    ),
+  );
+});
+
+it('关系草稿可以基于新部署重新确认端点', async () => {
+  const write = vi
+    .spyOn(ontologyApi, 'saveRelation')
+    .mockRejectedValueOnce(
+      new ApiProblem({
+        title: '冲突',
+        detail: '部署已切换',
+        status: 409,
+        code: 'DEPLOYMENT_CHANGED',
+      }),
+    )
+    .mockResolvedValue({ id: 'relation', revision: 4 });
+  mount();
+  fireEvent.click(await screen.findByRole('button', { name: '新建关系' }));
+  fireEvent.change(screen.getByLabelText('关系名称'), { target: { value: '上级订单' } });
+  for (const side of ['源', '目标']) {
+    fireEvent.change(screen.getByLabelText(side + '对象'), { target: { value: 'order' } });
+    fireEvent.change(screen.getByLabelText(side + '属性'), { target: { value: 'order-id' } });
+  }
+  fireEvent.click(screen.getByRole('button', { name: '保存关系' }));
+  vi.mocked(ontologyApi.get).mockResolvedValue({
+    ...graph,
+    bindingReport: { ...graph.bindingReport, buildId: 'next' },
+  });
+  fireEvent.click(await screen.findByRole('button', { name: '刷新绑定候选' }));
+  fireEvent.click(await screen.findByRole('button', { name: '确认绑定并保存关系' }));
+  await waitFor(() =>
+    expect(write).toHaveBeenLastCalledWith(
+      'test',
+      3,
+      'next',
+      expect.objectContaining({
+        name: '上级订单',
+        sourcePropertyId: 'order-id',
+        targetPropertyId: 'order-id',
+      }),
+      true,
+    ),
+  );
+});
+
+it('写入进行中不允许放弃已提交的修改，成功后继续导航', async () => {
+  let finish!: (result: { id: string; revision: number }) => void;
+  vi.spyOn(ontologyApi, 'saveObject').mockImplementation(
+    () =>
+      new Promise((resolve) => {
+        finish = resolve;
+      }),
+  );
+  mount();
+  fireEvent.click(await screen.findByRole('button', { name: '编辑对象 订单' }));
+  fireEvent.change(screen.getByLabelText('对象名称'), { target: { value: '已提交订单' } });
+  fireEvent.click(screen.getByRole('button', { name: '保存对象' }));
+  fireEvent.click(screen.getByRole('link', { name: '切换环境' }));
+  expect(screen.queryByRole('button', { name: '放弃并离开' })).not.toBeInTheDocument();
+  await act(async () => finish({ id: 'order', revision: 4 }));
+  expect(await screen.findByText('生产环境')).toBeVisible();
+});
+
+it('显式登出后进入登录页', async () => {
+  mount();
+  fireEvent.click(await screen.findByRole('button', { name: '编辑对象 订单' }));
+  fireEvent.change(screen.getByLabelText('对象名称'), { target: { value: '未保存' } });
+  fireEvent.click(screen.getByRole('button', { name: '登出' }));
+  expect(await screen.findByText('登录页')).toBeVisible();
 });

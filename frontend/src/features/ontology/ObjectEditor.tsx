@@ -18,6 +18,8 @@ export function ObjectEditor({
   environmentId,
   original,
   busy,
+  candidateVersion,
+  deploymentChanged,
   onChange,
   onSave,
   onClose,
@@ -25,6 +27,8 @@ export function ObjectEditor({
   environmentId: string;
   original?: ObjectType;
   busy: boolean;
+  candidateVersion: number;
+  deploymentChanged: boolean;
   onChange: () => void;
   onClose: () => void;
   onSave: (value: ObjectType, buildId: string | null) => void;
@@ -61,7 +65,7 @@ export function ObjectEditor({
     return () => {
       active = false;
     };
-  }, [environmentId, attempt]);
+  }, [environmentId, attempt, candidateVersion]);
   useEffect(() => {
     let active = true;
     setColumns(undefined);
@@ -96,6 +100,7 @@ export function ObjectEditor({
     const old = original?.properties.find((previous) => previous.id === p.id);
     return (
       datasetAssetId !== original?.datasetAssetId ||
+      (p.id === draft.primaryPropertyId && p.id !== original?.primaryPropertyId) ||
       old?.columnName !== p.columnName ||
       old?.declaredType !== p.declaredType
     );
@@ -109,7 +114,8 @@ export function ObjectEditor({
     draft.primaryPropertyId &&
     draft.properties.some((p) => p.id === draft.primaryPropertyId) &&
     draft.properties.every((p) => p.name.trim() && p.columnName) &&
-    bindingsReady;
+    bindingsReady &&
+    !(deploymentChanged && changedBindings.length);
   return (
     <form
       className="ontology-form"
@@ -254,7 +260,7 @@ export function ObjectEditor({
         <small>主键唯一性由管理者声明。</small>
         <div className="ontology-actions">
           <Button type="primary" htmlType="submit" loading={busy} disabled={!valid}>
-            保存对象
+            {candidateVersion && changedBindings.length ? '确认绑定并保存对象' : '保存对象'}
           </Button>
           <Button onClick={onClose}>取消编辑</Button>
         </div>

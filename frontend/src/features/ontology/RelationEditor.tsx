@@ -13,6 +13,8 @@ export function RelationEditor({
   original,
   buildId,
   busy,
+  refreshed,
+  deploymentChanged,
   onChange,
   onClose,
   onSave,
@@ -21,6 +23,8 @@ export function RelationEditor({
   original?: Relation;
   buildId: string | null;
   busy: boolean;
+  refreshed: boolean;
+  deploymentChanged: boolean;
   onChange: () => void;
   onClose: () => void;
   onSave: (relation: Relation, buildId: string | null) => void;
@@ -52,7 +56,7 @@ export function RelationEditor({
     draft.name.trim() &&
     draft.sourcePropertyId &&
     draft.targetPropertyId &&
-    (!bindingChanged || buildId);
+    (!bindingChanged || (buildId && !deploymentChanged));
   function endpoint(side: 'source' | 'target', label: string) {
     const objectKey = side === 'source' ? 'sourceObjectId' : 'targetObjectId';
     const propertyKey = side === 'source' ? 'sourcePropertyId' : 'targetPropertyId';
@@ -134,7 +138,7 @@ export function RelationEditor({
         {bindingChanged && !buildId && <p role="status">尚无可用于核对关系的部署，请刷新拓扑。</p>}
         <div className="ontology-actions">
           <Button type="primary" htmlType="submit" loading={busy} disabled={!valid}>
-            保存关系
+            {refreshed && bindingChanged ? '确认绑定并保存关系' : '保存关系'}
           </Button>
           <Button onClick={onClose}>取消编辑</Button>
         </div>
