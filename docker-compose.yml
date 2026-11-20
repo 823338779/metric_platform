@@ -1,4 +1,18 @@
 services:
+  neo4j:
+    image: neo4j:2026.10.1
+    profiles: ["ontology"]
+    environment:
+      NEO4J_AUTH: neo4j/${METRIC_NEO4J_PASSWORD:-}
+    ports:
+      - "127.0.0.1:17687:7687"
+    volumes:
+      - metric-platform-neo4j:/data
+    healthcheck:
+      test: ["CMD-SHELL", "cypher-shell -u neo4j -p \"$${NEO4J_AUTH#*/}\" 'RETURN 1' >/dev/null"]
+      interval: 10s
+      timeout: 8s
+      retries: 10
   postgres:
     image: postgres:16.9-alpine
     environment:
@@ -10,4 +24,5 @@ services:
     volumes:
       - metric-platform-postgres:/var/lib/postgresql/data
 volumes:
+  metric-platform-neo4j:
   metric-platform-postgres:

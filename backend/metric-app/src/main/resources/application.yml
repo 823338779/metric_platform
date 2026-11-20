@@ -35,6 +35,10 @@ management:
       probes:
         enabled: true
 metric-platform:
+  ontology:
+    uri: ${METRIC_NEO4J_URI:bolt://localhost:17687}
+    username: ${METRIC_NEO4J_USERNAME:neo4j}
+    password: ${METRIC_NEO4J_PASSWORD:}
   git:
     # 全局唯一构建仓库；浏览器只能选择该仓库中已存在的分支。
     repository: ${METRIC_GIT_REPOSITORY:https://github.com/823338779/metric_store.git}
