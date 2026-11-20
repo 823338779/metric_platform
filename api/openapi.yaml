@@ -493,8 +493,8 @@ paths:
           $ref: '#/components/responses/Problem'
   /api/dbt/builds:
     get:
-      summary: 读取平台本地构建历史
-      description: repository 为必填规范仓库地址，branchName 为可选筛选；直接读取 dbt-service 的构建历史，游标绑定相同仓库及筛选。
+      summary: 按环境读取 dbt-service 构建历史
+      description: environmentId 必填，repository、branchName 和 buildStatus 可选。仅返回当前租户在该环境中有归属记录的构建。续页须使用本接口返回的游标和相同筛选条件。
       operationId: history_builds_get
       parameters:
         - name: environmentId
@@ -1716,12 +1716,12 @@ components:
           type:
           - string
           - 'null'
-          description: 历史投影来源
+          description: 旧版历史投影来源。实时构建列表返回空值。
         syncedAt:
           type:
           - string
           - 'null'
-          description: 平台同步时间
+          description: 旧版历史投影的同步时间。实时构建列表返回空值。
       additionalProperties: false
       type: object
       required:

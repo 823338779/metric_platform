@@ -16,7 +16,6 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
-import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.web.server.ResponseStatusException;
 
@@ -25,12 +24,12 @@ import org.springframework.web.server.ResponseStatusException;
 class TenantProvisioningTest {
     @Autowired MockMvc mvc;
     private static final String PATH = "/api/ops/tenants";
-    @Autowired JdbcTemplate jdbc;
+    @Autowired TenantFixtureMapper fixtures;
     @Autowired TenantAccountService accounts;
 
     @Test
     void concurrentNormalizedLoginsOnlyCommitOneTenant() throws Exception {
-        int before = jdbc.queryForObject("select count(*) from platform_tenant", Integer.class);
+        int before = fixtures.tenantCount();
         String name = UUID.randomUUID().toString();
         var gate = new CountDownLatch(1);
         try (var pool = Executors.newFixedThreadPool(2)) {
@@ -54,17 +53,15 @@ class TenantProvisioningTest {
             Assertions.assertThat(List.of(attempts.getFirst().get(), attempts.getLast().get()))
                     .containsExactlyInAnyOrder(201, 409);
         }
-        Assertions.assertThat(
-                        jdbc.queryForObject("select count(*) from platform_tenant", Integer.class))
-                .isEqualTo(before + 1);
+        Assertions.assertThat(fixtures.tenantCount()).isEqualTo(before + 1);
     }
 
     @Test
     void exhaustedTenantNumbersReportConflict() {
-        long saved = jdbc.queryForObject("select last_value from tenant_number", Long.class);
-        boolean called = jdbc.queryForObject("select is_called from tenant_number", Boolean.class);
+        long saved = fixtures.tenantSequenceValue();
+        boolean called = fixtures.tenantSequenceCalled();
         try {
-            jdbc.queryForObject("select setval('tenant_number',99999,true)", Long.class);
+            fixtures.setTenantSequence(99999, true);
             Assertions.assertThatThrownBy(
                             () ->
                                     accounts.provision(
@@ -74,7 +71,7 @@ class TenantProvisioningTest {
                             ResponseStatusException.class,
                             e -> Assertions.assertThat(e.getReason()).isEqualTo("租户编号已耗尽"));
         } finally {
-            jdbc.queryForObject("select setval('tenant_number',?,?)", Long.class, saved, called);
+            fixtures.setTenantSequence(saved, called);
         }
     }
 

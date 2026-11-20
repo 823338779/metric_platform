@@ -2,15 +2,23 @@ package com.metricplatform.integration.persistence;
 
 import static org.assertj.core.api.Assertions.*;
 
+import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import com.metricplatform.catalog.BuildContracts.*;
 import com.metricplatform.catalog.BuildHistoryRepository;
+import com.metricplatform.catalog.BuildHistoryRepository.ChangePage;
+import com.metricplatform.catalog.BuildHistoryRepository.ChangeRecord;
 import com.metricplatform.identity.TenantFixture;
+import com.metricplatform.identity.TenantFixtureMapper;
 import com.metricplatform.identity.TenantScope;
+import com.metricplatform.persistence.entity.DeploymentHistoryEntity;
+import com.metricplatform.persistence.mapper.BuildHistoryMapper;
+import com.metricplatform.persistence.mapper.DeploymentHistoryMapper;
+import com.metricplatform.persistence.mapper.HistoryCursorMapper;
+import com.metricplatform.persistence.mapper.SemanticProjectMapper;
 import java.util.*;
 import org.junit.jupiter.api.*;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.ActiveProfiles;
 
 @SpringBootTest
@@ -20,14 +28,19 @@ class BuildHistoryProjectionTest {
             java.util.UUID.fromString("12345678-1234-4234-8234-000000000001");
 
     @Autowired BuildHistoryRepository history;
-    @Autowired JdbcTemplate jdbc;
+    @Autowired TenantFixtureMapper tenants;
+    @Autowired HistoryProjectionFixtureMapper fixtures;
+    @Autowired BuildHistoryMapper builds;
+    @Autowired DeploymentHistoryMapper deployments;
+    @Autowired HistoryCursorMapper cursors;
+    @Autowired SemanticProjectMapper projects;
     private UUID id;
     private TenantScope scope;
     private final List<UUID> ownedBuilds = new ArrayList<>();
 
     @BeforeEach
     void reset() {
-        TenantFixture.manager(jdbc);
+        TenantFixture.manager(tenants);
         scope = TenantScope.open(TenantFixture.ID);
         clearProjection();
         id = ownedBuild();
@@ -35,27 +48,22 @@ class BuildHistoryProjectionTest {
 
     private UUID ownedBuild() {
         UUID build = UUID.randomUUID();
-        jdbc.update(
-                "insert into build_ownership(build_id,environment_id,tenant_id) values(?,?,?)",
-                build,
-                ENVIRONMENT_ID,
-                TenantFixture.ID);
+        tenants.bindBuild(TenantFixture.ID, build, ENVIRONMENT_ID);
         ownedBuilds.add(build);
         return build;
     }
 
     private void clearProjection() {
-        jdbc.update("delete from build_history where tenant_id=?", TenantFixture.ID);
-        jdbc.update("delete from deployment_history where tenant_id=?", TenantFixture.ID);
-        jdbc.update("delete from history_cursor where tenant_id=?", TenantFixture.ID);
+        builds.delete(Wrappers.emptyWrapper());
+        deployments.delete(Wrappers.emptyWrapper());
+        cursors.delete(Wrappers.emptyWrapper());
     }
 
     @AfterEach
     void cleanup() {
         try {
             clearProjection();
-            ownedBuilds.forEach(
-                    build -> jdbc.update("delete from build_ownership where build_id=?", build));
+            ownedBuilds.forEach(fixtures::deleteOwnership);
         } finally {
             scope.close();
         }
@@ -88,24 +96,14 @@ class BuildHistoryProjectionTest {
                                         new ChangePage(List.of(event(1, 1, id), bad), "2"), null))
                 .isInstanceOf(IllegalArgumentException.class);
         assertThat(history.cursor()).isNull();
-        assertThat(
-                        jdbc.queryForObject(
-                                "select count(*) from build_history where tenant_id=?",
-                                Integer.class,
-                                TenantFixture.ID))
-                .isZero();
+        assertThat(builds.selectCount(Wrappers.emptyWrapper())).isZero();
     }
 
     @Test
     void duplicateAndOlderObjectVersionsDoNotRegress() {
         history.apply(new ChangePage(List.of(event(1, 3, id)), "1"), null);
         history.apply(new ChangePage(List.of(event(1, 3, id), event(2, 2, id)), "2"), "1");
-        assertThat(
-                        jdbc.queryForObject(
-                                "select object_version from build_history where build_id=?",
-                                Long.class,
-                                id))
-                .isEqualTo(3);
+        assertThat(builds.selectById(id).getObjectVersion()).isEqualTo(3);
         assertThat(history.cursor()).isEqualTo("2");
         assertThatThrownBy(() -> history.apply(new ChangePage(List.of(event(3, 4, id)), "3"), "1"))
                 .isInstanceOf(IllegalStateException.class);
@@ -122,85 +120,29 @@ class BuildHistoryProjectionTest {
     void legacyQueryLinkUsesStableBuildMapping() {
         String project = "legacy-" + UUID.randomUUID();
         UUID release = UUID.randomUUID(), query = UUID.randomUUID();
-        jdbc.update(
-                "insert into"
-                        + " semantic_project(tenant_id,project_id,repository_id,project_subdir,profile_binding_id)"
-                        + " values(?,?,?,?,?)",
-                TenantFixture.ID,
-                project,
-                "repo",
-                ".",
-                "binding");
-        jdbc.update(
-                "insert into"
-                        + " semantic_release(tenant_id,release_id,project_id,release_sequence,target_commit_sha,build_source_sha,project_digest,config_version,idempotency_key,state)"
-                        + " values(?,?,?,1,?,?,?,?,?,'FAILED')",
-                TenantFixture.ID,
-                release,
-                project,
-                "a".repeat(40),
-                "a".repeat(40),
-                "digest",
-                "1",
-                UUID.randomUUID());
-        jdbc.update(
-                "insert into"
-                        + " semantic_query(tenant_id,query_id,project_id,release_id,idempotency_key,mode,status)"
-                        + " values(?,?,?,?,?,'QUERY','FAILED')",
-                TenantFixture.ID,
-                query,
-                project,
-                release,
-                UUID.randomUUID());
+        fixtures.insertLegacyProject(project);
+        fixtures.insertFailedRelease(release, project, "a".repeat(40), UUID.randomUUID());
+        fixtures.insertFailedQuery(query, project, release, UUID.randomUUID());
         try {
-            assertThat(
-                            jdbc.queryForObject(
-                                    "select build_id from semantic_query where query_id=?",
-                                    UUID.class,
-                                    query))
-                    .isNull();
-            jdbc.queryForObject(
-                    "select import_legacy_build_mapping(?,?,?,?,?)",
-                    Boolean.class,
-                    TenantFixture.ID,
-                    release,
-                    id,
-                    "repo",
-                    "verified-report-sha256");
-            jdbc.queryForObject(
-                    "select import_legacy_build_mapping(?,?,?,?,?)",
-                    Boolean.class,
-                    TenantFixture.ID,
-                    release,
-                    id,
-                    "repo",
-                    "verified-report-sha256");
-            assertThat(
-                            jdbc.queryForObject(
-                                    "select build_id from semantic_query where query_id=?",
-                                    UUID.class,
-                                    query))
-                    .isEqualTo(id);
-            assertThat(
-                            jdbc.queryForObject(
-                                    "select release_id from semantic_query where query_id=?",
-                                    UUID.class,
-                                    query))
-                    .isEqualTo(release);
+            assertThat(fixtures.queryBuild(query)).isNull();
+            fixtures.importLegacyMapping(
+                    TenantScope.require(), release, id, "repo", "verified-report-sha256");
+            fixtures.importLegacyMapping(
+                    TenantScope.require(), release, id, "repo", "verified-report-sha256");
+            assertThat(fixtures.queryBuild(query)).isEqualTo(id);
+            assertThat(fixtures.queryRelease(query)).isEqualTo(release);
             assertThatThrownBy(
                             () ->
-                                    jdbc.queryForObject(
-                                            "select import_legacy_build_mapping(?,?,?,?,?)",
-                                            Boolean.class,
-                                            TenantFixture.ID,
+                                    fixtures.importLegacyMapping(
+                                            TenantScope.require(),
                                             release,
                                             UUID.randomUUID(),
                                             "other",
                                             "conflict"))
                     .isInstanceOf(org.springframework.dao.DataAccessException.class);
         } finally {
-            jdbc.update("delete from legacy_build_mapping where release_id=?", release);
-            jdbc.update("delete from semantic_project where project_id=?", project);
+            fixtures.deleteLegacyMapping(release);
+            projects.deleteById(project);
         }
     }
 
@@ -223,19 +165,12 @@ class BuildHistoryProjectionTest {
                         2,
                         Map.of("buildId", id.toString(), "deploymentStatus", "DEPLOYED"));
         history.apply(new ChangePage(List.of(target, attempt), "2"), null);
-        assertThat(
-                        jdbc.queryForObject(
-                                "select count(*) from deployment_history where tenant_id=?",
-                                Integer.class,
-                                TenantFixture.ID))
-                .isEqualTo(2);
-        assertThat(
-                        jdbc.queryForObject(
-                                "select object_version from deployment_history where"
-                                        + " object_type='DEPLOYMENT_TARGET' and tenant_id=?",
-                                Long.class,
-                                TenantFixture.ID))
-                .isEqualTo(4);
+        assertThat(deployments.selectCount(Wrappers.emptyWrapper())).isEqualTo(2);
+        var deployedTarget =
+                deployments.selectOne(
+                        Wrappers.<DeploymentHistoryEntity>lambdaQuery()
+                                .eq(DeploymentHistoryEntity::getObjectType, "DEPLOYMENT_TARGET"));
+        assertThat(deployedTarget.getObjectVersion()).isEqualTo(4);
     }
 
     @Test
@@ -258,12 +193,7 @@ class BuildHistoryProjectionTest {
             var second = pool.submit(task);
             start.countDown();
             assertThat(List.of(first.get(), second.get())).containsExactlyInAnyOrder(true, false);
-            assertThat(
-                            jdbc.queryForObject(
-                                    "select count(*) from build_history where tenant_id=?",
-                                    Integer.class,
-                                    TenantFixture.ID))
-                    .isEqualTo(1);
+            assertThat(builds.selectCount(Wrappers.emptyWrapper())).isEqualTo(1);
             assertThat(history.cursor()).isEqualTo("1");
         }
     }
@@ -285,12 +215,7 @@ class BuildHistoryProjectionTest {
         assertThatThrownBy(() -> history.apply(new ChangePage(List.of(target), "1"), null))
                 .isInstanceOf(IllegalArgumentException.class);
         assertThat(history.cursor()).isNull();
-        assertThat(
-                        jdbc.queryForObject(
-                                "select count(*) from deployment_history where tenant_id=?",
-                                Integer.class,
-                                TenantFixture.ID))
-                .isZero();
+        assertThat(deployments.selectCount(Wrappers.emptyWrapper())).isZero();
     }
 
     @Test
@@ -372,12 +297,7 @@ class BuildHistoryProjectionTest {
                                         new ChangePage(List.of(event(1, 1, id), wrong), "2"), null))
                 .isInstanceOf(IllegalArgumentException.class);
         assertThat(history.cursor()).isNull();
-        assertThat(
-                        jdbc.queryForObject(
-                                "select count(*) from build_history where tenant_id=?",
-                                Integer.class,
-                                TenantFixture.ID))
-                .isZero();
+        assertThat(builds.selectCount(Wrappers.emptyWrapper())).isZero();
     }
 
     private ChangeRecord event(long sequence, long version, UUID build) {

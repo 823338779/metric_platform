@@ -1,37 +1,44 @@
 package com.metricplatform.catalog;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatIllegalStateException;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.metricplatform.catalog.AssetGrantRepository.Entry;
 import com.metricplatform.catalog.BuildContracts.DeploymentKey;
 import com.metricplatform.identity.*;
-
+import java.util.*;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.jdbc.core.JdbcTemplate;
-
-import java.util.*;
+import org.springframework.dao.DataIntegrityViolationException;
 
 @SpringBootTest
 class AssetGrantLifecycleTest {
     @Autowired AssetGrantRepository store;
-    @Autowired JdbcTemplate jdbc;
+    @Autowired TenantFixtureMapper tenants;
+    @Autowired CatalogFixtureMapper fixtures;
+
+    @Test
+    void schedulerEnumeratesOwnersBeforeOpeningEachTenantScan() {
+        var owner = TenantFixture.bind(tenants, UUID.randomUUID(), UUID.randomUUID());
+        assertThat(store.tenants()).contains(owner.tenantId());
+        assertThatIllegalStateException().isThrownBy(store::nextScan);
+        try (var scope = TenantScope.open(owner.tenantId())) {
+            assertThatIllegalStateException().isThrownBy(store::tenants);
+            assertThat(store.nextScan()).isPositive();
+        }
+    }
 
     @Test
     void grantsSurviveRemovalAndRedeploymentUnlessExplicitlyRevoked() {
         var env = UUID.randomUUID();
         var target = new DeploymentKey("https://example.test/assets.git", env, "main");
         var reader = UUID.randomUUID();
-        var owner = TenantFixture.manager(jdbc);
-        jdbc.update(
-                "insert into platform_user(id,tenant_id,username,display_name) values(?,?,?,?)",
-                reader,
-                owner.tenantId(),
-                reader.toString(),
-                "reader");
+        var owner = TenantFixture.manager(tenants);
         var metric = new Entry("METRIC", "metric.pkg.sales", "", "sales", "");
         try (var scope = TenantScope.open(owner.tenantId())) {
+            fixtures.insertReader(reader, "reader");
             var first = publish(target, List.of(metric));
             var asset = store.members(first, reader).getFirst();
             assertThat(asset.ownerId()).isEqualTo(owner.identityId());
@@ -109,9 +116,38 @@ class AssetGrantLifecycleTest {
         }
     }
 
+    @Test
+    void rollsBackEarlierBatchesAndRetriesTheWholeBuild() {
+        var build = UUID.randomUUID();
+        var environment = UUID.randomUUID();
+        var target = new DeploymentKey("repo", environment, "main");
+        var owner = TenantFixture.bind(tenants, environment, build);
+        var entries = new ArrayList<Entry>();
+        for (int index = 0; index < 201; index++) {
+            String name = "metric_" + index;
+            entries.add(new Entry("METRIC", "metric.pkg." + name, "", name, ""));
+        }
+        var invalid = new ArrayList<>(entries);
+        invalid.set(200, entries.getFirst());
+
+        try (var scope = TenantScope.open(owner.tenantId())) {
+            store.bind(build, target);
+            assertThatThrownBy(() -> store.register(build, target, invalid))
+                    .isInstanceOf(DataIntegrityViolationException.class);
+            assertThat(store.ready(build)).isFalse();
+            assertThat(store.members(build, owner.identityId())).isEmpty();
+
+            store.register(build, target, entries);
+            assertThat(store.ready(build)).isTrue();
+            assertThat(store.members(build, owner.identityId()))
+                    .extracting(asset -> asset.entry())
+                    .containsExactlyInAnyOrderElementsOf(entries);
+        }
+    }
+
     private UUID publish(DeploymentKey target, List<Entry> entries) {
         UUID build = UUID.randomUUID();
-        TenantFixture.bind(jdbc, target.environmentId(), build);
+        TenantFixture.bind(tenants, target.environmentId(), build);
         store.bind(build, target);
         store.register(build, target, entries);
         store.register(build, target, entries);

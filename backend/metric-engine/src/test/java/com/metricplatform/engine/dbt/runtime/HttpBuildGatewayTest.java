@@ -3,6 +3,7 @@ package com.metricplatform.engine.dbt.runtime;
 import static org.assertj.core.api.Assertions.*;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.metricplatform.catalog.BuildContracts.*;
 import com.metricplatform.catalog.BuildGateway;
 import com.sun.net.httpserver.HttpServer;
@@ -15,7 +16,8 @@ import org.junit.jupiter.api.Test;
 class HttpBuildGatewayTest {
     private static final String SERVICE_AUTHENTICATION_FAILED = "SERVICE_AUTHENTICATION_FAILED";
     private static final String CREDENTIAL_ERROR =
-            "{\"detail\":{\"code\":\"CREDENTIAL_REQUIRED\",\"message\":\"credential required\",\"retryable\":false}}";
+            "{\"detail\":{\"code\":\"CREDENTIAL_REQUIRED\",\"message\":\"credential"
+                    + " required\",\"retryable\":false}}";
 
     @org.junit.jupiter.params.ParameterizedTest
     @org.junit.jupiter.params.provider.ValueSource(ints = {401, 403})
@@ -38,6 +40,55 @@ class HttpBuildGatewayTest {
 
     private static final UUID BUILD = UUID.fromString("12345678-1234-4234-8234-123456789abc");
     private final ObjectMapper mapper = new ObjectMapper().findAndRegisterModules();
+
+    @Test
+    void typedHistoryValidatesEveryExecutionSnapshotAgainstTheRequestedEnvironment()
+            throws Exception {
+        var fixture = mapper.readTree(getClass().getResourceAsStream("/contracts/dbt.json"));
+        var page = mapper.createObjectNode();
+        var items = page.putArray("items");
+        var build = fixture.path("examples").findParent("buildStatus");
+        items.add(build);
+        var environment = UUID.fromString(build.at("/execution/environmentId").asText());
+        var filter = new BuildFilter(environment, "", "feature/a", null, "next page", 3);
+        var paths = new ArrayList<String>();
+        var valid = server(paths, 200, page.toString());
+        try {
+            assertThat(client(valid).listBuilds(filter).items())
+                    .singleElement()
+                    .extracting(BuildView::buildId)
+                    .isEqualTo(BUILD);
+            assertThat(paths)
+                    .containsExactly(
+                            "/builds?environmentId="
+                                    + environment
+                                    + "&repository=&branchName=feature%2Fa&cursor=next%20page&limit=3");
+        } finally {
+            valid.stop(0);
+        }
+        var other = (ObjectNode) build.deepCopy();
+        items.add(other);
+        ((ObjectNode) other.path("execution")).put("environmentId", UUID.randomUUID().toString());
+        assertInvalidHistory(page.toString(), filter);
+        other.putObject("execution").put("environmentId", environment.toString());
+        assertInvalidHistory(page.toString(), filter);
+    }
+
+    private void assertInvalidHistory(String body, BuildFilter filter) throws Exception {
+        var server = server(new ArrayList<>(), 200, body);
+        try {
+            assertThatThrownBy(() -> client(server).listBuilds(filter))
+                    .isInstanceOfSatisfying(
+                            BuildGateway.Failure.class,
+                            failure -> {
+                                assertThat(failure.status()).isEqualTo(502);
+                                assertThat(failure.error().code())
+                                        .isEqualTo("INVALID_SERVICE_RESPONSE");
+                            });
+        } finally {
+            server.stop(0);
+        }
+    }
 
     @Test
     void v3FailureNeverFallsBack() throws Exception {

@@ -1,6 +1,7 @@
 package com.metricplatform.environment.api;
 
 import com.fasterxml.jackson.databind.JsonNode;
+import com.metricplatform.catalog.BuildContracts.BuildFilter;
 import com.metricplatform.environment.*;
 import com.metricplatform.environment.EnvironmentContracts.*;
 import com.metricplatform.security.PlatformPrincipal;
@@ -62,12 +63,12 @@ public class EnvironmentBuildController {
                         next -> {
                             var raw =
                                     gateway.history(
-                                            new EnvironmentBuildFilter(
+                                            new BuildFilter(
                                                     environmentId,
-                                                    repository,
-                                                    branchName,
-                                                    buildStatus,
-                                                    next,
+                                                    omitBlank(repository),
+                                                    omitBlank(branchName),
+                                                    omitBlank(buildStatus),
+                                                    omitBlank(next),
                                                     limit));
                             var items = new ArrayList<JsonNode>();
                             raw.required(ITEMS).forEach(items::add);
@@ -100,6 +101,10 @@ public class EnvironmentBuildController {
         if (limit < 1 || limit > 200) throw new IllegalArgumentException("页大小必须在 1 到 200 之间");
         assets.requireBuild(buildId);
         return json(gateway.logs(buildId, cursor, limit), HttpStatus.OK);
+    }
+
+    private static String omitBlank(String value) {
+        return value == null || value.isBlank() ? null : value;
     }
 
     private static ResponseEntity<String> json(JsonNode value, HttpStatus status) {

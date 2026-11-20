@@ -8,6 +8,7 @@ import com.metricplatform.catalog.BuildContracts.ErrorView;
 import com.metricplatform.catalog.BuildGateway;
 import com.metricplatform.environment.EnvironmentContracts.*;
 import com.metricplatform.identity.TenantFixture;
+import com.metricplatform.identity.TenantFixtureMapper;
 import com.metricplatform.identity.TenantScope;
 import com.metricplatform.security.PlatformPrincipal;
 import java.util.List;
@@ -17,7 +18,6 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.test.context.ActiveProfiles;
@@ -29,7 +29,7 @@ import org.springframework.test.context.bean.override.mockito.MockitoBean;
         })
 @ActiveProfiles("test")
 class EnvironmentBuildServiceTest {
-    @Autowired JdbcTemplate jdbc;
+    @Autowired TenantFixtureMapper tenants;
     @Autowired EnvironmentService environments;
     @Autowired EnvironmentBuildService builds;
     @MockitoBean EnvironmentBuildGateway gateway;
@@ -39,7 +39,7 @@ class EnvironmentBuildServiceTest {
 
     @BeforeEach
     void login() {
-        actor = TenantFixture.manager(jdbc);
+        actor = TenantFixture.manager(tenants);
         scope = TenantScope.open(actor.tenantId());
         SecurityContextHolder.getContext()
                 .setAuthentication(new UsernamePasswordAuthenticationToken(actor, null, List.of()));

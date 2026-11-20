@@ -9,6 +9,7 @@ import com.fasterxml.jackson.databind.*;
 import com.metricplatform.catalog.BuildContracts.*;
 import com.metricplatform.environment.EnvironmentBuildGateway;
 import com.metricplatform.identity.TenantAccountService;
+import com.metricplatform.identity.TenantFixtureMapper;
 import com.metricplatform.identity.TenantScope;
 import com.metricplatform.identity.api.IdentityDtos.AuthTokenRequest;
 import com.metricplatform.identity.auth.PlatformAuthenticationService;
@@ -18,7 +19,6 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
-import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
@@ -26,7 +26,8 @@ import org.springframework.test.web.servlet.MockMvc;
 @AutoConfigureMockMvc
 class DeployedAssetAccessApiTest {
     @Autowired MockMvc mvc;
-    @Autowired JdbcTemplate jdbc;
+    @Autowired TenantFixtureMapper tenants;
+    @Autowired CatalogFixtureMapper fixtures;
     @Autowired TenantAccountService accounts;
     @Autowired DeployedAssets deployed;
     @MockitoBean PlatformAuthenticationService auth;
@@ -40,19 +41,13 @@ class DeployedAssetAccessApiTest {
         var build = UUID.randomUUID();
         var key = new DeploymentKey("https://example.test/" + env, env, "main");
         var tenant = accounts.provision(new AuthTokenRequest(env.toString(), "fixture-password"));
-        var owner =
-                jdbc.queryForObject(
-                        "select manager_id from platform_tenant where tenant_id=?",
-                        UUID.class,
-                        tenant);
+        UUID owner;
         var reader = UUID.randomUUID();
-        jdbc.update(
-                "insert into platform_user(id,tenant_id,username,display_name) values(?,?,?,?)",
-                reader,
-                tenant,
-                reader.toString(),
-                "reader");
-        jdbc.update("insert into build_ownership values(?,?,?)", build, env, tenant);
+        try (var scope = TenantScope.open(tenant)) {
+            owner = fixtures.managerId();
+            fixtures.insertReader(reader, "reader");
+            tenants.bindBuild(tenant, build, env);
+        }
         when(auth.authenticate("owner"))
                 .thenReturn(actor(owner, tenant, PlatformPrincipal.Role.TENANT_MANAGER));
         when(auth.authenticate("reader"))
@@ -101,11 +96,10 @@ class DeployedAssetAccessApiTest {
         String foreignTenant =
                 accounts.provision(
                         new AuthTokenRequest(UUID.randomUUID().toString(), "fixture-password"));
-        UUID foreign =
-                jdbc.queryForObject(
-                        "select manager_id from platform_tenant where tenant_id=?",
-                        UUID.class,
-                        foreignTenant);
+        UUID foreign;
+        try (var scope = TenantScope.open(foreignTenant)) {
+            foreign = fixtures.managerId();
+        }
         when(auth.authenticate("foreign"))
                 .thenReturn(actor(foreign, foreignTenant, PlatformPrincipal.Role.TENANT_MANAGER));
         mvc.perform(get("/api/v1/assets").header("Authorization", "Bearer foreign"))
@@ -127,12 +121,9 @@ class DeployedAssetAccessApiTest {
                 .andExpect(status().isNoContent());
         // 同一时刻、同一租户，其他账号可以看见指标，但不能继承 reader 的授权。
         var otherReader = UUID.randomUUID();
-        jdbc.update(
-                "insert into platform_user(id,tenant_id,username,display_name) values(?,?,?,?)",
-                otherReader,
-                tenant,
-                otherReader.toString(),
-                "other-reader");
+        try (var scope = TenantScope.open(tenant)) {
+            fixtures.insertReader(otherReader, "other-reader");
+        }
         when(auth.authenticate("other"))
                 .thenReturn(actor(otherReader, tenant, PlatformPrincipal.Role.READ_ONLY));
         mvc.perform(get("/api/v1/assets").header("Authorization", "Bearer other"))
@@ -261,8 +252,17 @@ class DeployedAssetAccessApiTest {
                 .andExpect(status().isForbidden());
         // 撤销指标授权后仍可编译 SQL，实际取数继续被拒绝。
         when(gateway.query(eq(build), argThat(q -> q.mode() == QueryMode.EXPLAIN)))
-                .thenReturn(new ResultPage(build, QueryMode.EXPLAIN, null, "UTC", Map.of(),
-                        "select 1", null, null, null));
+                .thenReturn(
+                        new ResultPage(
+                                build,
+                                QueryMode.EXPLAIN,
+                                null,
+                                "UTC",
+                                Map.of(),
+                                "select 1",
+                                null,
+                                null,
+                                null));
         mvc.perform(
                         post(path)
                                 .header("Authorization", "Bearer reader")

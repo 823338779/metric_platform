@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.metricplatform.identity.TenantFixtureMapper">
+    <insert id="ensureManager">
+        WITH created_tenant AS (
+            INSERT INTO platform_tenant (tenant_id, manager_id) VALUES (#{tenantId}, #{managerId})
+            ON CONFLICT DO NOTHING
+        )
+        INSERT INTO platform_user (id, tenant_id, username, display_name)
+        VALUES (#{managerId}, #{tenantId}, 'fixture-manager', 'fixture')
+        ON CONFLICT DO NOTHING
+    </insert>
+    <insert id="bindBuild">
+        INSERT INTO build_ownership (build_id, environment_id, tenant_id)
+        VALUES (#{buildId}, #{environmentId}, #{tenantId})
+    </insert>
+    <select id="tenantCount" resultType="int">
+        SELECT count(*) FROM platform_tenant
+    </select>
+    <select id="tenantSequenceValue" resultType="long">
+        SELECT last_value FROM tenant_number
+    </select>
+    <select id="tenantSequenceCalled" resultType="boolean">
+        SELECT is_called FROM tenant_number
+    </select>
+    <select id="setTenantSequence" resultType="long" affectData="true" flushCache="true" useCache="false">
+        SELECT setval('tenant_number', #{value}, #{called})
+    </select>
+    <select id="databaseVersion" resultType="string">
+        SELECT version()
+    </select>
+</mapper>

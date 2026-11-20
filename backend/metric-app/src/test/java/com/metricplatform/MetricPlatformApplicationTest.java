@@ -6,14 +6,12 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.baomidou.mybatisplus.annotation.TableName;
 import com.baomidou.mybatisplus.core.mapper.BaseMapper;
+import com.metricplatform.identity.TenantFixtureMapper;
 import com.metricplatform.persistence.entity.AuditEventEntity;
 import com.metricplatform.persistence.mapper.AuditEventMapper;
-import java.sql.Connection;
-import java.sql.SQLException;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
-import javax.sql.DataSource;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -24,7 +22,7 @@ import org.springframework.test.context.ActiveProfiles;
 class MetricPlatformApplicationTest {
     @Autowired private AuditEventMapper auditEventMapper;
 
-    @Autowired private DataSource dataSource;
+    @Autowired private TenantFixtureMapper database;
 
     @org.springframework.beans.factory.annotation.Value("${metric-platform.test-profile:false}")
     private boolean namedTestProfileLoaded;
@@ -55,11 +53,9 @@ class MetricPlatformApplicationTest {
     }
 
     @Test
-    void testProfileUsesThePostgreSqlDatasource() throws SQLException {
+    void testProfileUsesThePostgreSqlDatasource() {
         assertTrue(namedTestProfileLoaded);
-        try (Connection connection = dataSource.getConnection()) {
-            assertTrue(connection.getMetaData().getURL().startsWith("jdbc:postgresql:"));
-        }
+        assertTrue(database.databaseVersion().startsWith("PostgreSQL "));
     }
 
     @Test

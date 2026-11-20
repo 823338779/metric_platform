@@ -118,18 +118,4 @@ public final class EnvironmentContracts {
             String deploymentPolicy,
             /** 服务幂等键。 */
             String idempotencyKey) {}
-
-    public record EnvironmentBuildFilter(
-            /** 环境身份。 */
-            UUID environmentId,
-            /** 可选仓库筛选。 */
-            String repository,
-            /** 可选分支筛选。 */
-            String branchName,
-            /** 可选构建状态。 */
-            String buildStatus,
-            /** 服务游标。 */
-            String cursor,
-            /** 页大小。 */
-            int limit) {}
 }

@@ -273,24 +273,4 @@ public final class BuildContracts {
             List<List<Object>> rows,
             /** 引擎结果是否截断。 */
             Boolean resultTruncated) {}
-
-    public record ChangeRecord(
-            /** 与事实同事务提交的变化序号。 */
-            long sequence,
-            /** 规范仓库地址。 */
-            String repository,
-            /** 构建或部署对象类型。 */
-            String objectType,
-            /** 对象的稳定身份。 */
-            String objectId,
-            /** 对象递增版本。 */
-            long objectVersion,
-            /** 可重建历史投影的有界事实摘要。 */
-            Map<String, Object> summary) {}
-
-    public record ChangePage(
-            /** 当前筛选条件下的有界结果。 */
-            List<ChangeRecord> items,
-            /** 绑定筛选条件的后续分页游标。 */
-            String nextCursor) {}
 }

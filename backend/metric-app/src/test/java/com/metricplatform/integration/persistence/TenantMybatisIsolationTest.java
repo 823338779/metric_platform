@@ -5,6 +5,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.metricplatform.identity.TenantAccountService;
 import com.metricplatform.identity.TenantFixture;
+import com.metricplatform.identity.TenantFixtureMapper;
 import com.metricplatform.identity.TenantScope;
 import com.metricplatform.identity.api.IdentityDtos.AuthTokenRequest;
 import com.metricplatform.persistence.entity.PlatformUserEntity;
@@ -15,7 +16,6 @@ import java.util.UUID;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -23,7 +23,7 @@ import org.springframework.transaction.annotation.Transactional;
 @ActiveProfiles("test")
 @Transactional
 class TenantMybatisIsolationTest {
-    @Autowired JdbcTemplate jdbc;
+    @Autowired TenantFixtureMapper tenants;
     @Autowired TenantAccountService accounts;
     @Autowired PlatformUserMapper users;
     @Autowired SemanticProjectMapper projects;
@@ -31,7 +31,7 @@ class TenantMybatisIsolationTest {
 
     @Test
     void auditedInsertCannotAssignOwnershipAndForeignIdCannotReadUpdateOrDelete() {
-        TenantFixture.manager(jdbc);
+        TenantFixture.manager(tenants);
         String other =
                 accounts.provision(
                         new AuthTokenRequest(UUID.randomUUID().toString(), "fixture-password"));
@@ -55,7 +55,7 @@ class TenantMybatisIsolationTest {
 
     @Test
     void sameProjectNameHasIndependentBindingAndRowLockWithinEachTenant() {
-        TenantFixture.manager(jdbc);
+        TenantFixture.manager(tenants);
         String other =
                 accounts.provision(
                         new AuthTokenRequest(UUID.randomUUID().toString(), "fixture-password"));

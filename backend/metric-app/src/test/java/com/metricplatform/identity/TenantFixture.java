@@ -2,21 +2,13 @@ package com.metricplatform.identity;
 
 import com.metricplatform.security.PlatformPrincipal;
 import java.util.UUID;
-import org.springframework.jdbc.core.JdbcTemplate;
 
 public final class TenantFixture {
     public static final String ID = "tn_99001";
     private static final UUID MANAGER = UUID.fromString("99000000-0000-4000-8000-000000000001");
 
-    public static PlatformPrincipal manager(JdbcTemplate jdbc) {
-        jdbc.execute(
-                """
-                do $$ begin
-                    insert into platform_tenant values('tn_99001','99000000-0000-4000-8000-000000000001') on conflict do nothing;
-                    insert into platform_user(id,tenant_id,username,display_name)
-                    values('99000000-0000-4000-8000-000000000001','tn_99001','fixture-manager','fixture') on conflict do nothing;
-                end $$;
-                """);
+    public static PlatformPrincipal manager(TenantFixtureMapper fixtures) {
+        fixtures.ensureManager(ID, MANAGER);
         return new PlatformPrincipal(
                 MANAGER,
                 "fixture-manager",
@@ -27,9 +19,9 @@ public final class TenantFixture {
                 PlatformPrincipal.Role.TENANT_MANAGER);
     }
 
-    public static PlatformPrincipal bind(JdbcTemplate jdbc, UUID env, UUID build) {
-        var owner = manager(jdbc);
-        jdbc.update("insert into build_ownership values(?,?,?)", build, env, ID);
+    public static PlatformPrincipal bind(TenantFixtureMapper fixtures, UUID env, UUID build) {
+        var owner = manager(fixtures);
+        fixtures.bindBuild(ID, build, env);
         return owner;
     }
 

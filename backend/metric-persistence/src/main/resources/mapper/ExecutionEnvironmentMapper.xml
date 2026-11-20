@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.metricplatform.persistence.mapper.ExecutionEnvironmentMapper">
+    <select id="lockVersion" resultType="long" flushCache="true" useCache="false">
+        select config_version from execution_environment where environment_id = #{id} for update
+    </select>
+
+    <insert id="reserveNamespace">
+        insert into execution_namespace_owner(instance_id, adapter_type, catalog_name, schema_name, environment_id)
+        values(#{input.connection.instanceId}, #{input.connection.type}, #{input.catalog}, #{input.schema}, #{id})
+        on conflict do nothing
+    </insert>
+
+    <select id="ownsNamespace" resultType="boolean">
+        select count(*) > 0 from execution_namespace_owner
+        where environment_id = #{id} and instance_id = #{input.connection.instanceId}
+          and adapter_type = #{input.connection.type} and catalog_name = #{input.catalog}
+          and schema_name = #{input.schema}
+    </select>
+
+    <insert id="insertVersion">
+        insert into execution_environment_version(environment_id, config_version, execution)
+        values(#{id}, #{version}, cast(#{execution} as jsonb))
+    </insert>
+
+    <sql id="currentVersion">
+        select e.environment_id, e.name, e.config_version, cast(v.execution as text) as execution
+        from execution_environment e join execution_environment_version v
+          on e.tenant_id = v.tenant_id and e.environment_id = v.environment_id
+         and e.config_version = v.config_version
+    </sql>
+
+    <select id="find" resultType="com.metricplatform.persistence.mapper.ExecutionEnvironmentMapper$EnvironmentRow">
+        <include refid="currentVersion"/> where e.environment_id = #{id}
+    </select>
+
+    <select id="list" resultType="com.metricplatform.persistence.mapper.ExecutionEnvironmentMapper$EnvironmentRow">
+        <include refid="currentVersion"/> order by e.created_at, e.environment_id
+    </select>
+</mapper>

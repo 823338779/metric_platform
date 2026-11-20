@@ -36,6 +36,11 @@ public final class TenantScope implements AutoCloseable {
         return tenantId;
     }
 
+    /** 全局租户发现和开通仅能在绑定业务租户之前执行。 */
+    public static void requireUnbound() {
+        if (current() != null) throw new IllegalStateException("当前已绑定租户");
+    }
+
     /** 显式接收租户编号的持久化端口必须与当前认证作用域一致。 */
     public static void require(String expectedTenant) {
         if (!require().equals(expectedTenant)) throw new IllegalStateException("持久化操作的租户与当前身份不一致");

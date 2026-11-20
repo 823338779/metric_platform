@@ -1,16 +1,22 @@
 package com.metricplatform.integration.persistence;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.Mockito.verifyNoInteractions;
 
 import com.metricplatform.identity.PlatformIdentityRepository;
 import com.metricplatform.identity.TenantScope;
+import com.metricplatform.persistence.entity.AuditEventEntity;
+import com.metricplatform.persistence.redis.RedisAccessTokenStore;
+import com.metricplatform.persistence.service.AuditEventPersistenceService;
 import java.time.Instant;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.dao.EmptyResultDataAccessException;
 import org.springframework.test.context.ActiveProfiles;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.transaction.annotation.Transactional;
 
 /** 验证身份端口通过 MyBatis Plus 落库并返回不含持久化实体的账户快照。 */
@@ -19,7 +25,25 @@ import org.springframework.transaction.annotation.Transactional;
 @Transactional
 class PlatformIdentityStoreTest {
     @Autowired PlatformIdentityRepository identities;
-    @Autowired JdbcTemplate jdbc;
+    @Autowired AuditEventPersistenceService events;
+    @MockitoBean RedisAccessTokenStore redis;
+
+    @Test
+    void missingTenantPreventsAccountReadsAndAuditWrites() {
+        UUID id = UUID.randomUUID();
+        assertThatThrownBy(() -> identities.findById(id)).hasStackTraceContaining("缺少租户上下文");
+        assertThatThrownBy(() -> identities.membership(id)).hasStackTraceContaining("缺少租户上下文");
+        assertThatThrownBy(
+                        () ->
+                                identities.writeAudit(
+                                        "bootstrap",
+                                        "LOGIN",
+                                        "platform_user",
+                                        id,
+                                        "SUCCEEDED",
+                                        "{}"))
+                .hasStackTraceContaining("缺少租户上下文");
+    }
 
     @Test
     void createsAndUpdatesUserAndWritesAudit() {
@@ -33,6 +57,8 @@ class PlatformIdentityStoreTest {
                             id, username, "Test User", "hash", "bcrypt", "ACTIVE", 1, now, tenant));
             assertThat(identities.usernameExists(username)).isTrue();
             assertThat(identities.findByUsername(username).id()).isEqualTo(id);
+            assertThat(identities.membership(id))
+                    .isEqualTo(new PlatformIdentityRepository.Membership(tenant, true));
             identities.recordFailedLogin(id, 2, now.plusSeconds(60));
             assertThat(identities.findById(id).failedLoginCount()).isEqualTo(2);
             assertThat(identities.findById(id).lockedUntil()).isEqualTo(now.plusSeconds(60));
@@ -61,18 +87,31 @@ class PlatformIdentityStoreTest {
                             otherTenant));
             assertThat(identities.findByUsername(username)).isNull();
             assertThat(identities.findById(id)).isNull();
+            assertThatThrownBy(() -> identities.membership(id))
+                    .isInstanceOf(EmptyResultDataAccessException.class);
+            assertThat(identities.usernameExists(username)).isFalse();
             identities.recordFailedLogin(id, 7, null);
+            assertThatThrownBy(
+                            () ->
+                                    identities.saveToken(
+                                            "fixture-token-hash",
+                                            UUID.randomUUID(),
+                                            id,
+                                            1,
+                                            now,
+                                            now.plusSeconds(60)))
+                    .isInstanceOf(IllegalStateException.class)
+                    .hasMessage("令牌账号不属于当前租户");
+            assertThatThrownBy(() -> identities.findLoginTenant(username))
+                    .isInstanceOf(IllegalStateException.class);
+            assertThatThrownBy(() -> identities.findTokenTenant("fixture-token-hash", now))
+                    .isInstanceOf(IllegalStateException.class);
+            verifyNoInteractions(redis);
         }
         try (var scope = TenantScope.open(tenant)) {
             assertThat(identities.findById(id).failedLoginCount()).isZero();
+            assertThat(events.lambdaQuery().eq(AuditEventEntity::getResourceId, id).count())
+                    .isEqualTo(1);
         }
-        assertThat(
-                        jdbc.queryForObject(
-                                "select count(*) from audit_event where resource_id = ? and"
-                                        + " tenant_id = ?",
-                                Integer.class,
-                                id,
-                                tenant))
-                .isEqualTo(1);
     }
 }

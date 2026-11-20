@@ -6,7 +6,9 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.metricplatform.catalog.BuildContracts.BuildFilter;
 import com.metricplatform.identity.TenantFixture;
+import com.metricplatform.identity.TenantFixtureMapper;
 import com.metricplatform.identity.auth.PlatformAuthenticationService;
 import com.metricplatform.security.PlatformPrincipal;
 import java.util.UUID;
@@ -16,7 +18,6 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.http.MediaType;
-import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
@@ -28,7 +29,7 @@ import org.springframework.test.web.servlet.MockMvc;
 @AutoConfigureMockMvc
 @ActiveProfiles("test")
 class EnvironmentApiTest {
-    @Autowired JdbcTemplate jdbc;
+    @Autowired TenantFixtureMapper tenants;
     private static final String ROOT = "/api/dbt/environments";
     @Autowired MockMvc mvc;
     @MockitoBean PlatformAuthenticationService authentication;
@@ -42,8 +43,12 @@ class EnvironmentApiTest {
         when(gateway.getBuild(build)).thenReturn(body);
         when(gateway.logs(build, null, 100))
                 .thenReturn(mapper.readTree("{\"items\":[\"QUEUED\"],\"nextCursor\":null}"));
-        when(gateway.history(any()))
-                .thenReturn(mapper.readTree("{\"items\":[],\"nextCursor\":null}"));
+        var history = mapper.createObjectNode();
+        history.putArray("items")
+                .addObject()
+                .put("buildId", build.toString())
+                .put("serviceField", 42);
+        when(gateway.history(any())).thenReturn(history);
         when(gateway.submit(any())).thenReturn(body);
         String created =
                 mvc.perform(
@@ -56,12 +61,16 @@ class EnvironmentApiTest {
                         .getResponse()
                         .getContentAsString();
         String environment = mapper.readTree(created).path("environmentId").asText();
-        TenantFixture.bind(jdbc, UUID.fromString(environment), build);
+        TenantFixture.bind(tenants, UUID.fromString(environment), build);
         mvc.perform(
                         get(ROOT + "/" + environment + "/builds")
+                                .param("repository", " ")
                                 .header("Authorization", "Bearer environment-test"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.items").isArray());
+                .andExpect(jsonPath("$.items").isArray())
+                .andExpect(jsonPath("$.items[0].serviceField").value(42));
+        verify(gateway)
+                .history(new BuildFilter(UUID.fromString(environment), null, null, null, null, 50));
         mvc.perform(
                         get("/api/dbt/builds/" + build)
                                 .header("Authorization", "Bearer environment-test"))
@@ -109,7 +118,7 @@ class EnvironmentApiTest {
     @BeforeEach
     void login() {
         when(authentication.authenticate("environment-test"))
-                .thenReturn(TenantFixture.manager(jdbc));
+                .thenReturn(TenantFixture.manager(tenants));
     }
 
     static String input(String schema) {
@@ -122,7 +131,7 @@ class EnvironmentApiTest {
 
     @Test
     void onlyTenantManagerCanCreateAndUpdateEnvironmentWithoutAssetGrants() throws Exception {
-        var manager = TenantFixture.manager(jdbc);
+        var manager = TenantFixture.manager(tenants);
         when(authentication.authenticate("reader"))
                 .thenReturn(
                         new PlatformPrincipal(

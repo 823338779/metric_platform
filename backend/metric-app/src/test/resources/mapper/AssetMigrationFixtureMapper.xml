@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.metricplatform.integration.persistence.AssetMigrationFixtureMapper">
+    <insert id="submission">
+        insert into environment_build_submission(tenant_id, actor_id, idempotency_key, environment_id, command, request, build_id)
+        values (#{tenant}, #{actor}, gen_random_uuid()::text, #{environment},
+                jsonb_build_object('repository', #{repository}::text, 'branchName', #{branch}::text), '{}', #{build})
+    </insert>
+
+    <insert id="reader">
+        insert into platform_user(id, tenant_id, username, display_name)
+        values (#{reader}, #{tenant}, #{reader}::text, #{name})
+    </insert>
+
+    <insert id="grantBuildMembers">
+        insert into asset_user_grant(tenant_id, user_id, asset_id)
+        select tenant_id, #{reader}, asset_id from asset_build_member where tenant_id = #{tenant} and build_id = #{build}
+    </insert>
+
+    <insert id="legacyScope">
+        insert into asset_build_scope(tenant_id, build_id, environment_id, repository, branch_name, indexed)
+        values (#{tenant}, #{build}, #{environment}, #{source}, #{source}, true)
+    </insert>
+
+    <insert id="legacyMetric">
+        insert into deployed_asset(tenant_id, asset_id, owner_id, environment_id, repository, branch_name, kind, node_id, dimension_name)
+        values (#{tenant}, #{asset}, #{owner}, #{environment}, #{source}, #{source}, 'METRIC',
+                concat('metric.', #{source}::text, '.product_count'), '')
+    </insert>
+
+    <insert id="legacyMember">
+        insert into asset_build_member(tenant_id, build_id, asset_id, query_name, selector)
+        values (#{tenant}, #{build}, #{asset}, 'product_count', '')
+    </insert>
+</mapper>

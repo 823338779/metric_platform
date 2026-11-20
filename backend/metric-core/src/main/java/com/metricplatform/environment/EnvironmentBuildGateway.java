@@ -1,6 +1,7 @@
 package com.metricplatform.environment;
 
 import com.fasterxml.jackson.databind.JsonNode;
+import com.metricplatform.catalog.BuildContracts.BuildFilter;
 import com.metricplatform.environment.EnvironmentContracts.*;
 
 import java.util.UUID;
@@ -9,7 +10,7 @@ import java.util.UUID;
 public interface EnvironmentBuildGateway {
     JsonNode submit(SnapshotBuildRequest request);
 
-    JsonNode history(EnvironmentBuildFilter filter);
+    JsonNode history(BuildFilter filter);
 
     JsonNode getBuild(UUID buildId);
 

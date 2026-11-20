@@ -1,7 +1,6 @@
 package com.metricplatform.api;
 
 import com.metricplatform.identity.auth.LoginRateLimitException;
-import com.metricplatform.query.ReleaseGoneException;
 import java.sql.SQLException;
 import java.util.NoSuchElementException;
 import org.springframework.dao.DataAccessException;
@@ -40,11 +39,6 @@ public class ApiExceptionHandler {
         return ResponseEntity.status(failure.status())
                 .contentType(MediaType.APPLICATION_PROBLEM_JSON)
                 .body(body);
-    }
-
-    @ExceptionHandler(ReleaseGoneException.class)
-    ResponseEntity<ProblemDetail> releaseGone(ReleaseGoneException exception) {
-        return problem(HttpStatus.GONE, "Release cleaned", exception.getMessage());
     }
 
     /** 数据库错误只返回可处理的上游故障，不泄露 SQL 和连接信息。 */

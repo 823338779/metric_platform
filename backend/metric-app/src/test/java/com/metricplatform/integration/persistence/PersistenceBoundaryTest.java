@@ -11,6 +11,30 @@ import org.junit.jupiter.api.Test;
 
 class PersistenceBoundaryTest {
     @Test
+    void applicationAndFixtureDatabaseOperationsUseMappers() throws IOException {
+        List<String> directAccess = new ArrayList<>();
+        for (String module :
+                List.of("metric-core", "metric-persistence", "metric-engine", "metric-app")) {
+            Path root = Path.of(System.getProperty("basedir"), "..", module, "src");
+            try (var files = Files.walk(root)) {
+                for (Path file : files.filter(path -> path.toString().endsWith(".java")).toList()) {
+                    if (file.getFileName().toString().equals("PersistenceBoundaryTest.java"))
+                        continue;
+                    String source = Files.readString(file);
+                    if (source.contains("org.springframework.jdbc.core.")
+                            || source.contains("java.sql.DriverManager")
+                            || (source.contains("DataSource") && source.contains(".getConnection("))
+                            || source.contains(".prepareStatement(")
+                            || source.contains(".createStatement(")) {
+                        directAccess.add(module + "/" + root.relativize(file));
+                    }
+                }
+            }
+        }
+        assertThat(directAccess).isEmpty();
+    }
+
+    @Test
     void persistenceImplementationAndMigrationsStayInPersistenceModule() throws IOException {
         Path appRoot = Path.of(System.getProperty("basedir"), "src/main/java/com/metricplatform");
         Path persistenceRoot =

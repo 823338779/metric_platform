@@ -9,6 +9,7 @@ import com.metricplatform.catalog.BuildContracts.*;
 import com.metricplatform.environment.EnvironmentBuildGateway;
 import com.metricplatform.environment.EnvironmentContracts;
 import com.metricplatform.identity.TenantFixture;
+import com.metricplatform.identity.TenantFixtureMapper;
 import com.metricplatform.identity.auth.PlatformAuthenticationService;
 import java.util.*;
 import java.util.TreeSet;
@@ -18,7 +19,6 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
-import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
@@ -37,7 +37,8 @@ class BuildApiContractTest {
     @Qualifier("requestMappingHandlerMapping")
     RequestMappingHandlerMapping mappings;
 
-    @Autowired JdbcTemplate jdbc;
+    @Autowired TenantFixtureMapper tenants;
+    @Autowired CatalogFixtureMapper fixtures;
     @MockitoBean BuildGateway gateway;
     @MockitoBean EnvironmentBuildGateway environmentBuilds;
     @MockitoBean PlatformAuthenticationService authentication;
@@ -48,7 +49,7 @@ class BuildApiContractTest {
 
     @BeforeEach
     void login() {
-        var manager = TenantFixture.bind(jdbc, ENVIRONMENT_ID, build);
+        var manager = TenantFixture.bind(tenants, ENVIRONMENT_ID, build);
         user = manager.identityId();
         when(authentication.authenticate(TOKEN)).thenReturn(manager);
     }
@@ -268,11 +269,6 @@ class BuildApiContractTest {
                                 .content(body))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.buildId").value(build.toString()));
-        assertThat(
-                        jdbc.queryForObject(
-                                "select user_id from query_execution_audit where build_id=?",
-                                UUID.class,
-                                build))
-                .isEqualTo(user);
+        assertThat(fixtures.auditedUser(build)).isEqualTo(user);
     }
 }

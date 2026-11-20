@@ -11,6 +11,7 @@ import com.metricplatform.catalog.BuildGateway;
 import com.metricplatform.environment.EnvironmentBuildGateway;
 import com.metricplatform.environment.EnvironmentContracts;
 import com.metricplatform.identity.TenantFixture;
+import com.metricplatform.identity.TenantFixtureMapper;
 import com.metricplatform.identity.auth.PlatformAuthenticationService;
 import java.util.*;
 import java.util.UUID;
@@ -21,7 +22,6 @@ import org.junit.jupiter.params.provider.EnumSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
-import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
@@ -36,7 +36,7 @@ class QueryControllerTest {
     private static final String ROOT = "/api/dbt",
             AUTH = "Authorization",
             TOKEN = "Bearer query-test";
-    @Autowired JdbcTemplate jdbc;
+    @Autowired TenantFixtureMapper tenants;
     @Autowired MockMvc mvc;
     @MockitoBean BuildGateway gateway;
     @MockitoBean EnvironmentBuildGateway environmentBuilds;
@@ -108,7 +108,7 @@ class QueryControllerTest {
 
     @BeforeEach
     void prepare() {
-        var manager = TenantFixture.bind(jdbc, ENVIRONMENT_ID, build);
+        var manager = TenantFixture.bind(tenants, ENVIRONMENT_ID, build);
         when(authentication.authenticate("query-test")).thenReturn(manager);
         when(gateway.getBuild(build))
                 .thenReturn(

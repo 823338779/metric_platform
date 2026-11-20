@@ -115,24 +115,38 @@ public class HttpBuildGateway implements BuildGateway {
     }
 
     public BuildPage listBuilds(BuildFilter f) {
-        return call(
-                GET,
-                BUILDS
-                        + parameters(
-                                ENVIRONMENT,
-                                f.environmentId(),
-                                BUILD_STATUS,
-                                f.buildStatus(),
-                                REPOSITORY,
-                                f.repository(),
-                                BRANCH,
-                                f.branchName(),
-                                CURSOR,
-                                f.cursor(),
-                                LIMIT,
-                                f.limit()),
-                null,
-                BuildPage.class);
+        var page = buildHistory(f);
+        try {
+            return mapper.treeToValue(page, BuildPage.class);
+        } catch (com.fasterxml.jackson.core.JsonProcessingException exception) {
+            throw invalid();
+        }
+    }
+
+    JsonNode buildHistory(BuildFilter f) {
+        var page =
+                call(
+                        GET,
+                        BUILDS
+                                + parameters(
+                                        ENVIRONMENT,
+                                        f.environmentId(),
+                                        BUILD_STATUS,
+                                        f.buildStatus(),
+                                        REPOSITORY,
+                                        f.repository(),
+                                        BRANCH,
+                                        f.branchName(),
+                                        CURSOR,
+                                        f.cursor(),
+                                        LIMIT,
+                                        f.limit()),
+                        null,
+                        JsonNode.class);
+        var items = page.path("items");
+        if (!items.isArray()) throw BuildResponse.invalid();
+        for (var item : items) BuildResponse.requireEnvironment(item, f.environmentId());
+        return page;
     }
 
     public DeploymentTargetView current(DeploymentKey k) {

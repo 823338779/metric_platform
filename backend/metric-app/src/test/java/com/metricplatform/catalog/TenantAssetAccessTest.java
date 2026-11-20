@@ -6,6 +6,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 import com.metricplatform.environment.EnvironmentBuildGateway;
 import com.metricplatform.identity.TenantFixture;
+import com.metricplatform.identity.TenantFixtureMapper;
 import com.metricplatform.identity.auth.PlatformAuthenticationService;
 import com.metricplatform.security.PlatformPrincipal;
 import java.util.List;
@@ -14,7 +15,6 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
-import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
@@ -22,7 +22,7 @@ import org.springframework.test.web.servlet.MockMvc;
 @AutoConfigureMockMvc
 class TenantAssetAccessTest {
     @Autowired MockMvc mvc;
-    @Autowired JdbcTemplate jdbc;
+    @Autowired TenantFixtureMapper tenants;
     @MockitoBean PlatformAuthenticationService auth;
     @MockitoBean BuildGateway builds;
     @MockitoBean EnvironmentBuildGateway environments;
@@ -50,7 +50,7 @@ class TenantAssetAccessTest {
                         "tn_00002",
                         PlatformPrincipal.Role.TENANT_MANAGER);
         when(auth.authenticate("fixture")).thenReturn(actor);
-        TenantFixture.bind(jdbc, UUID.randomUUID(), id);
+        TenantFixture.bind(tenants, UUID.randomUUID(), id);
         var path = "/api/dbt/builds/" + id;
         for (String suffix :
                 List.of(

@@ -74,10 +74,6 @@ function mount(api: unknown, path = `/dbt/builds/${B1}/catalog`) {
           path="/dbt/builds/:buildId/catalog"
           element={<PublishedCatalogPage api={api as never} />}
         />
-        <Route
-          path="/dbt/projects/:projectId/catalog"
-          element={<PublishedCatalogPage api={api as never} />}
-        />
       </Routes>
     </MemoryRouter>,
   );
@@ -94,14 +90,13 @@ it('deploymentChangeDoesNotReplacePageBuild', async () => {
 });
 it('undeployedBranchDoesNotUseMainCatalog', async () => {
   const api = fixture();
+  api.build.mockResolvedValue({ ...build(), catalogAvailable: false });
   api.current.mockResolvedValue({ activeBuildId: null, sourceState: 'UNDEPLOYED' });
-  mount(
-    api,
-    '/dbt/projects/p1/catalog?repository=repo%2Fa&branchName=feature%2Fshared&environmentId=12345678-1234-4234-8234-000000000001',
-  );
+  mount(api, `/dbt/builds/${B1}/catalog?buildId=${B2}&branchName=main`);
   expect(await screen.findByText('当前分支尚未部署')).toBeInTheDocument();
   expect(screen.queryByText('固定构建目录')).not.toBeInTheDocument();
-  expect(api.build).not.toHaveBeenCalled();
+  expect(api.build.mock.calls.map(([id]) => id)).toEqual([B1]);
+  expect(screen.queryByRole('button', { name: '切换到当前部署' })).not.toBeInTheDocument();
   expect(api.current).toHaveBeenCalledWith({
     repository: 'repo/a',
     branchName: 'feature/shared',

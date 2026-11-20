@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.metricplatform.environment.EnvironmentFixtureMapper">
+    <insert id="insertEnvironment">
+        insert into execution_environment(environment_id, name, config_version)
+        values(#{environmentId}, 'fixture', 1)
+    </insert>
+
+    <insert id="insertSubmission">
+        insert into environment_build_submission(actor_id, idempotency_key, environment_id, command, request)
+        values(#{actor}, #{key}, #{environmentId}, '{}', '{}')
+    </insert>
+
+    <select id="submissionBuildIds" resultType="java.util.UUID">
+        select build_id from environment_build_submission where actor_id = #{actor} and idempotency_key = #{key}
+    </select>
+
+    <select id="observedBuildIds" resultType="java.util.UUID">
+        select build_id from asset_catalog_observation where environment_id = #{environmentId}
+    </select>
+
+    <select id="recordedTenants" resultType="string">
+        select tenant_id from execution_environment_version where environment_id = #{environmentId}
+        union all select tenant_id from execution_namespace_owner where environment_id = #{environmentId}
+        union all select tenant_id from environment_build_submission where build_id = #{buildId}
+        union all select tenant_id from build_ownership where build_id = #{buildId}
+    </select>
+</mapper>

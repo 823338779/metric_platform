@@ -8,7 +8,7 @@ import {
   ReloadOutlined,
 } from '@ant-design/icons';
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
+import { Link, useNavigate, useParams } from 'react-router-dom';
 import {
   buildCatalogApi,
   type BuildCatalogApi,
@@ -28,7 +28,6 @@ const COPY = {
   switch: '切换到当前部署',
   updated: '有效部署已更新；当前页面保持固定构建，切换后重新选择资源。',
   undeployed: '当前分支尚未部署',
-  choose: '请选择项目分支',
   unavailable: '此构建的产物不可用。请在执行环境中选择当前部署版本。',
   failed: '读取失败，请重试；已有固定版本保持不变。',
   moreBuilds: '加载更多构建历史',
@@ -53,12 +52,17 @@ const DESKTOP_CONTEXT = '(min-width: 1200px)';
 const MEDIA_CHANGE = 'change';
 const PATH_SEPARATOR = '/';
 const GIT_SUFFIX = /\.git$/;
-/** 构建页面只在初次无版本时解析部署，新部署只提示，不覆盖固定 buildId。 */
+function deploymentKey(build: BuildView) {
+  return {
+    repository: build.repository,
+    branchName: build.branchName,
+    environmentId: build.execution.environmentId,
+  };
+}
+
 export function PublishedCatalogPage({ api = buildCatalogApi }: { api?: BuildCatalogApi }) {
-  const { buildId: routeBuildId } = useParams();
-  const [params, setParams] = useSearchParams();
+  const { buildId } = useParams();
   const navigate = useNavigate();
-  const buildId = routeBuildId ?? params.get('buildId');
   const [build, setBuild] = useState<BuildView | null>(null);
   const [current, setCurrent] = useState<DeploymentTarget | null>(null);
   const [history, setHistory] = useState<BuildPage | null>(null);
@@ -87,9 +91,6 @@ export function PublishedCatalogPage({ api = buildCatalogApi }: { api?: BuildCat
     return () => media.removeEventListener(MEDIA_CHANGE, collapseOnNarrow);
   }, []);
   const adapter = useMemo(() => publishedResourceAdapter(api), [api, buildId]);
-  const repository = params.get('repository') ?? '';
-  const branchName = params.get('branchName') ?? '';
-  const environmentId = params.get('environmentId') ?? '';
   useEffect(() => {
     const turn = ++historyGeneration.current;
     let active = true;
@@ -105,24 +106,15 @@ export function PublishedCatalogPage({ api = buildCatalogApi }: { api?: BuildCat
     setBusy(true);
     async function read(includeHistory = false) {
       try {
-        const fixed = buildId ? await api.build(buildId) : null;
-        if (fixed && fixed.buildId !== buildId) throw new Error('构建身份不一致');
+        if (!buildId) return;
+        const fixed = await api.build(buildId);
+        if (fixed.buildId !== buildId) throw new Error('构建身份不一致');
         if (!active) return;
         setBuild(fixed);
-        const key = fixed
-          ? {
-              repository: fixed.repository,
-              branchName: fixed.branchName,
-              environmentId: fixed.execution.environmentId,
-            }
-          : { repository, branchName, environmentId };
-        if (!key.repository || !key.branchName || !key.environmentId) {
-          setBusy(false);
-          return;
-        }
+        const key = deploymentKey(fixed);
         const [target, builds, attempts] = await Promise.allSettled([
           api.current(key),
-          includeHistory ? api.builds({ ...key }) : Promise.resolve(null),
+          includeHistory ? api.builds(key) : Promise.resolve(null),
           includeHistory ? api.deployments(key) : Promise.resolve(null),
         ]);
         if (!active) return;
@@ -133,17 +125,6 @@ export function PublishedCatalogPage({ api = buildCatalogApi }: { api?: BuildCat
         }
         if (target.status === 'fulfilled') {
           setCurrent(target.value);
-          if (!buildId && target.value.activeBuildId) {
-            setParams(
-              (previous) => {
-                const next = new URLSearchParams(previous);
-                next.set('buildId', target.value.activeBuildId!);
-                return next;
-              },
-              { replace: true },
-            );
-            return;
-          }
         } else setError(COPY.failed);
         timer = setTimeout(() => void read(), POLL_MS);
       } catch (reason) {
@@ -158,17 +139,13 @@ export function PublishedCatalogPage({ api = buildCatalogApi }: { api?: BuildCat
       if (historyGeneration.current === turn) historyGeneration.current++;
       if (timer) clearTimeout(timer);
     };
-  }, [api, buildId, repository, branchName, environmentId, refresh]);
+  }, [api, buildId, refresh]);
   // 两类历史游标独立前进；状态轮询不覆盖已追加的历史页面。
   async function loadHistory(deployment: boolean) {
     const cursor = deployment ? deploymentCursor : history?.nextCursor;
-    if (!cursor) return;
+    if (!cursor || !build) return;
     const turn = historyGeneration.current;
-    const key = {
-      repository: build?.repository ?? repository,
-      branchName: build?.branchName ?? branchName,
-      environmentId: build?.execution.environmentId ?? environmentId,
-    };
+    const key = deploymentKey(build);
     const setLoading = deployment ? setLoadingDeployments : setLoadingBuilds;
     setLoading(true);
     try {
@@ -178,12 +155,7 @@ export function PublishedCatalogPage({ api = buildCatalogApi }: { api?: BuildCat
         setDeployments((current) => [...current, ...page.items]);
         setDeploymentCursor(page.nextCursor);
       } else {
-        const page = await api.builds({
-          environmentId: key.environmentId,
-          repository: key.repository,
-          branchName: key.branchName,
-          cursor,
-        });
+        const page = await api.builds({ ...key, cursor });
         if (turn !== historyGeneration.current) return;
         setHistory((current) =>
           current ? { ...page, items: [...current.items, ...page.items] } : current,
@@ -256,10 +228,7 @@ export function PublishedCatalogPage({ api = buildCatalogApi }: { api?: BuildCat
           }
         />
       )}
-      {!buildId && current && !current.activeBuildId && (
-        <Alert type="info" title={COPY.undeployed} />
-      )}
-      {!buildId && !branchName && <p>{COPY.choose}</p>}
+      {current && !current.activeBuildId && <Alert type="info" title={COPY.undeployed} />}
       <div className={`published-catalog-body${contextOpen ? ' has-context' : ''}`}>
         {build && build.buildId === buildId && build.catalogAvailable ? (
           <DbtCatalogPage key={buildId} api={adapter} />
@@ -341,7 +310,7 @@ export function PublishedCatalogPage({ api = buildCatalogApi }: { api?: BuildCat
               <BranchBuildPanel
                 history={history}
                 deployments={deployments}
-                currentBuildId={buildId}
+                currentBuildId={buildId ?? null}
                 activeBuildId={current?.activeBuildId ?? null}
                 onSelect={selectBuild}
               />

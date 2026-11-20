@@ -14,10 +14,9 @@ import com.metricplatform.persistence.service.PlatformUserPersistenceService;
 import lombok.RequiredArgsConstructor;
 
 import org.springframework.beans.factory.ObjectProvider;
-import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.dao.EmptyResultDataAccessException;
 import org.springframework.stereotype.Repository;
 
-import java.sql.Timestamp;
 import java.time.Instant;
 import java.util.UUID;
 
@@ -25,51 +24,27 @@ import java.util.UUID;
 @Repository
 @RequiredArgsConstructor
 public class PlatformIdentityStore implements PlatformIdentityRepository {
-    /** 在账号创建事务内分配租户并绑定管理者。 */
-    private static final String CREATE_TENANT =
-            """
-            insert into platform_tenant(tenant_id,manager_id)
-            values ('tn_' || lpad(nextval('tenant_number')::text,5,'0'),?) returning tenant_id
-            """;
-
-    private final JdbcTemplate jdbc;
+    private final IdentityTenantMapper tenants;
     private final PlatformUserPersistenceService users;
-
-    public String createTenant(UUID managerId) {
-        requireUnbound();
-        return jdbc.queryForObject(CREATE_TENANT, String.class, managerId);
-    }
-
     private final PlatformAccessTokenPersistenceService tokens;
     private final AuditEventPersistenceService events;
     private final ObjectProvider<RedisAccessTokenStore> redisTokens;
 
-    private static final String MEMBERSHIP =
-            """
-            select u.tenant_id, t.manager_id=u.id from platform_user u
-            join platform_tenant t using(tenant_id) where u.tenant_id=? and u.id=? and not u.is_deleted
-            """;
-    private static final String LOGIN_TENANT =
-            "select tenant_id from platform_user where username=? and not is_deleted";
-    private static final String LEGACY_TOKEN_USER_TENANT =
-            "select tenant_id from platform_user where id=? and not is_deleted";
-    private static final String TOKEN_TENANT =
-            """
-            select tenant_id from platform_access_token
-            where token_hash=? and not is_deleted and revoked_at is null and expires_at>?
-            """;
+    public String createTenant(UUID managerId) {
+        TenantScope.requireUnbound();
+        return tenants.createTenant(managerId);
+    }
 
     public Membership membership(UUID accountId) {
-        return jdbc.queryForObject(
-                MEMBERSHIP,
-                (row, index) -> new Membership(row.getString(1), row.getBoolean(2)),
-                TenantScope.require(),
-                accountId);
+        TenantScope.require();
+        Membership membership = tenants.membership(accountId);
+        if (membership == null) throw new EmptyResultDataAccessException(1);
+        return membership;
     }
 
     public String findLoginTenant(String username) {
-        requireUnbound();
-        return jdbc.query(LOGIN_TENANT, row -> row.next() ? row.getString(1) : null, username);
+        TenantScope.requireUnbound();
+        return tenants.findLoginTenant(username);
     }
 
     public User findByUsername(String username) {
@@ -131,6 +106,8 @@ public class PlatformIdentityStore implements PlatformIdentityRepository {
             Instant expiresAt) {
         RedisAccessTokenStore redis = redisTokens.getIfAvailable();
         if (redis != null) {
+            // Redis 没有数据库的复合外键，签发前由当前租户核对账号归属。
+            if (!ownsAccount(identityId)) throw new IllegalStateException("令牌账号不属于当前租户");
             redis.save(tokenHash, tokenId, identityId, authVersion, expiresAt);
             return;
         }
@@ -145,39 +122,17 @@ public class PlatformIdentityStore implements PlatformIdentityRepository {
     }
 
     public String findTokenTenant(String tokenHash, Instant now) {
-        requireUnbound();
+        TenantScope.requireUnbound();
         RedisAccessTokenStore redis = redisTokens.getIfAvailable();
         if (redis != null) {
-            return redis.findTenant(tokenHash, this::legacyTokenTenant);
+            return redis.findTenant(tokenHash, tenants::findLegacyTokenTenant);
         }
-        return jdbc.query(
-                TOKEN_TENANT,
-                row -> row.next() ? row.getString(1) : null,
-                tokenHash,
-                Timestamp.from(now));
-    }
-
-    private String legacyTokenTenant(UUID identityId) {
-        // 旧 Redis 令牌由缓存中的账号定位；其有效期和账号版本仍按正常流程校验。
-        return jdbc.query(
-                LEGACY_TOKEN_USER_TENANT, row -> row.next() ? row.getString(1) : null, identityId);
+        return tenants.findTokenTenant(tokenHash, now);
     }
 
     public Token findToken(String tokenHash, Instant now) {
         RedisAccessTokenStore redis = redisTokens.getIfAvailable();
-        if (redis != null) {
-            String tenant = TenantScope.require();
-            var token = redis.find(tokenHash);
-            if (token == null) return null;
-            // 旧令牌没有签发租户，必须在当前租户内找到同一账号。
-            boolean owned =
-                    token.tenantId() != null
-                            ? tenant.equals(token.tenantId())
-                            : users.lambdaQuery()
-                                    .eq(PlatformUserEntity::getId, token.identityId())
-                                    .exists();
-            return owned ? new Token(token.id(), token.identityId(), token.authVersion()) : null;
-        }
+        if (redis != null) return redis.find(tokenHash, this::ownsAccount);
         PlatformAccessTokenEntity token =
                 tokens.getOne(
                         new LambdaQueryWrapper<PlatformAccessTokenEntity>()
@@ -186,6 +141,10 @@ public class PlatformIdentityStore implements PlatformIdentityRepository {
         return token == null || !token.getExpiresAt().isAfter(now)
                 ? null
                 : new Token(token.getId(), token.getIdentityId(), token.getAuthVersion());
+    }
+
+    private boolean ownsAccount(UUID identityId) {
+        return users.lambdaQuery().eq(PlatformUserEntity::getId, identityId).exists();
     }
 
     public void writeAudit(
@@ -219,10 +178,5 @@ public class PlatformIdentityStore implements PlatformIdentityRepository {
                         row.getAuthVersion(),
                         row.getFailedLoginCount(),
                         row.getLockedUntil());
-    }
-
-    /** 全局登录发现和租户分配仅用于尚未绑定业务租户的入口。 */
-    private static void requireUnbound() {
-        if (TenantScope.current() != null) throw new IllegalStateException("当前已绑定租户");
     }
 }

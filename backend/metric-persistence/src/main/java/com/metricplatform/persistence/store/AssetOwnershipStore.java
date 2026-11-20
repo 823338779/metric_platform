@@ -1,11 +1,13 @@
 package com.metricplatform.persistence.store;
 
+import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import com.metricplatform.environment.AssetOwnership;
 import com.metricplatform.identity.TenantScope;
+import com.metricplatform.persistence.entity.BuildOwnershipEntity;
+import com.metricplatform.persistence.mapper.AssetOwnershipMapper;
 
 import lombok.RequiredArgsConstructor;
 
-import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Repository;
 
 import java.util.UUID;
@@ -13,39 +15,30 @@ import java.util.UUID;
 @Repository
 @RequiredArgsConstructor
 public class AssetOwnershipStore implements AssetOwnership {
-    private static final String ENV =
-            """
-            select exists(select 1 from execution_environment where tenant_id=? and environment_id=?
-            union all select 1 from build_ownership where tenant_id=? and environment_id=?)
-            """;
-    private static final String BUILD =
-            "select exists(select 1 from build_ownership where tenant_id=? and build_id=?)";
-    private static final String ENV_BUILD =
-            "select exists(select 1 from build_ownership where tenant_id=? and environment_id=? and"
-                    + " build_id=?)";
-    private static final String SECRET =
-            "select cursor_secret from platform_tenant where tenant_id=?";
-    private final JdbcTemplate jdbc;
+    private final AssetOwnershipMapper ownership;
 
     public boolean hasEnvironment(String tenant, UUID environment) {
         TenantScope.require(tenant);
-        return Boolean.TRUE.equals(
-                jdbc.queryForObject(ENV, Boolean.class, tenant, environment, tenant, environment));
+        return ownership.hasEnvironment(tenant, environment);
     }
 
     public boolean hasBuild(String tenant, UUID build) {
         TenantScope.require(tenant);
-        return Boolean.TRUE.equals(jdbc.queryForObject(BUILD, Boolean.class, tenant, build));
+        return ownership.exists(
+                Wrappers.<BuildOwnershipEntity>lambdaQuery()
+                        .eq(BuildOwnershipEntity::getBuildId, build));
     }
 
     public boolean hasBuild(String tenant, UUID environment, UUID build) {
         TenantScope.require(tenant);
-        return Boolean.TRUE.equals(
-                jdbc.queryForObject(ENV_BUILD, Boolean.class, tenant, environment, build));
+        return ownership.exists(
+                Wrappers.<BuildOwnershipEntity>lambdaQuery()
+                        .eq(BuildOwnershipEntity::getBuildId, build)
+                        .eq(BuildOwnershipEntity::getEnvironmentId, environment));
     }
 
     public UUID cursorSecret(String tenant) {
         TenantScope.require(tenant);
-        return jdbc.queryForObject(SECRET, UUID.class, tenant);
+        return ownership.cursorSecret();
     }
 }

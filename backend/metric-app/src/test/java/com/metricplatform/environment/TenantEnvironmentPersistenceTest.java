@@ -8,6 +8,7 @@ import com.metricplatform.environment.EnvironmentContracts.EnvironmentInput;
 import com.metricplatform.environment.EnvironmentContracts.SubmitBuildCommand;
 import com.metricplatform.identity.TenantAccountService;
 import com.metricplatform.identity.TenantFixture;
+import com.metricplatform.identity.TenantFixtureMapper;
 import com.metricplatform.identity.TenantScope;
 import com.metricplatform.identity.api.IdentityDtos.AuthTokenRequest;
 import java.util.NoSuchElementException;
@@ -15,18 +16,18 @@ import java.util.UUID;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.jdbc.core.JdbcTemplate;
 
 @SpringBootTest
 class TenantEnvironmentPersistenceTest {
     @Autowired EnvironmentStore environments;
     @Autowired BuildSubmissionStore submissions;
     @Autowired TenantAccountService accounts;
-    @Autowired JdbcTemplate jdbc;
+    @Autowired TenantFixtureMapper tenants;
+    @Autowired EnvironmentFixtureMapper fixtures;
 
     @Test
     void foreignTenantCannotReadVersionsReuseSubmissionsOrClaimPhysicalTarget() throws Exception {
-        var actor = TenantFixture.manager(jdbc);
+        var actor = TenantFixture.manager(tenants);
         String owner = actor.tenantId();
         String other =
                 accounts.provision(
@@ -69,19 +70,6 @@ class TenantEnvironmentPersistenceTest {
             assertThat(environments.get(owner, id).configVersion()).isOne();
             submissions.accepted(owner, actor.identityId(), key, build);
         }
-        assertThat(
-                        jdbc.queryForList(
-                                """
-                                select tenant_id from execution_environment_version where environment_id=?
-                                union all select tenant_id from execution_namespace_owner where environment_id=?
-                                union all select tenant_id from environment_build_submission where build_id=?
-                                union all select tenant_id from build_ownership where build_id=?
-                                """,
-                                String.class,
-                                id,
-                                id,
-                                build,
-                                build))
-                .containsExactly(owner, owner, owner, owner);
+        assertThat(fixtures.recordedTenants(id, build)).containsExactly(owner, owner, owner, owner);
     }
 }

@@ -1,0 +1,134 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.metricplatform.integration.persistence.TenantMigrationFixtureMapper">
+    <select id="tenantTable" resultType="string">
+        select to_regclass('platform_tenant')::text
+    </select>
+
+    <select id="countTenants" resultType="int">
+        select count(*) from platform_tenant
+    </select>
+
+    <select id="nextTenantNumber" resultType="long" flushCache="true" useCache="false">
+        select nextval('tenant_number')
+    </select>
+
+    <insert id="legacyAccount">
+        insert into platform_user(id, username, display_name, password_hash)
+        values (#{id}, #{login}, #{displayName}, 'fixture')
+    </insert>
+
+    <update id="createInventory">
+        create table tenant_cutover_input(manager_login text, environment_ids uuid[], builds jsonb)
+    </update>
+
+    <insert id="emptyInventory">
+        insert into tenant_cutover_input values (#{managerLogin}, '{}', '[]')
+    </insert>
+
+    <insert id="legacyQuery">
+        insert into query_execution_audit(execution_id, build_id, user_id)
+        values (gen_random_uuid(), #{build}, #{user})
+    </insert>
+
+    <update id="setInventoryBuild">
+        update tenant_cutover_input set environment_ids = array[#{environment}]::uuid[],
+            builds = jsonb_build_array(jsonb_build_object('build_id', #{build}::uuid, 'environment_id', #{environment}::uuid))
+    </update>
+
+    <select id="buildTenant" resultType="string">
+        select tenant_id from build_ownership where build_id = #{build}
+    </select>
+
+    <select id="tenantManager" resultType="java.util.UUID">
+        select manager_id from platform_tenant where tenant_id = #{tenant}
+    </select>
+
+    <select id="countUsers" resultType="int">
+        select count(*) from platform_user where tenant_id = #{tenant}
+    </select>
+
+    <insert id="legacyEvent">
+        insert into audit_event(id, actor_id, action, resource_type, resource_id, effective_identity_id)
+        values (#{event}, 'bootstrap', 'LOGIN_FAILED', 'login_attempt', #{account}, #{account})
+    </insert>
+
+    <insert id="createTenant">
+        with tenant as (
+            insert into platform_tenant(tenant_id, manager_id) values (#{tenant}, #{manager}) returning *
+        )
+        insert into platform_user(id, username, display_name, tenant_id)
+        select manager_id, tenant_id, tenant_id, tenant_id from tenant
+    </insert>
+
+    <insert id="createEnvironment">
+        insert into execution_environment(environment_id, name, config_version, tenant_id)
+        values (#{environment}, #{name}, 1, #{tenant})
+    </insert>
+
+    <insert id="ownBuild">
+        insert into build_ownership(build_id, environment_id, tenant_id) values (#{build}, #{environment}, #{tenant})
+    </insert>
+
+    <insert id="legacySubmission">
+        insert into environment_build_submission(actor_id, idempotency_key, environment_id, command, request, build_id)
+        values (#{actor}, 'key', #{environment}, '{}', '{}', #{build})
+    </insert>
+
+    <update id="archiveSubmissions">
+        create table tenant_cutover_submission_archive as
+        select *, 'archived'::text as archive_status, now() as archived_at from environment_build_submission
+    </update>
+
+    <select id="eventIdentity" resultType="java.util.UUID">
+        select effective_identity_id from audit_event where id = #{event}
+    </select>
+
+    <update id="addAuditTenantColumn">
+        alter table audit_event add column tenant_id varchar(8)
+    </update>
+
+    <update id="assignAuditEvent">
+        update audit_event set tenant_id = #{tenant} where id = #{event}
+    </update>
+
+    <select id="invalidOwnerColumns" resultType="string">
+        select t.relname from pg_class t join pg_namespace s on s.oid = t.relnamespace
+        where s.nspname = current_schema() and t.relkind = 'r'
+          and t.relname not in ('flyway_schema_history', 'platform_tenant')
+          and not exists (
+              select from pg_attribute a join pg_constraint fk
+                on fk.conrelid = t.oid and fk.conkey = array[a.attnum]
+              where a.attrelid = t.oid and a.attname = 'tenant_id' and a.attnotnull
+                and not a.atthasdef and col_description(a.attrelid, a.attnum) is not null
+                and fk.contype = 'f' and fk.confrelid = 'platform_tenant'::regclass
+          )
+    </select>
+
+    <select id="countHistoryCursors" resultType="long">
+        select count(*) from history_cursor
+    </select>
+
+    <select id="anonymousEventTenant" resultType="string">
+        select tenant_id from audit_event where id = #{event} and resource_id = #{account}
+          and effective_identity_id is null
+    </select>
+
+    <select id="migratedEvidenceTenants" resultType="string">
+        select tenant_id from tenant_cutover_submission_archive union all select tenant_id from query_execution_audit
+    </select>
+
+    <insert id="recordQuery">
+        insert into query_execution_audit(tenant_id, execution_id, build_id, user_id)
+        values (#{tenant}, gen_random_uuid(), #{build}, #{user})
+    </insert>
+
+    <insert id="createProject">
+        insert into semantic_project(tenant_id, project_id, repository_id, project_subdir, profile_binding_id)
+        values (#{tenant}, 'shared', 'repo', '.', 'binding')
+    </insert>
+
+    <update id="reassignProjects">
+        update semantic_project set tenant_id = #{replacement} where tenant_id = #{current}
+    </update>
+</mapper>

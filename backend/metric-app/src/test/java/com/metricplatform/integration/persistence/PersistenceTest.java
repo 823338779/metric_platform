@@ -3,7 +3,12 @@ package com.metricplatform.integration.persistence;
 import static org.assertj.core.api.Assertions.*;
 
 import com.metricplatform.identity.TenantFixture;
+import com.metricplatform.identity.TenantFixtureMapper;
 import com.metricplatform.identity.TenantScope;
+import com.metricplatform.persistence.entity.SemanticProjectEntity;
+import com.metricplatform.persistence.entity.SemanticReleaseEntity;
+import com.metricplatform.persistence.service.SemanticProjectService;
+import com.metricplatform.persistence.service.SemanticReleaseService;
 import com.metricplatform.persistence.store.CatalogStore;
 import com.metricplatform.persistence.store.QueryStore;
 import com.metricplatform.persistence.store.ReleaseStore;
@@ -17,16 +22,15 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.ActiveProfiles;
 
 @SpringBootTest
 @ActiveProfiles("test")
 class PersistenceTest {
-    private static final String ACTIVATE_RELEASE_SQL =
-            "update semantic_project set active_release_id=? where project_id=?";
-
-    @Autowired JdbcTemplate jdbc;
+    @Autowired TenantFixtureMapper tenants;
+    @Autowired PersistenceFixtureMapper schema;
+    @Autowired SemanticProjectService projects;
+    @Autowired SemanticReleaseService releaseRows;
     @Autowired ReleaseStore releases;
     @Autowired QueryStore queries;
     @Autowired CatalogStore catalog;
@@ -35,7 +39,7 @@ class PersistenceTest {
 
     @BeforeEach
     void setup() {
-        TenantFixture.manager(jdbc);
+        TenantFixture.manager(tenants);
         scope = TenantScope.open(TenantFixture.ID);
         projectId = "p" + UUID.randomUUID().toString().replace("-", "");
         releases.bindProject(projectId, "repo", "project", "starrocks-profile");
@@ -44,10 +48,7 @@ class PersistenceTest {
     @AfterEach
     void cleanup() {
         try {
-            jdbc.update(
-                    "delete from semantic_project where tenant_id=? and project_id=?",
-                    TenantFixture.ID,
-                    projectId);
+            projects.removeById(projectId);
         } finally {
             scope.close();
         }
@@ -63,21 +64,9 @@ class PersistenceTest {
                     "semantic_dependency",
                     "semantic_query"
                 }) {
-            assertThat(
-                            jdbc.queryForObject(
-                                    "select count(*) from information_schema.tables where"
-                                            + " table_name = ?",
-                                    Integer.class,
-                                    table))
-                    .isEqualTo(1);
+            assertThat(schema.countTables(table)).isEqualTo(1);
         }
-        assertThat(
-                        jdbc.queryForObject(
-                                "select col_description('semantic_release'::regclass, attnum) from"
-                                        + " pg_attribute where attrelid='semantic_release'::regclass"
-                                        + " and attname='cleanup_state'",
-                                String.class))
-                .isNotBlank();
+        assertThat(schema.cleanupStateComment()).isNotBlank();
     }
 
     @Test
@@ -93,17 +82,12 @@ class PersistenceTest {
         assertThat(second.releaseId()).isNotEqualTo(first.releaseId());
         assertThat(releases.observe(projectId, revision('b', '1'), "config-1").releaseId())
                 .isEqualTo(second.releaseId());
+        assertThat(projects.getById(projectId).getObservedSha()).isEqualTo("b".repeat(40));
         assertThat(
-                        jdbc.queryForObject(
-                                "select observed_sha from semantic_project where project_id=?",
-                                String.class,
-                                projectId))
-                .isEqualTo("b".repeat(40));
-        assertThat(
-                        jdbc.queryForObject(
-                                "select count(*) from semantic_release where project_id=?",
-                                Integer.class,
-                                projectId))
+                        releaseRows
+                                .lambdaQuery()
+                                .eq(SemanticReleaseEntity::getProjectId, projectId)
+                                .count())
                 .isEqualTo(2);
     }
 
@@ -116,10 +100,10 @@ class PersistenceTest {
         var next = releases.observe(projectId, revision('b', '1'), "config-1");
         assertThat(next.kind()).isEqualTo(ReleaseStore.ObservationKind.START);
         assertThat(
-                        jdbc.queryForObject(
-                                "select count(*) from semantic_release where project_id=?",
-                                Integer.class,
-                                projectId))
+                        releaseRows
+                                .lambdaQuery()
+                                .eq(SemanticReleaseEntity::getProjectId, projectId)
+                                .count())
                 .isEqualTo(2);
         assertThat(releases.observe(projectId, revision('c', '2'), "config-1").kind())
                 .isEqualTo(ReleaseStore.ObservationKind.START);
@@ -142,18 +126,25 @@ class PersistenceTest {
             assertThat(one.get().releaseId()).isEqualTo(two.get().releaseId());
         }
         assertThat(
-                        jdbc.queryForObject(
-                                "select count(*) from semantic_release where project_id=?",
-                                Integer.class,
-                                projectId))
+                        releaseRows
+                                .lambdaQuery()
+                                .eq(SemanticReleaseEntity::getProjectId, projectId)
+                                .count())
                 .isEqualTo(1);
     }
 
     @Test
     void nonTerminalQueryReferencesRelease() {
         UUID releaseId = releases.observe(projectId, revision('a', '1'), "config-1").releaseId();
-        jdbc.update("update semantic_release set state='PUBLISHED' where release_id=?", releaseId);
-        jdbc.update(ACTIVATE_RELEASE_SQL, releaseId, projectId);
+        releaseRows
+                .lambdaUpdate()
+                .eq(SemanticReleaseEntity::getReleaseId, releaseId)
+                .set(SemanticReleaseEntity::getState, "PUBLISHED")
+                .update();
+        projects.lambdaUpdate()
+                .eq(SemanticProjectEntity::getProjectId, projectId)
+                .set(SemanticProjectEntity::getActiveReleaseId, releaseId)
+                .update();
         UUID queryId = UUID.randomUUID();
         queries.reserve(queryId, projectId, releaseId, UUID.randomUUID());
         assertThat(queries.countNonTerminal(releaseId)).isEqualTo(1);

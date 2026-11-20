@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.metricplatform.integration.persistence.HistoryProjectionFixtureMapper">
+    <delete id="deleteOwnership">
+        DELETE FROM build_ownership WHERE build_id = #{buildId}
+    </delete>
+    <insert id="insertLegacyProject">
+        INSERT INTO semantic_project (project_id, repository_id, project_subdir, profile_binding_id)
+        VALUES (#{projectId}, 'repo', '.', 'binding')
+    </insert>
+    <insert id="insertFailedRelease">
+        INSERT INTO semantic_release (release_id, project_id, release_sequence, target_commit_sha,
+            build_source_sha, project_digest, config_version, idempotency_key, state)
+        VALUES (#{releaseId}, #{projectId}, 1, #{sha}, #{sha}, 'digest', '1', #{idempotencyKey}, 'FAILED')
+    </insert>
+    <insert id="insertFailedQuery">
+        INSERT INTO semantic_query (query_id, project_id, release_id, idempotency_key, mode, status)
+        VALUES (#{queryId}, #{projectId}, #{releaseId}, #{idempotencyKey}, 'QUERY', 'FAILED')
+    </insert>
+    <select id="queryBuild" resultType="java.util.UUID">
+        SELECT build_id FROM semantic_query WHERE query_id = #{queryId}
+    </select>
+    <select id="queryRelease" resultType="java.util.UUID">
+        SELECT release_id FROM semantic_query WHERE query_id = #{queryId}
+    </select>
+    <select id="importLegacyMapping" resultType="boolean" affectData="true" flushCache="true" useCache="false">
+        SELECT import_legacy_build_mapping(#{tenantId}, #{releaseId}, #{buildId}, #{repository}, #{evidence})
+    </select>
+    <delete id="deleteLegacyMapping">
+        DELETE FROM legacy_build_mapping WHERE release_id = #{releaseId}
+    </delete>
+</mapper>

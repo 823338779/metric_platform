@@ -64,7 +64,7 @@ public class MybatisConfiguration {
                             @Override
                             public boolean ignoreInsert(
                                     List<Column> columns, String tenantIdColumn) {
-                                // 默认实现会信任 SQL 自带的租户值。所有 Mapper 写入都必须由拦截器分配。
+                                // 租户拦截器负责的写入只能使用当前作用域的租户。
                                 if (columns.stream()
                                         .anyMatch(
                                                 column ->

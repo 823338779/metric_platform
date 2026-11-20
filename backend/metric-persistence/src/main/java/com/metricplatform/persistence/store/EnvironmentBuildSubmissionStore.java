@@ -6,8 +6,9 @@ import com.metricplatform.catalog.BuildGateway;
 import com.metricplatform.environment.*;
 import com.metricplatform.environment.EnvironmentContracts.*;
 import com.metricplatform.identity.TenantScope;
+import com.metricplatform.persistence.mapper.EnvironmentBuildSubmissionMapper;
+import com.metricplatform.persistence.mapper.ExecutionEnvironmentMapper;
 
-import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Repository;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -17,33 +18,17 @@ import java.util.UUID;
 /** HTTP 调用前完成短事务，确保响应丢失后可重发相同请求。 */
 @Repository
 public class EnvironmentBuildSubmissionStore implements BuildSubmissionStore {
-    private static final String LOCK = "select pg_advisory_xact_lock(hashtextextended(?,0))";
-    private static final String READ =
-            "select environment_id,command::text,request::text from environment_build_submission"
-                    + " where tenant_id=? and actor_id=? and idempotency_key=?";
-    private static final String LOCK_ENV =
-            "select config_version from execution_environment where tenant_id=? and"
-                + " environment_id=? for update";
-    private static final String INSERT =
-            "insert into"
-                + " environment_build_submission(tenant_id,actor_id,idempotency_key,environment_id,command,request)"
-                + " values(?,?,?,?,?::jsonb,?::jsonb)";
-    private static final String ACCEPTED =
-            "update environment_build_submission set build_id=? where tenant_id=? and actor_id=?"
-                + " and idempotency_key=? and (build_id is null or build_id=?)";
-    private static final String SEPARATOR = ":";
-
-    /** 平台持久事务。 */
-    private final JdbcTemplate jdbc;
-
-    /** 当前环境版本端口。 */
+    private final EnvironmentBuildSubmissionMapper submissions;
+    private final ExecutionEnvironmentMapper environmentRows;
     private final EnvironmentStore environments;
-
-    /** 固定请求序列化。 */
     private final ObjectMapper mapper = new ObjectMapper();
 
-    public EnvironmentBuildSubmissionStore(JdbcTemplate jdbc, EnvironmentStore environments) {
-        this.jdbc = jdbc;
+    public EnvironmentBuildSubmissionStore(
+            EnvironmentBuildSubmissionMapper submissions,
+            ExecutionEnvironmentMapper environmentRows,
+            EnvironmentStore environments) {
+        this.submissions = submissions;
+        this.environmentRows = environmentRows;
         this.environments = environments;
     }
 
@@ -52,29 +37,22 @@ public class EnvironmentBuildSubmissionStore implements BuildSubmissionStore {
     public SnapshotBuildRequest reserve(
             String tenant, UUID actor, UUID environment, SubmitBuildCommand command) {
         TenantScope.require(tenant);
-        String scope = actor + SEPARATOR + command.idempotencyKey();
-        jdbc.query(LOCK, rs -> {}, scope);
+        String scope = actor + ":" + command.idempotencyKey();
+        submissions.lockIdempotencyKey(scope);
         String original = json(command);
-        var previous =
-                jdbc.query(
-                        READ,
-                        (row, index) -> {
-                            if (!environment.equals(row.getObject(1, UUID.class))
-                                    || !tree(original).equals(tree(row.getString(2)))) {
-                                throw conflict("IDEMPOTENCY_CONFLICT");
-                            }
-                            try {
-                                return mapper.readValue(
-                                        row.getString(3), SnapshotBuildRequest.class);
-                            } catch (Exception error) {
-                                throw new IllegalStateException("构建请求无法读取", error);
-                            }
-                        },
-                        tenant,
-                        actor,
-                        command.idempotencyKey());
-        if (!previous.isEmpty()) return previous.getFirst();
-        jdbc.query(LOCK_ENV, rs -> {}, tenant, environment);
+        var previous = submissions.find(actor, command.idempotencyKey());
+        if (previous != null) {
+            if (!environment.equals(previous.environmentId())
+                    || !tree(original).equals(tree(previous.command()))) {
+                throw conflict("IDEMPOTENCY_CONFLICT");
+            }
+            try {
+                return mapper.readValue(previous.request(), SnapshotBuildRequest.class);
+            } catch (Exception error) {
+                throw new IllegalStateException("构建请求无法读取", error);
+            }
+        }
+        environmentRows.lockVersion(environment);
         var selected = environments.get(tenant, environment);
         if (selected.configVersion() != command.expectedConfigVersion())
             throw conflict("ENVIRONMENT_VERSION_CONFLICT");
@@ -87,14 +65,7 @@ public class EnvironmentBuildSubmissionStore implements BuildSubmissionStore {
                         selected.execution(),
                         command.deploymentPolicy(),
                         key);
-        jdbc.update(
-                INSERT,
-                tenant,
-                actor,
-                command.idempotencyKey(),
-                environment,
-                original,
-                json(request));
+        submissions.insert(actor, command.idempotencyKey(), environment, original, json(request));
         return request;
     }
 
@@ -103,20 +74,12 @@ public class EnvironmentBuildSubmissionStore implements BuildSubmissionStore {
     public void accepted(String tenant, UUID actor, String key, UUID buildId) {
         TenantScope.require(tenant);
         // 与提交确认原子绑定，重复确认须匹配环境及租户。
-        if (jdbc.update(ACCEPTED, buildId, tenant, actor, key, buildId) != 1)
-            throw conflict("IDEMPOTENCY_CONFLICT");
-        if (jdbc.update(BIND, tenant, actor, key) != 1) throw conflict("BUILD_OWNERSHIP_CONFLICT");
+        if (submissions.accept(actor, key, buildId) != 1) throw conflict("IDEMPOTENCY_CONFLICT");
+        if (submissions.bindOwnership(tenant, actor, key) != 1)
+            throw conflict("BUILD_OWNERSHIP_CONFLICT");
+        if (submissions.bindTarget(tenant, actor, key) != 1)
+            throw conflict("BUILD_OWNERSHIP_CONFLICT");
     }
-
-    private static final String BIND =
-            """
-            insert into build_ownership(build_id,environment_id,tenant_id)
-            select build_id,environment_id,tenant_id from environment_build_submission
-            where tenant_id=? and actor_id=? and idempotency_key=?
-            on conflict(build_id) do update set build_id=excluded.build_id
-            where build_ownership.environment_id=excluded.environment_id
-              and build_ownership.tenant_id=excluded.tenant_id
-            """;
 
     private String json(Object value) {
         try {
