@@ -120,6 +120,39 @@ PostgreSQL 业务读写和测试夹具均通过 Mapper。单表 CRUD 优先使�
 
 `GET /api/dbt/contract` 公开只读协议元数据及打包的同一 OpenAPI，供联合部署前检查；业务接口继续使用现有登录安全链。
 
+## 环境内的本体建模
+
+租户管理者从执行环境详情进入「本体建模」，选择当前部署的数据集、列和主键属性，再用具名关系连接本环境的两个对象。保存即生效。打开或刷新页面时，平台按当前构建复核字段；「未核实」表示当前声明不足以证明绑定是否兼容。切换环境会重新加载该环境独立的本体。图库保存对象类型、属性映射和关系定义，平台 PostgreSQL 保存原有身份与资产归属。
+
+本地开发先在当前会话注入 `METRIC_NEO4J_PASSWORD`，再从仓库根启动：
+
+```powershell
+docker compose --profile ontology up -d --wait neo4j
+```
+
+独立 Compose 使用 Neo4j 2026.10.1、初始用户 `neo4j`、本机 Bolt 端口 `17687` 和持久卷。已有独立图库可通过 `METRIC_NEO4J_URI`、`METRIC_NEO4J_USERNAME`、`METRIC_NEO4J_PASSWORD` 接入。开发测试使用隔离容器；图库不可达时，本体入口展示故障，原有目录仍可访问。
+
+**备份与恢复。** 对独立 Compose 单实例，在维护窗口暂停图写入，记录当前环境的对象、边、字段绑定和编辑序号。以下 PowerShell 示例从已停止的库离线备份，先验证恢复至新的空卷。每条命令成功后再执行下一条，恢复演练保留原卷。
+
+```powershell
+$graphContainer = docker compose --profile ontology ps -q neo4j
+$graphVolume = docker inspect --format '{{range .Mounts}}{{if eq .Destination "/data"}}{{.Name}}{{end}}{{end}}' $graphContainer
+if (-not $graphVolume) { throw '未找到图库数据卷' }
+$stamp = Get-Date -Format 'yyyyMMdd-HHmmss'
+$backupVolume = "ontology-dump-$stamp"
+$restoreVolume = "ontology-restore-$stamp"
+$graphImage = 'neo4j:2026.10.1'
+docker volume create $backupVolume
+docker volume create $restoreVolume
+docker run --rm --user root --entrypoint chown -v "${backupVolume}:/backups" $graphImage neo4j:neo4j /backups
+docker compose --profile ontology stop neo4j
+docker run --rm -v "${graphVolume}:/data" -v "${backupVolume}:/backups" $graphImage neo4j-admin database dump neo4j --to-path=/backups
+docker compose --profile ontology start neo4j
+docker run --rm -v "${restoreVolume}:/data" -v "${backupVolume}:/backups:ro" $graphImage neo4j-admin database load neo4j --from-path=/backups
+```
+
+用相同镜像从恢复卷启动独立验证实例，并在隔离的平台环境读取原本体，核对对象与边 ID、关系角色、资产与字段映射及编辑序号。备份卷应随运维策略异机保存。本命令备份业务图 `neo4j`；部署凭据与图库系统配置由部署方另行管理。
+
 ## 验证
 
 按改动范围选择验证命令，不必每轮依次运行后端、前端、构建和浏览器验收。后端使用系统 Maven；涉及事务的测试使用真实 Testcontainers PostgreSQL，需要 Docker。
