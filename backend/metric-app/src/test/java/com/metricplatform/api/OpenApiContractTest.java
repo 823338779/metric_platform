@@ -4,11 +4,35 @@ import static org.assertj.core.api.Assertions.*;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
-import java.nio.file.*;
-import java.util.List;
+
 import org.junit.jupiter.api.Test;
 
+import java.nio.file.*;
+import java.util.List;
+
 class OpenApiContractTest {
+    @Test
+    void publishesScopedOntologyReadsAndMutations() throws Exception {
+        var api =
+                new ObjectMapper(new YAMLFactory())
+                        .readTree(Files.readString(Path.of("..", "..", "api", "openapi.yaml")));
+        String base = "/api/dbt/environments/{environmentId}/ontology";
+        var paths = api.path("paths");
+        for (String suffix : List.of("", "/datasets", "/datasets/{assetId}/columns"))
+            assertThat(paths.path(base + suffix).path("get").path("responses").has("200"))
+                    .as(suffix)
+                    .isTrue();
+        for (String suffix : List.of("/objects", "/relations")) {
+            assertThat(paths.path(base + suffix).path("post").path("responses").has("201"))
+                    .isTrue();
+            var item = paths.path(base + suffix + "/{id}");
+            for (String method : List.of("put", "delete")) {
+                assertThat(item.path(method).path("responses").has("409")).isTrue();
+                assertThat(item.path(method).has("security")).isTrue();
+            }
+        }
+    }
+
     @Test
     void publishesSemanticPlatformAndAuthenticationRoutes() throws Exception {
         var api =

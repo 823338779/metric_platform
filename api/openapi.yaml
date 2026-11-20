@@ -7,6 +7,209 @@ x-protocol-version: execution-snapshot
 x-supported-protocols:
   - execution-snapshot
 paths:
+  /api/dbt/environments/{environmentId}/ontology:
+    parameters:
+    - {name: environmentId, in: path, required: true, schema: {type: string, format: uuid}}
+    get:
+      operationId: readEnvironmentOntology
+      summary: 读取指定环境的本体及绑定状态
+      security: [{bearerAuth: []}]
+      responses:
+        '200':
+          description: 读取指定环境的本体及绑定状态
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/OntologyTopology'}
+        '400': {description: 请求格式错误, content: {application/problem+json: {schema: {$ref: '#/components/schemas/OntologyProblem'}}}}
+        '401': {description: 登录令牌无效}
+        '403': {description: 需要租户管理者权限, content: {application/problem+json: {schema: {$ref: '#/components/schemas/OntologyProblem'}}}}
+        '404': {description: 当前范围内无此资源, content: {application/problem+json: {schema: {$ref: '#/components/schemas/OntologyProblem'}}}}
+        '409': {description: 编辑序号、引用或活动部署冲突, content: {application/problem+json: {schema: {$ref: '#/components/schemas/OntologyProblem'}}}}
+        '422': {description: 字段绑定或本体定义不合法, content: {application/problem+json: {schema: {$ref: '#/components/schemas/OntologyProblem'}}}}
+        '503': {description: 图库或依赖暂不可用, content: {application/problem+json: {schema: {$ref: '#/components/schemas/OntologyProblem'}}}}
+  /api/dbt/environments/{environmentId}/ontology/datasets:
+    parameters:
+    - {name: environmentId, in: path, required: true, schema: {type: string, format: uuid}}
+    get:
+      operationId: ontologyDatasets
+      summary: 列出当前部署可绑定的数据集
+      security: [{bearerAuth: []}]
+      responses:
+        '200':
+          description: 列出当前部署可绑定的数据集
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/OntologyDatasets'}
+        '400': {description: 请求格式错误, content: {application/problem+json: {schema: {$ref: '#/components/schemas/OntologyProblem'}}}}
+        '401': {description: 登录令牌无效}
+        '403': {description: 需要租户管理者权限, content: {application/problem+json: {schema: {$ref: '#/components/schemas/OntologyProblem'}}}}
+        '404': {description: 当前范围内无此资源, content: {application/problem+json: {schema: {$ref: '#/components/schemas/OntologyProblem'}}}}
+        '409': {description: 编辑序号、引用或活动部署冲突, content: {application/problem+json: {schema: {$ref: '#/components/schemas/OntologyProblem'}}}}
+        '422': {description: 字段绑定或本体定义不合法, content: {application/problem+json: {schema: {$ref: '#/components/schemas/OntologyProblem'}}}}
+        '503': {description: 图库或依赖暂不可用, content: {application/problem+json: {schema: {$ref: '#/components/schemas/OntologyProblem'}}}}
+  /api/dbt/environments/{environmentId}/ontology/datasets/{assetId}/columns:
+    parameters:
+    - {name: environmentId, in: path, required: true, schema: {type: string, format: uuid}}
+    - {name: assetId, in: path, required: true, schema: {type: string, format: uuid}}
+    get:
+      operationId: ontologyColumns
+      summary: 读取当前构建内数据集的声明列
+      security: [{bearerAuth: []}]
+      parameters:
+      - {name: buildId, in: query, required: true, schema: {type: string, format: uuid}}
+      responses:
+        '200':
+          description: 读取当前构建内数据集的声明列
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/OntologyColumns'}
+        '400': {description: 请求格式错误, content: {application/problem+json: {schema: {$ref: '#/components/schemas/OntologyProblem'}}}}
+        '401': {description: 登录令牌无效}
+        '403': {description: 需要租户管理者权限, content: {application/problem+json: {schema: {$ref: '#/components/schemas/OntologyProblem'}}}}
+        '404': {description: 当前范围内无此资源, content: {application/problem+json: {schema: {$ref: '#/components/schemas/OntologyProblem'}}}}
+        '409': {description: 编辑序号、引用或活动部署冲突, content: {application/problem+json: {schema: {$ref: '#/components/schemas/OntologyProblem'}}}}
+        '422': {description: 字段绑定或本体定义不合法, content: {application/problem+json: {schema: {$ref: '#/components/schemas/OntologyProblem'}}}}
+        '503': {description: 图库或依赖暂不可用, content: {application/problem+json: {schema: {$ref: '#/components/schemas/OntologyProblem'}}}}
+  /api/dbt/environments/{environmentId}/ontology/objects:
+    parameters:
+    - {name: environmentId, in: path, required: true, schema: {type: string, format: uuid}}
+    post:
+      operationId: createOntologyObject
+      summary: 创建环境内对象
+      security: [{bearerAuth: []}]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/OntologyObjectWrite'}
+      responses:
+        '201':
+          description: 创建环境内对象
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/OntologyMutation'}
+        '400': {description: 请求格式错误, content: {application/problem+json: {schema: {$ref: '#/components/schemas/OntologyProblem'}}}}
+        '401': {description: 登录令牌无效}
+        '403': {description: 需要租户管理者权限, content: {application/problem+json: {schema: {$ref: '#/components/schemas/OntologyProblem'}}}}
+        '404': {description: 当前范围内无此资源, content: {application/problem+json: {schema: {$ref: '#/components/schemas/OntologyProblem'}}}}
+        '409': {description: 编辑序号、引用或活动部署冲突, content: {application/problem+json: {schema: {$ref: '#/components/schemas/OntologyProblem'}}}}
+        '422': {description: 字段绑定或本体定义不合法, content: {application/problem+json: {schema: {$ref: '#/components/schemas/OntologyProblem'}}}}
+        '503': {description: 图库或依赖暂不可用, content: {application/problem+json: {schema: {$ref: '#/components/schemas/OntologyProblem'}}}}
+  /api/dbt/environments/{environmentId}/ontology/objects/{id}:
+    parameters:
+    - {name: environmentId, in: path, required: true, schema: {type: string, format: uuid}}
+    - {name: id, in: path, required: true, schema: {type: string, format: uuid}}
+    put:
+      operationId: updateOntologyObject
+      summary: 编辑指定对象
+      security: [{bearerAuth: []}]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/OntologyObjectWrite'}
+      responses:
+        '200':
+          description: 编辑指定对象
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/OntologyMutation'}
+        '400': {description: 请求格式错误, content: {application/problem+json: {schema: {$ref: '#/components/schemas/OntologyProblem'}}}}
+        '401': {description: 登录令牌无效}
+        '403': {description: 需要租户管理者权限, content: {application/problem+json: {schema: {$ref: '#/components/schemas/OntologyProblem'}}}}
+        '404': {description: 当前范围内无此资源, content: {application/problem+json: {schema: {$ref: '#/components/schemas/OntologyProblem'}}}}
+        '409': {description: 编辑序号、引用或活动部署冲突, content: {application/problem+json: {schema: {$ref: '#/components/schemas/OntologyProblem'}}}}
+        '422': {description: 字段绑定或本体定义不合法, content: {application/problem+json: {schema: {$ref: '#/components/schemas/OntologyProblem'}}}}
+        '503': {description: 图库或依赖暂不可用, content: {application/problem+json: {schema: {$ref: '#/components/schemas/OntologyProblem'}}}}
+    delete:
+      operationId: deleteOntologyObject
+      summary: 删除指定对象
+      security: [{bearerAuth: []}]
+      parameters:
+      - {name: expectedRevision, in: query, required: true, schema: {type: integer, format: int64, minimum: 0}}
+      responses:
+        '200':
+          description: 删除指定对象
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/OntologyMutation'}
+        '400': {description: 请求格式错误, content: {application/problem+json: {schema: {$ref: '#/components/schemas/OntologyProblem'}}}}
+        '401': {description: 登录令牌无效}
+        '403': {description: 需要租户管理者权限, content: {application/problem+json: {schema: {$ref: '#/components/schemas/OntologyProblem'}}}}
+        '404': {description: 当前范围内无此资源, content: {application/problem+json: {schema: {$ref: '#/components/schemas/OntologyProblem'}}}}
+        '409': {description: 编辑序号、引用或活动部署冲突, content: {application/problem+json: {schema: {$ref: '#/components/schemas/OntologyProblem'}}}}
+        '422': {description: 字段绑定或本体定义不合法, content: {application/problem+json: {schema: {$ref: '#/components/schemas/OntologyProblem'}}}}
+        '503': {description: 图库或依赖暂不可用, content: {application/problem+json: {schema: {$ref: '#/components/schemas/OntologyProblem'}}}}
+  /api/dbt/environments/{environmentId}/ontology/relations:
+    parameters:
+    - {name: environmentId, in: path, required: true, schema: {type: string, format: uuid}}
+    post:
+      operationId: createOntologyRelation
+      summary: 创建环境内关系
+      security: [{bearerAuth: []}]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/OntologyRelationWrite'}
+      responses:
+        '201':
+          description: 创建环境内关系
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/OntologyMutation'}
+        '400': {description: 请求格式错误, content: {application/problem+json: {schema: {$ref: '#/components/schemas/OntologyProblem'}}}}
+        '401': {description: 登录令牌无效}
+        '403': {description: 需要租户管理者权限, content: {application/problem+json: {schema: {$ref: '#/components/schemas/OntologyProblem'}}}}
+        '404': {description: 当前范围内无此资源, content: {application/problem+json: {schema: {$ref: '#/components/schemas/OntologyProblem'}}}}
+        '409': {description: 编辑序号、引用或活动部署冲突, content: {application/problem+json: {schema: {$ref: '#/components/schemas/OntologyProblem'}}}}
+        '422': {description: 字段绑定或本体定义不合法, content: {application/problem+json: {schema: {$ref: '#/components/schemas/OntologyProblem'}}}}
+        '503': {description: 图库或依赖暂不可用, content: {application/problem+json: {schema: {$ref: '#/components/schemas/OntologyProblem'}}}}
+  /api/dbt/environments/{environmentId}/ontology/relations/{id}:
+    parameters:
+    - {name: environmentId, in: path, required: true, schema: {type: string, format: uuid}}
+    - {name: id, in: path, required: true, schema: {type: string, format: uuid}}
+    put:
+      operationId: updateOntologyRelation
+      summary: 编辑指定关系
+      security: [{bearerAuth: []}]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/OntologyRelationWrite'}
+      responses:
+        '200':
+          description: 编辑指定关系
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/OntologyMutation'}
+        '400': {description: 请求格式错误, content: {application/problem+json: {schema: {$ref: '#/components/schemas/OntologyProblem'}}}}
+        '401': {description: 登录令牌无效}
+        '403': {description: 需要租户管理者权限, content: {application/problem+json: {schema: {$ref: '#/components/schemas/OntologyProblem'}}}}
+        '404': {description: 当前范围内无此资源, content: {application/problem+json: {schema: {$ref: '#/components/schemas/OntologyProblem'}}}}
+        '409': {description: 编辑序号、引用或活动部署冲突, content: {application/problem+json: {schema: {$ref: '#/components/schemas/OntologyProblem'}}}}
+        '422': {description: 字段绑定或本体定义不合法, content: {application/problem+json: {schema: {$ref: '#/components/schemas/OntologyProblem'}}}}
+        '503': {description: 图库或依赖暂不可用, content: {application/problem+json: {schema: {$ref: '#/components/schemas/OntologyProblem'}}}}
+    delete:
+      operationId: deleteOntologyRelation
+      summary: 删除指定关系
+      security: [{bearerAuth: []}]
+      parameters:
+      - {name: expectedRevision, in: query, required: true, schema: {type: integer, format: int64, minimum: 0}}
+      responses:
+        '200':
+          description: 删除指定关系
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/OntologyMutation'}
+        '400': {description: 请求格式错误, content: {application/problem+json: {schema: {$ref: '#/components/schemas/OntologyProblem'}}}}
+        '401': {description: 登录令牌无效}
+        '403': {description: 需要租户管理者权限, content: {application/problem+json: {schema: {$ref: '#/components/schemas/OntologyProblem'}}}}
+        '404': {description: 当前范围内无此资源, content: {application/problem+json: {schema: {$ref: '#/components/schemas/OntologyProblem'}}}}
+        '409': {description: 编辑序号、引用或活动部署冲突, content: {application/problem+json: {schema: {$ref: '#/components/schemas/OntologyProblem'}}}}
+        '422': {description: 字段绑定或本体定义不合法, content: {application/problem+json: {schema: {$ref: '#/components/schemas/OntologyProblem'}}}}
+        '503': {description: 图库或依赖暂不可用, content: {application/problem+json: {schema: {$ref: '#/components/schemas/OntologyProblem'}}}}
   /api/ops/tenants:
     post:
       summary: 运维原子开通租户及唯一管理者
@@ -1126,6 +1329,119 @@ paths:
                     type: object
 components:
   schemas:
+    OntologyProperty:
+      type: object
+      required: [id, name, columnName]
+      properties:
+        id: {type: string, format: uuid}
+        name: {type: string}
+        columnName: {type: string}
+        declaredType: {type: [string, 'null']}
+    OntologyObject:
+      type: object
+      required: [id, name, datasetAssetId, primaryPropertyId, properties]
+      properties:
+        id: {type: string, format: uuid}
+        name: {type: string}
+        description: {type: [string, 'null']}
+        datasetAssetId: {type: string, format: uuid}
+        primaryPropertyId: {type: string, format: uuid}
+        properties: {type: array, items: {$ref: '#/components/schemas/OntologyProperty'}}
+    OntologyRelation:
+      type: object
+      required: [id, name, sourceObjectId, sourcePropertyId, targetObjectId, targetPropertyId, cardinality]
+      properties:
+        id: {type: string, format: uuid}
+        name: {type: string}
+        description: {type: [string, 'null']}
+        sourceObjectId: {type: string, format: uuid}
+        sourcePropertyId: {type: string, format: uuid}
+        targetObjectId: {type: string, format: uuid}
+        targetPropertyId: {type: string, format: uuid}
+        cardinality: {type: string, enum: [ONE_TO_ONE, MANY_TO_ONE, ONE_TO_MANY]}
+    OntologyFinding:
+      type: object
+      required: [kind, id, status, reason]
+      properties:
+        kind: {type: string}
+        id: {type: string, format: uuid}
+        status: {type: string, enum: [COMPATIBLE, UNVERIFIED, NEEDS_REPAIR]}
+        reason: {type: string}
+    OntologyReport:
+      type: object
+      required: [buildId, revision, findings]
+      properties:
+        buildId: {type: [string, 'null'], format: uuid}
+        revision: {type: integer, format: int64, minimum: 0}
+        findings: {type: array, items: {$ref: '#/components/schemas/OntologyFinding'}}
+    OntologyTopology:
+      type: object
+      required: [revision, objects, relations, bindingReport]
+      properties:
+        revision: {type: integer, format: int64, minimum: 0}
+        objects: {type: array, items: {$ref: '#/components/schemas/OntologyObject'}}
+        relations: {type: array, items: {$ref: '#/components/schemas/OntologyRelation'}}
+        bindingReport: {$ref: '#/components/schemas/OntologyReport'}
+    OntologyDataset:
+      type: object
+      required: [assetId, name]
+      properties:
+        assetId: {type: string, format: uuid}
+        name: {type: string}
+    OntologyDatasets:
+      type: object
+      required: [buildId, datasets]
+      properties:
+        buildId: {type: [string, 'null'], format: uuid}
+        datasets: {type: array, items: {$ref: '#/components/schemas/OntologyDataset'}}
+    OntologyColumn:
+      type: object
+      required: [name, declaredType]
+      properties:
+        name: {type: string}
+        declaredType: {type: [string, 'null']}
+    OntologyColumns:
+      type: object
+      required: [buildId, assetId, columns]
+      properties:
+        buildId: {type: string, format: uuid}
+        assetId: {type: string, format: uuid}
+        columns: {type: array, items: {$ref: '#/components/schemas/OntologyColumn'}}
+    OntologyObjectWrite:
+      type: object
+      required: [expectedRevision, object]
+      properties:
+        expectedRevision: {type: integer, format: int64, minimum: 0}
+        sourceBuildId: {type: [string, 'null'], format: uuid}
+        object: {$ref: '#/components/schemas/OntologyObject'}
+    OntologyRelationWrite:
+      type: object
+      required: [expectedRevision, relation]
+      properties:
+        expectedRevision: {type: integer, format: int64, minimum: 0}
+        sourceBuildId: {type: [string, 'null'], format: uuid}
+        relation: {$ref: '#/components/schemas/OntologyRelation'}
+    OntologyMutation:
+      type: object
+      required: [id, revision]
+      properties:
+        id: {type: string, format: uuid}
+        revision: {type: integer, format: int64, minimum: 0}
+    OntologyReference:
+      type: object
+      required: [id, name]
+      properties:
+        id: {type: string, format: uuid}
+        name: {type: string}
+    OntologyProblem:
+      type: object
+      properties:
+        title: {type: string}
+        detail: {type: string}
+        status: {type: integer}
+        code: {type: string}
+        references: {type: array, items: {$ref: '#/components/schemas/OntologyReference'}}
+        retryable: {type: boolean}
     AssetAccess:
       type: object
       required: [assetId, ownerId, target, kind, nodeId, dimensionName, name, selector, buildId, granted]
