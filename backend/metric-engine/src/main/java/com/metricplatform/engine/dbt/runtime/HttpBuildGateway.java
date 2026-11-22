@@ -149,7 +149,7 @@ public class HttpBuildGateway implements BuildGateway {
         return page;
     }
 
-    public DeploymentTargetView current(DeploymentKey k) {
+    public DeploymentTargetView current(DeploymentKey k, boolean refreshSource) {
         return call(
                 GET,
                 DEPLOYMENTS
@@ -160,7 +160,9 @@ public class HttpBuildGateway implements BuildGateway {
                                 BRANCH,
                                 k.branchName(),
                                 ENVIRONMENT,
-                                k.environmentId()),
+                                k.environmentId(),
+                                "refreshSource",
+                                refreshSource),
                 null,
                 DeploymentTargetView.class);
     }

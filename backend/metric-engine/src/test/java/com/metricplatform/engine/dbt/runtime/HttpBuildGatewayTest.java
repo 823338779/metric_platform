@@ -42,6 +42,22 @@ class HttpBuildGatewayTest {
     private final ObjectMapper mapper = new ObjectMapper().findAndRegisterModules();
 
     @Test
+    void deploymentChecksContactGitOnlyOnExplicitRefresh() throws Exception {
+        var paths = new ArrayList<String>();
+        var upstream = server(paths, 200, "{}");
+        try {
+            var gateway = client(upstream);
+            var key = new DeploymentKey("repo", BUILD, "main");
+            gateway.current(key);
+            gateway.current(key, true);
+            String path = "/deployments/current?repository=repo&branchName=main&environmentId=" + BUILD;
+            assertThat(paths).containsExactly(path + "&refreshSource=false", path + "&refreshSource=true");
+        } finally {
+            upstream.stop(0);
+        }
+    }
+
+    @Test
     void typedHistoryValidatesEveryExecutionSnapshotAgainstTheRequestedEnvironment()
             throws Exception {
         var fixture = mapper.readTree(getClass().getResourceAsStream("/contracts/dbt.json"));

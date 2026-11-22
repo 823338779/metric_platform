@@ -9,6 +9,7 @@ import {
 } from '@ant-design/icons';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
+import { useReportWorkspaceBuild } from '../../layout/PlatformLayout';
 import {
   buildCatalogApi,
   type BuildCatalogApi,
@@ -60,8 +61,18 @@ function deploymentKey(build: BuildView) {
   };
 }
 
+const sourceStates: Record<string, string> = {
+  MATCHED: '与生效部署一致',
+  AHEAD: '远端分支已有更新',
+  DIVERGED: '远端分支与部署已分叉',
+  MISSING: '远端分支不存在',
+  UNKNOWN: '无法确认远端状态',
+  UNDEPLOYED: '尚无生效部署',
+};
+
 export function PublishedCatalogPage({ api = buildCatalogApi }: { api?: BuildCatalogApi }) {
   const { buildId } = useParams();
+  const reportBuild = useReportWorkspaceBuild();
   const navigate = useNavigate();
   const [build, setBuild] = useState<BuildView | null>(null);
   const [current, setCurrent] = useState<DeploymentTarget | null>(null);
@@ -70,6 +81,8 @@ export function PublishedCatalogPage({ api = buildCatalogApi }: { api?: BuildCat
   const [deploymentCursor, setDeploymentCursor] = useState<string | null>(null);
   const [loadingBuilds, setLoadingBuilds] = useState(false);
   const [loadingDeployments, setLoadingDeployments] = useState(false);
+  const [checkingSource, setCheckingSource] = useState(false);
+  const [sourceError, setSourceError] = useState('');
   // 分支/仓库/环境或固定构建改变后，旧分页响应不能写入新作用域。
   const historyGeneration = useRef(0);
   const [error, setError] = useState('');
@@ -102,6 +115,8 @@ export function PublishedCatalogPage({ api = buildCatalogApi }: { api?: BuildCat
     setDeploymentCursor(null);
     setLoadingBuilds(false);
     setLoadingDeployments(false);
+    setCheckingSource(false);
+    setSourceError('');
     setError('');
     setBusy(true);
     async function read(includeHistory = false) {
@@ -111,6 +126,7 @@ export function PublishedCatalogPage({ api = buildCatalogApi }: { api?: BuildCat
         if (fixed.buildId !== buildId) throw new Error('构建身份不一致');
         if (!active) return;
         setBuild(fixed);
+        reportBuild?.(fixed);
         const key = deploymentKey(fixed);
         const [target, builds, attempts] = await Promise.allSettled([
           api.current(key),
@@ -124,7 +140,9 @@ export function PublishedCatalogPage({ api = buildCatalogApi }: { api?: BuildCat
           setDeploymentCursor(attempts.value.nextCursor);
         }
         if (target.status === 'fulfilled') {
-          setCurrent(target.value);
+          setCurrent((previous) =>
+            previous && previous.version > target.value.version ? previous : target.value,
+          );
         } else setError(COPY.failed);
         timer = setTimeout(() => void read(), POLL_MS);
       } catch (reason) {
@@ -139,7 +157,24 @@ export function PublishedCatalogPage({ api = buildCatalogApi }: { api?: BuildCat
       if (historyGeneration.current === turn) historyGeneration.current++;
       if (timer) clearTimeout(timer);
     };
-  }, [api, buildId, refresh]);
+  }, [api, buildId, refresh, reportBuild]);
+  async function checkSource() {
+    if (!build || checkingSource) return;
+    const turn = historyGeneration.current;
+    setCheckingSource(true);
+    setSourceError('');
+    try {
+      const target = await api.current(deploymentKey(build), true);
+      if (turn === historyGeneration.current)
+        setCurrent((previous) =>
+          previous && previous.version > target.version ? previous : target,
+        );
+    } catch {
+      if (turn === historyGeneration.current) setSourceError('远端分支检查失败，可重试。');
+    } finally {
+      if (turn === historyGeneration.current) setCheckingSource(false);
+    }
+  }
   // 两类历史游标独立前进；状态轮询不覆盖已追加的历史页面。
   async function loadHistory(deployment: boolean) {
     const cursor = deployment ? deploymentCursor : history?.nextCursor;
@@ -302,6 +337,21 @@ export function PublishedCatalogPage({ api = buildCatalogApi }: { api?: BuildCat
                     </dd>
                     <dt>{COPY.config}</dt>
                     <dd>{build.execution.configVersion}</dd>
+                    <dt>远端分支</dt>
+                    <dd>
+                      {current?.headObservedAt
+                        ? `${sourceStates[current.sourceState] ?? current.sourceState} · ${new Date(current.headObservedAt).toLocaleString()}`
+                        : '尚无观察记录'}
+                      <Button
+                        type="link"
+                        size="small"
+                        loading={checkingSource}
+                        onClick={checkSource}
+                      >
+                        检查远端分支
+                      </Button>
+                      {sourceError && <span role="alert">{sourceError}</span>}
+                    </dd>
                   </dl>
                 </details>
               </>

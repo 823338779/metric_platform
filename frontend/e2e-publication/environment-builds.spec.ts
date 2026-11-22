@@ -58,6 +58,9 @@ test('环境配置独立于源码，构建历史进入固定目录和查询', as
   await page.getByLabel('Schema', { exact: true }).fill('env_browser');
   await page.getByRole('button', { name: '保存环境' }).click();
   await page.getByRole('link', { name: '集成环境', exact: true }).click();
+  await expect(page.getByRole('button', { name: '选择构建分支' })).toBeVisible();
+  expect(calls.some((path) => path.endsWith('/repository/branches'))).toBe(false);
+  await page.getByRole('button', { name: '选择构建分支' }).click();
   await expect(page.getByLabel('Git 仓库地址')).toHaveValue('https://example.test/metrics.git');
   await page.getByLabel('构建分支').selectOption('feature/browser');
   await page.getByRole('button', { name: '发起构建', exact: true }).click();

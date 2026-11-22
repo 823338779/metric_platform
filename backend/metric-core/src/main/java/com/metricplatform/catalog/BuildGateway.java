@@ -10,7 +10,11 @@ public interface BuildGateway {
 
     BuildPage listBuilds(BuildFilter filter);
 
-    DeploymentTargetView current(DeploymentKey key);
+    default DeploymentTargetView current(DeploymentKey key) {
+        return current(key, false);
+    }
+
+    DeploymentTargetView current(DeploymentKey key, boolean refreshSource);
 
     DeploymentPage listDeployments(DeploymentFilter filter);
 

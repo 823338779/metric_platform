@@ -43,6 +43,22 @@ it('版本侧栏可开关，完整提交信息按需展开且刷新不切换构�
   const details = within(context).getByText('版本详情').closest('details')!;
   fireEvent.click(within(details).getByText('版本详情'));
   expect(within(context).getByText('abcdef0123456789')).toBeVisible();
+  const key = {
+    repository: 'https://example.com/team/metrics.git',
+    branchName: 'main',
+    environmentId: 'env',
+  };
+  expect(api.current).toHaveBeenCalledWith(key);
+  expect(api.current).not.toHaveBeenCalledWith(key, true);
+  api.current.mockResolvedValueOnce({
+    activeBuildId: buildId,
+    version: 2,
+    headObservedAt: '2026-11-22T00:00:00Z',
+    sourceState: 'MATCHED',
+  });
+  fireEvent.click(within(details).getByRole('button', { name: '检查远端分支' }));
+  expect(await within(details).findByText(/与生效部署一致/)).toBeVisible();
+  expect(api.current).toHaveBeenLastCalledWith(key, true);
   fireEvent.click(screen.getByRole('button', { name: '收起版本上下文' }));
   expect(toggle).toHaveAttribute('aria-expanded', 'false');
   fireEvent.click(screen.getByRole('button', { name: '刷新构建状态' }));

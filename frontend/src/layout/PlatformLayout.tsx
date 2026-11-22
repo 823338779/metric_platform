@@ -5,6 +5,7 @@ import {
   MenuFoldOutlined,
   MenuUnfoldOutlined,
   DatabaseOutlined,
+  ApartmentOutlined,
   TeamOutlined,
 } from '@ant-design/icons';
 import { Button, Tooltip } from 'antd';
@@ -14,10 +15,12 @@ import {
   Outlet,
   useLocation,
   useNavigate,
+  useOutletContext,
   useParams,
   useSearchParams,
 } from 'react-router-dom';
 import { clearAuthSession, getAuthSession } from '../api/auth';
+import type { BuildView } from '../api/buildCatalogApi';
 import { ACCOUNTS_PATH } from '../features/accounts/TenantAccountsPage';
 
 const ENVIRONMENTS = '/dbt/environments';
@@ -28,6 +31,7 @@ const COPY = {
   environments: '执行环境',
   catalog: '资源管理',
   query: '分析探索',
+  ontology: '本体建模',
   logout: '登出',
   version: '固定版本',
   account: '当前账号',
@@ -39,23 +43,41 @@ const COPY = {
   hint: '选择一个构建版本，开始浏览资源与分析数据。',
 };
 
+export function useReportWorkspaceBuild() {
+  return useOutletContext<((build: BuildView) => void) | null>();
+}
+
 export function PlatformLayout() {
   const [collapsed, setCollapsed] = useState(
     () => window.matchMedia?.(COMPACT_NAVIGATION).matches ?? false,
   );
   const navigate = useNavigate();
   const { pathname } = useLocation();
-  const { buildId: routeBuildId } = useParams();
+  const { buildId: routeBuildId, environmentId } = useParams();
+  const [workspaceBuild, setWorkspaceBuild] = useState<BuildView | null>(null);
   const [params] = useSearchParams();
   const buildId = routeBuildId ?? params.get('buildId');
   const queryPage = pathname.endsWith('/query');
-  const projectPath = buildId ? `/dbt/builds/${encodeURIComponent(buildId)}` : ENVIRONMENTS;
+  const ontologyPage = pathname.endsWith('/ontology');
+  const navigationBuildId =
+    ontologyPage && workspaceBuild?.execution.environmentId === environmentId
+      ? workspaceBuild?.buildId
+      : buildId;
+  const projectPath = navigationBuildId
+    ? `/dbt/builds/${encodeURIComponent(navigationBuildId)}`
+    : ENVIRONMENTS;
   // 工作区切换携带当前版本与资源上下文；不会静默切换到最新发布。
   const catalogPath = `${projectPath}/catalog?${params}`;
   const queryPath = `${projectPath}/query?${params}`;
   const identity = getAuthSession()?.identity;
   const displayName = identity?.displayName;
   const manager = identity?.role === 'TENANT_MANAGER';
+  const environmentsActive = pathname.startsWith(ENVIRONMENTS) && !ontologyPage;
+  const ontologyEnvironment = ontologyPage
+    ? environmentId
+    : workspaceBuild && workspaceBuild.buildId === buildId
+      ? workspaceBuild.execution.environmentId
+      : null;
   return (
     <div
       className={`platform-layout ${collapsed ? 'nav-collapsed' : ''} ${buildId ? 'platform-workbench' : 'platform-projects'} ${queryPage ? 'platform-analysis' : 'platform-catalog'}`}
@@ -86,23 +108,25 @@ export function PlatformLayout() {
         <Tooltip title={COPY.environments} placement="right">
           <Link
             to={ENVIRONMENTS}
-            className={pathname.startsWith(ENVIRONMENTS) ? 'is-active' : ''}
+            className={environmentsActive ? 'is-active' : ''}
             aria-label={COPY.environments}
-            aria-current={pathname.startsWith(ENVIRONMENTS) ? 'page' : undefined}
+            aria-current={environmentsActive ? 'page' : undefined}
           >
             <DatabaseOutlined aria-hidden />
             <span className="platform-nav-text">{COPY.environments}</span>
           </Link>
         </Tooltip>
-        {buildId && (
+        {(navigationBuildId || (manager && ontologyPage)) && (
+          <span className="platform-nav-label">{COPY.workspace}</span>
+        )}
+        {navigationBuildId && (
           <>
-            <span className="platform-nav-label">{COPY.workspace}</span>
             <Tooltip title={COPY.catalog} placement="right">
               <Link
                 to={catalogPath}
-                className={!queryPage ? 'is-active' : ''}
+                className={!queryPage && !ontologyPage ? 'is-active' : ''}
                 aria-label={COPY.catalog}
-                aria-current={!queryPage ? 'page' : undefined}
+                aria-current={!queryPage && !ontologyPage ? 'page' : undefined}
               >
                 <AppstoreOutlined aria-hidden />
                 <span className="platform-nav-text">{COPY.catalog}</span>
@@ -121,8 +145,21 @@ export function PlatformLayout() {
             </Tooltip>
           </>
         )}
+        {manager && ontologyEnvironment && (
+          <Tooltip title={COPY.ontology} placement="right">
+            <Link
+              to={`${ENVIRONMENTS}/${encodeURIComponent(ontologyEnvironment)}/ontology`}
+              className={ontologyPage ? 'is-active' : ''}
+              aria-label={COPY.ontology}
+              aria-current={ontologyPage ? 'page' : undefined}
+            >
+              <ApartmentOutlined aria-hidden />
+              <span className="platform-nav-text">{COPY.ontology}</span>
+            </Link>
+          </Tooltip>
+        )}
         <div className="platform-rail-bottom">
-          {!buildId && <p className="platform-nav-hint">{COPY.hint}</p>}
+          {!buildId && !ontologyPage && <p className="platform-nav-hint">{COPY.hint}</p>}
           <Tooltip title={displayName ?? COPY.account} placement="right">
             <span className="platform-avatar">{displayName?.slice(0, 1).toUpperCase() ?? 'M'}</span>
           </Tooltip>
@@ -170,7 +207,7 @@ export function PlatformLayout() {
           </div>
         </header>
         <main className="platform-content">
-          <Outlet key={identity?.identityId} />
+          <Outlet key={identity?.identityId} context={setWorkspaceBuild} />
         </main>
       </div>
     </div>

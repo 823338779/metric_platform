@@ -14,6 +14,7 @@ import { businessTimeToIso } from './businessTime';
 import { useEffect, useRef, useState } from 'react';
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { getAuthSession } from '../../api/auth';
+import { useReportWorkspaceBuild } from '../../layout/PlatformLayout';
 import { ApiProblem } from '../../api/httpClient';
 import {
   buildCatalogApi,
@@ -54,6 +55,7 @@ export function PublishedWorkbench({ api = buildCatalogApi }: { api?: BuildCatal
   return <FixedPublishedWorkbench key={buildId} api={api} />;
 }
 function FixedPublishedWorkbench({ api }: { api: BuildCatalogApi }) {
+  const reportBuild = useReportWorkspaceBuild();
   const { projectId = EMPTY, buildId: routeBuildId } = useParams();
   const navigate = useNavigate();
   const [params] = useSearchParams();
@@ -112,6 +114,7 @@ function FixedPublishedWorkbench({ api }: { api: BuildCatalogApi }) {
         if (!active) return;
         if (value.buildId !== buildId) throw new Error('构建身份不一致');
         setIdentity(value);
+        reportBuild?.(value);
         setIdentityError(false);
         const deployment = await api.current({
           repository: value.repository,
@@ -131,7 +134,7 @@ function FixedPublishedWorkbench({ api }: { api: BuildCatalogApi }) {
       active = false;
       if (timer) clearTimeout(timer);
     };
-  }, [api, buildId]);
+  }, [api, buildId, reportBuild]);
   useEffect(() => {
     // 版本改变立即清除旧选择，防止新标题下暂时展示旧目录。
     submissionGeneration.current++;

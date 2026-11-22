@@ -47,6 +47,10 @@ function mount() {
   );
   render(<RouterProvider router={router} />);
 }
+async function openLibrary() {
+  fireEvent.click(await screen.findByRole('button', { name: '管理定义' }));
+  await waitFor(() => expect(screen.getByRole('dialog', { name: '管理定义' })).toBeVisible());
+}
 beforeEach(async () => {
   // 测试路由使用 Node 的 Request，它要求同一运行时的 AbortSignal。
   const nodeUtil = await vi.importActual<{ transferableAbortController: typeof AbortController }>(
@@ -98,10 +102,35 @@ it('只读账号直接访问建模地址不会读取管理数据', async () => {
 it('环境无部署时保留已有对象并说明无法新建绑定', async () => {
   vi.mocked(ontologyApi.datasets).mockResolvedValue({ buildId: null, datasets: [] });
   mount();
+  await openLibrary();
   expect(await screen.findByRole('button', { name: '编辑对象 订单' })).toBeVisible();
+  fireEvent.click(screen.getByRole('button', { name: /close/i }));
   fireEvent.click(screen.getByRole('button', { name: '新建对象' }));
-  expect(await screen.findByText('此环境尚无可绑定的数据集')).toBeVisible();
+  await waitFor(() => expect(screen.getByText('此环境尚无可绑定的数据集')).toBeVisible());
   expect(screen.getByRole('button', { name: '保存对象' })).toBeDisabled();
+});
+
+it('按绑定列搜索目录，清除搜索后仍能在同一张图上编辑', async () => {
+  mount();
+  expect(await screen.findByRole('button', { name: '管理定义' })).toBeVisible();
+  expect(screen.queryByRole('region', { name: '定义目录' })).toBeNull();
+  await openLibrary();
+  const search = await screen.findByRole('textbox', { name: '搜索定义' });
+  fireEvent.change(search, { target: { value: 'old_id' } });
+  expect(screen.getByText('old_id')).toBeVisible();
+  fireEvent.change(search, { target: { value: 'missing' } });
+  expect(screen.queryByRole('button', { name: '编辑对象 订单' })).toBeNull();
+  expect(screen.getByRole('img', { name: '对象关系拓扑图' })).toBeVisible();
+  fireEvent.click(screen.getByRole('button', { name: '清除搜索' }));
+  fireEvent.click(screen.getByRole('button', { name: '编辑对象 订单' }));
+  expect(screen.getByRole('dialog', { name: '编辑对象' })).toBeVisible();
+  fireEvent.change(screen.getByLabelText('对象名称'), { target: { value: '销售订单' } });
+  fireEvent.click(screen.getByRole('button', { name: '取消编辑' }));
+  fireEvent.click(screen.getByRole('button', { name: '继续编辑' }));
+  expect(screen.getByLabelText('对象名称')).toHaveValue('销售订单');
+  fireEvent.click(screen.getByRole('button', { name: '取消编辑' }));
+  fireEvent.click(screen.getByRole('button', { name: '放弃修改' }));
+  expect(screen.getByRole('button', { name: '编辑对象 订单' })).toBeVisible();
 });
 
 it('修复字段沿用属性及主键 ID，发生并发冲突保留当前输入', async () => {
@@ -118,6 +147,7 @@ it('修复字段沿用属性及主键 ID，发生并发冲突保留当前输入'
     .spyOn(ontologyApi, 'saveObject')
     .mockRejectedValue(new ApiProblem({ title: 'Conflict', detail: '编辑序号冲突', status: 409 }));
   mount();
+  await openLibrary();
   expect(await screen.findByText(/需修复/)).toBeVisible();
   fireEvent.click(screen.getByRole('button', { name: '编辑对象 订单' }));
   await screen.findByRole('option', { name: /^id/ });
@@ -177,6 +207,7 @@ it('仅切换到已映射的主键也核对当前构建', async () => {
   });
   const write = vi.spyOn(ontologyApi, 'saveObject').mockResolvedValue({ id: 'order', revision: 4 });
   mount();
+  await openLibrary();
   fireEvent.click(await screen.findByRole('button', { name: '编辑对象 订单' }));
   await screen.findAllByRole('option', { name: 'id · BIGINT' });
   fireEvent.change(screen.getByLabelText('声明主键'), { target: { value: property.id } });
@@ -207,6 +238,7 @@ it('部署切换后在当前表单重新确认对象映射', async () => {
     .mockRejectedValueOnce(changed)
     .mockResolvedValue({ id: 'order', revision: 4 });
   mount();
+  await openLibrary();
   fireEvent.click(await screen.findByRole('button', { name: '编辑对象 订单' }));
   await screen.findByRole('option', { name: 'id · BIGINT' });
   fireEvent.change(screen.getByLabelText('绑定列 1'), { target: { value: 'id' } });
@@ -291,6 +323,7 @@ it('写入进行中不允许放弃已提交的修改，成功后继续导航', a
       }),
   );
   mount();
+  await openLibrary();
   fireEvent.click(await screen.findByRole('button', { name: '编辑对象 订单' }));
   fireEvent.change(screen.getByLabelText('对象名称'), { target: { value: '已提交订单' } });
   fireEvent.click(screen.getByRole('button', { name: '保存对象' }));
@@ -302,6 +335,7 @@ it('写入进行中不允许放弃已提交的修改，成功后继续导航', a
 
 it('显式登出后进入登录页', async () => {
   mount();
+  await openLibrary();
   fireEvent.click(await screen.findByRole('button', { name: '编辑对象 订单' }));
   fireEvent.change(screen.getByLabelText('对象名称'), { target: { value: '未保存' } });
   fireEvent.click(screen.getByRole('button', { name: '登出' }));

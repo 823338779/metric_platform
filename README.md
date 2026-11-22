@@ -91,6 +91,8 @@ PostgreSQL 业务读写和测试夹具均通过 Mapper。单表 CRUD 优先使�
 
 构建列表根据 dbt-service 返回的 `catalogAvailable` 展示入口。可用构建的目录和查询固定到所选 buildId，并遵循当前账号的资产权限。访问已清理构建的收藏链接时，页面提示产物不可用，用户可从执行环境选择当前版本。
 
+当前部署接口默认直接读取 dbt-service 的部署记录。目录、查询、授权和本体绑定校验均使用这一读取方式；版本详情中的「检查远端分支」显式传入 `refreshSource=true`。升级时先部署支持该参数的 dbt-service，旧服务会忽略参数并继续同步访问 Git。
+
 目录接口 `GET /api/dbt/builds/{buildId}/catalog` 返回 dbt ls 原生资源数组，每项保留 `unique_id`、`resource_type`、`name`、`config` 等字段，不接收筛选或分页参数。界面在本地筛选、展示；原生目录没有独立维度资源 ID。资源详情 `/resources/{resourceId}` 使用 dbt `unique_id`，返回 `{buildId, resourceId, resource, source}`，其中 `resource` 为完整节点，`source` 为 `{path, content}` 或 null。血缘改为 `GET /api/dbt/builds/{buildId}/lineage?selector=…`，返回原生节点数组；selector 中的加号必须编码为 `%2B`。旧 `/resources/{resourceId}/{view}` 接口已移除。
 
 可用维度与四种查询模式均同步完成。平台保留 `/builds/{buildId}/available-dimensions` 与 `/builds/{buildId}/queries` 门面；适配层分别调用 `/query/available-dimensions?build_id=…` 和 `/query?build_id=…`。可用维度请求为 `{"metrics":["revenue"]}`，返回 `{buildId, metrics, dimensions}`；指标使用名称，不能传旧资源 ID。维度保留 optionId、dimensionType、granularities 和 operators，不再返回 valueType。
@@ -122,12 +124,12 @@ PostgreSQL 业务读写和测试夹具均通过 Mapper。单表 CRUD 优先使�
 
 ## 环境内的本体建模
 
-租户管理者从执行环境详情进入「本体建模」，选择当前部署的数据集、列和主键属性，再用具名关系连接本环境的两个对象。保存即生效。打开或刷新页面时，平台按当前构建复核字段；「未核实」表示当前声明不足以证明绑定是否兼容。切换环境会重新加载该环境独立的本体。图库保存对象类型、属性映射和关系定义，平台 PostgreSQL 保存原有身份与资产归属。
+租户管理者可从工作区左侧「分析探索」下方的「本体建模」进入当前构建所属环境，也可从执行环境详情进入。选择当前部署的数据集、列和主键属性，再用具名关系连接本环境的两个对象。保存即生效。打开或刷新页面时，平台按当前构建复核字段；「未核实」表示当前声明不足以证明绑定是否兼容。切换环境会重新加载该环境独立的本体。图库保存对象类型、属性映射和关系定义，平台 PostgreSQL 保存原有身份与资产归属。
 
-本地开发先在当前会话注入 `METRIC_NEO4J_PASSWORD`，再从仓库根启动：
+本地开发可把 `METRIC_NEO4J_PASSWORD=<随机密码>` 存入当前用户专用的 `~/.metric-platform/ontology.properties`，限制文件访问权限。平台后端启动时加载该文件。用同一份配置从仓库根启动专用图库：
 
 ```powershell
-docker compose --profile ontology up -d --wait neo4j
+docker compose --env-file "$HOME/.metric-platform/ontology.properties" --profile ontology up -d --wait neo4j
 ```
 
 独立 Compose 使用 Neo4j 2026.10.1、初始用户 `neo4j`、本机 Bolt 端口 `17687` 和持久卷。已有独立图库可通过 `METRIC_NEO4J_URI`、`METRIC_NEO4J_USERNAME`、`METRIC_NEO4J_PASSWORD` 接入。开发测试使用隔离容器；图库不可达时，本体入口展示故障，原有目录仍可访问。

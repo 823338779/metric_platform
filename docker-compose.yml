@@ -1,6 +1,7 @@
 services:
   neo4j:
     image: neo4j:2026.10.1
+    restart: unless-stopped
     profiles: ["ontology"]
     environment:
       NEO4J_AUTH: neo4j/${METRIC_NEO4J_PASSWORD:-}

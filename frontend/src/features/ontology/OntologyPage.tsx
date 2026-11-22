@@ -1,43 +1,26 @@
-import { Alert, Button, Empty } from 'antd';
-import { ArrowLeftOutlined, PlusOutlined, ReloadOutlined } from '@ant-design/icons';
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { Alert, Button, Modal, Spin } from 'antd';
+import {
+  ApartmentOutlined,
+  ArrowLeftOutlined,
+  DatabaseOutlined,
+  UnorderedListOutlined,
+  PlusOutlined,
+  ReloadOutlined,
+} from '@ant-design/icons';
+import { useEffect, useRef, useState } from 'react';
 import { Link, useBlocker, useParams } from 'react-router-dom';
 import { getAuthSession } from '../../api/auth';
 import { environmentApi } from '../../api/environmentApi';
 import { ApiProblem } from '../../api/httpClient';
-import { ontologyApi, type Finding, type Topology } from '../../api/ontologyApi';
+import { ontologyApi, type Topology } from '../../api/ontologyApi';
 import { ObjectEditor } from './ObjectEditor';
-import { cardinalities, RelationEditor } from './RelationEditor';
+import { RelationEditor } from './RelationEditor';
+import { Health } from './BindingHealth';
+import { DefinitionLibrary } from './DefinitionLibrary';
 import { OntologyGraph } from './OntologyGraph';
 import './ontology.css';
 
 type Selection = { kind: 'object' | 'relation'; id?: string; deleting?: boolean };
-const reasons: Record<string, string> = {
-  NO_DEPLOYMENT: '此环境尚无可绑定的数据集',
-  UPSTREAM_UNAVAILABLE: '部署服务暂时不可用',
-  SERVICE_AUTHENTICATION_FAILED: '平台连接部署服务的凭据无效',
-  AMBIGUOUS_DEPLOYMENT: '无法唯一定位当前部署',
-  DEPLOYMENT_CHANGED: '当前部署已切换',
-  ASSET_NOT_DEPLOYED: '当前部署中未找到绑定资产',
-  AMBIGUOUS_ASSET: '无法唯一定位绑定资产',
-  COLUMN_UNDECLARED: '当前构建未声明该列',
-  TYPE_UNKNOWN: '类型未核实',
-  TYPE_CONFLICT: '声明类型不兼容',
-  MATCHED: '绑定匹配',
-};
-function Health({ findings }: { findings: Finding[] }) {
-  return (
-    <>
-      {findings.map((f) => (
-        <span key={[f.kind, f.id, f.reason].join('/')} className={'ontology-health ' + f.status}>
-          {{ COMPATIBLE: '绑定兼容', UNVERIFIED: '未核实', NEEDS_REPAIR: '需修复' }[f.status]} ·{' '}
-          {reasons[f.reason] ?? f.reason}
-        </span>
-      ))}
-    </>
-  );
-}
-
 export function OntologyPage() {
   const { environmentId = '' } = useParams();
   if (getAuthSession()?.identity.role !== 'TENANT_MANAGER')
@@ -52,6 +35,14 @@ function EnvironmentOntology({ environmentId }: { environmentId: string }) {
   const [loadError, setLoadError] = useState('');
   const [loading, setLoading] = useState(true);
   const [selection, setSelection] = useState<Selection>();
+  const [pendingSelection, setPendingSelection] = useState<Selection | 'close'>();
+  const [search, setSearch] = useState('');
+  const [libraryOpen, setLibraryOpen] = useState(false);
+  const discardButton = useRef<HTMLButtonElement>(null);
+  useEffect(() => {
+    if (pendingSelection) discardButton.current?.focus();
+  }, [pendingSelection]);
+
   const [dirty, setDirty] = useState(false);
   const [busy, setBusy] = useState(false);
   const pending = useRef(false);
@@ -92,20 +83,33 @@ function EnvironmentOntology({ environmentId }: { environmentId: string }) {
       active = false;
     };
   }, [environmentId, refresh]);
-  const select = useCallback((kind: Selection['kind'], id?: string, deleting = false) => {
-    setSelection({ kind, id, deleting });
+  function open(next?: Selection) {
+    setSelection(next);
+    setPendingSelection(undefined);
     setFailure(undefined);
     setDirty(false);
     setCandidateVersion(0);
     setCandidateError('');
-  }, []);
+  }
+  function select(kind: Selection['kind'], id?: string, deleting = false) {
+    if (
+      pending.current ||
+      (selection?.id === id && selection?.kind === kind && !!selection.deleting === deleting)
+    )
+      return;
+    const next = { kind, id, deleting };
+    if (dirty) setPendingSelection(next);
+    else open(next);
+  }
   function close() {
-    setSelection(undefined);
-    setFailure(undefined);
-    setDirty(false);
+    if (pending.current || pendingSelection || blocker.state === 'blocked') return;
+    if (!selection) setLibraryOpen(false);
+    if (dirty) setPendingSelection('close');
+    else open();
   }
   function reload() {
-    close();
+    setLibraryOpen(false);
+    open();
     setRefresh((value) => value + 1);
   }
   async function save(write: () => Promise<unknown>) {
@@ -158,278 +162,271 @@ function EnvironmentOntology({ environmentId }: { environmentId: string }) {
       setBusy(false);
     }
   }
-  const findings = (kind: Finding['kind'], id?: string) =>
-    graph?.bindingReport.findings.filter(
-      (f) => f.kind === kind && (kind === 'ENVIRONMENT' || f.id === id),
-    ) ?? [];
-  function endpoint(objectId: string, propertyId: string) {
-    const o = graph?.objects.find((o) => o.id === objectId);
-    return (
-      (o?.name ?? objectId) +
-      ' · ' +
-      (o?.properties.find((p) => p.id === propertyId)?.name ?? propertyId)
-    );
-  }
   return (
     <section className="environment-page ontology-page">
       <Link className="back-link" to={'/dbt/environments/' + environmentId}>
         <ArrowLeftOutlined aria-hidden /> 返回环境详情
       </Link>
       <header className="page-heading">
-        <div>
-          <p>{name || environmentId}</p>
+        <div className="ontology-title">
           <h2>本体建模</h2>
+          <span className="ontology-environment">
+            <DatabaseOutlined aria-hidden />
+            {name || environmentId}
+          </span>
         </div>
-        {!selection && (
+        <div className="ontology-actions">
           <Button icon={<ReloadOutlined aria-hidden />} loading={loading} onClick={reload}>
             刷新拓扑
           </Button>
-        )}
-      </header>
-      {blocker.state === 'blocked' && (
-        <div role="alertdialog" aria-label="放弃未保存的修改" className="ontology-notice">
-          <p>{busy ? '正在等待服务器响应。' : '离开后将放弃此环境中未保存的修改。'}</p>
-          <div className="ontology-actions">
-            <Button onClick={() => blocker.reset()}>留在此页</Button>
-            {!busy && (
-              <Button danger onClick={() => blocker.proceed()}>
-                放弃并离开
+          {graph && !loadError && graph.objects.length > 0 && (
+            <>
+              <Button
+                icon={<UnorderedListOutlined aria-hidden />}
+                disabled={loading}
+                onClick={() => setLibraryOpen(true)}
+              >
+                管理定义
               </Button>
-            )}
-          </div>
+              <Button
+                disabled={loading || !graph.objects.length}
+                onClick={() => select('relation')}
+              >
+                新建关系
+              </Button>
+              <Button
+                type="primary"
+                icon={<PlusOutlined aria-hidden />}
+                disabled={loading}
+                onClick={() => select('object')}
+              >
+                新建对象
+              </Button>
+            </>
+          )}
+        </div>
+      </header>
+      {loadError && <Alert type="error" title={'无法读取本体：' + loadError} />}
+      {loading && (
+        <div className="ontology-loading" role="status">
+          <Spin size="small" />
+          正在核对当前环境的绑定…
         </div>
       )}
-      {loadError && <Alert type="error" title={'无法读取本体：' + loadError} />}
-      {loading && <p role="status">正在核对当前环境的绑定…</p>}
-      {failure && (
-        <Alert
-          type="error"
-          title={failure.message}
-          description={
-            <>
-              {problem?.references?.length ? (
-                <p>引用此项的关系：{problem.references.map((r) => r.name).join('、')}</p>
-              ) : null}
-              {problem?.status === 409 && !deploymentChanged && (
-                <div>
-                  请核对最新的拓扑及部署后再提交。{' '}
-                  <Button onClick={reload}>放弃本次编辑并刷新</Button>
-                </div>
-              )}
-            </>
-          }
-        />
-      )}
-      {selection &&
-        !selection.deleting &&
-        (deploymentChanged || (selection.kind === 'relation' && !graph?.bindingReport.buildId)) && (
-          <div className="ontology-actions">
-            <Button loading={busy} onClick={refreshCandidates}>
-              刷新绑定候选
-            </Button>
-            {candidateError && <span role="alert">{candidateError}</span>}
-          </div>
-        )}
-      {graph && !loading && (
+      {graph && !loading && !loadError && (
         <>
-          <Health findings={findings('ENVIRONMENT')} />
-          {selection ? (
-            <section className="management-panel ontology-editor">
-              {selection.deleting && selected ? (
-                <div role="alertdialog" aria-label="删除确认">
-                  <h3>
-                    删除{selection.kind === 'object' ? '对象' : '关系'}“{selected.name}”
-                  </h3>
-                  {blockers.length > 0 ? (
-                    <p>请先处理引用此对象的关系：{blockers.map((r) => r.name).join('、')}</p>
-                  ) : (
-                    <p>删除将在当前环境立即生效。</p>
-                  )}
-                  <div className="ontology-actions">
-                    <Button
-                      danger
-                      disabled={!!blockers.length}
-                      loading={busy}
-                      onClick={() =>
-                        save(() =>
-                          ontologyApi.remove(
-                            environmentId,
-                            selection.kind === 'object' ? 'objects' : 'relations',
-                            selected.id,
-                            graph.revision,
-                          ),
-                        )
-                      }
-                    >
-                      确认删除
-                    </Button>
-                    <Button disabled={busy} onClick={close}>
-                      取消删除
-                    </Button>
-                  </div>
-                </div>
-              ) : selection.kind === 'object' ? (
-                <ObjectEditor
-                  environmentId={environmentId}
-                  original={object}
-                  busy={busy}
-                  candidateVersion={candidateVersion}
-                  deploymentChanged={deploymentChanged}
-                  onChange={() => setDirty(true)}
-                  onClose={close}
-                  onSave={(value, buildId) =>
-                    save(() =>
-                      ontologyApi.saveObject(
-                        environmentId,
-                        graph.revision,
-                        buildId,
-                        value,
-                        !object,
-                      ),
-                    )
-                  }
-                />
-              ) : (
-                <RelationEditor
-                  objects={graph.objects}
-                  original={relation}
-                  buildId={graph.bindingReport.buildId}
-                  busy={busy}
-                  refreshed={candidateVersion > 0}
-                  deploymentChanged={deploymentChanged}
-                  onChange={() => setDirty(true)}
-                  onClose={close}
-                  onSave={(value, buildId) =>
-                    save(() =>
-                      ontologyApi.saveRelation(
-                        environmentId,
-                        graph.revision,
-                        buildId,
-                        value,
-                        !relation,
-                      ),
-                    )
-                  }
-                />
-              )}
-            </section>
-          ) : (
-            <>
-              <section className="management-panel">
-                <header className="panel-heading">
-                  <h3>对象关系拓扑</h3>
-                  <span>
-                    {graph.objects.length} 个对象 · {graph.relations.length} 条关系
-                  </span>
-                </header>
-                {graph.objects.length ? (
+          <Health findings={graph.bindingReport.findings.filter((f) => f.kind === 'ENVIRONMENT')} />
+          <div className="ontology-workspace">
+            <section className="ontology-canvas">
+              <div className="ontology-section-heading">
+                <h3>
+                  <ApartmentOutlined aria-hidden /> 对象关系拓扑
+                </h3>
+                <span>
+                  {graph.objects.length} 个对象 · {graph.relations.length} 条关系
+                </span>
+              </div>
+              {graph.objects.length ? (
+                <>
                   <OntologyGraph
                     objects={graph.objects}
                     relations={graph.relations}
                     onSelect={select}
+                    selected={selection}
                   />
-                ) : (
-                  <Empty description="暂无对象" />
-                )}
-              </section>
-              <section className="management-panel">
-                <header className="panel-heading">
-                  <h3>对象</h3>
-                  <Button
-                    type="primary"
-                    icon={<PlusOutlined aria-hidden />}
-                    disabled={loading}
-                    onClick={() => select('object')}
-                  >
+                  <p className="ontology-canvas-help">
+                    点击对象或连线编辑定义，拖动画布平移，滚轮缩放。
+                  </p>
+                </>
+              ) : (
+                <div className="ontology-canvas-empty">
+                  <ApartmentOutlined aria-hidden />
+                  <h4>暂无对象</h4>
+                  <p>选择此环境已部署的数据集，为第一个对象绑定属性和主键。</p>
+                  <Button type="primary" icon={<PlusOutlined />} onClick={() => select('object')}>
                     新建对象
                   </Button>
-                </header>
-                <ul className="ontology-list">
-                  {graph.objects.map((o) => (
-                    <li key={o.id}>
-                      <div className="ontology-row">
-                        <strong>{o.name}</strong>
-                        <div className="ontology-actions">
-                          <Button
-                            aria-label={'编辑对象 ' + o.name}
-                            onClick={() => select('object', o.id)}
-                          >
-                            编辑
-                          </Button>
-                          <Button
-                            danger
-                            aria-label={'删除对象 ' + o.name}
-                            onClick={() => select('object', o.id, true)}
-                          >
-                            删除
-                          </Button>
+                </div>
+              )}
+            </section>
+          </div>
+          {(selection || libraryOpen) && (
+            <Modal
+              open
+              className="ontology-modal"
+              title={
+                selection
+                  ? (selection.deleting ? '删除' : selection.id ? '编辑' : '新建') +
+                    (selection.kind === 'object' ? '对象' : '关系')
+                  : '管理定义'
+              }
+              width={selection?.deleting ? 460 : 680}
+              footer={null}
+              onCancel={close}
+              closable={!busy}
+              keyboard={!busy}
+              mask={{ closable: false }}
+            >
+              {blocker.state === 'blocked' && (
+                <div role="alertdialog" aria-label="放弃未保存的修改" className="ontology-notice">
+                  <p>{busy ? '正在等待服务器响应。' : '离开后将放弃此环境中未保存的修改。'}</p>
+                  <div className="ontology-actions">
+                    <Button onClick={() => blocker.reset()}>留在此页</Button>
+                    {!busy && (
+                      <Button danger onClick={() => blocker.proceed()}>
+                        放弃并离开
+                      </Button>
+                    )}
+                  </div>
+                </div>
+              )}
+              {failure && (
+                <Alert
+                  type="error"
+                  title={failure.message}
+                  description={
+                    <>
+                      {problem?.references?.length ? (
+                        <p>引用此项的关系：{problem.references.map((r) => r.name).join('、')}</p>
+                      ) : null}
+                      {problem?.status === 409 && !deploymentChanged && (
+                        <div>
+                          请核对最新的拓扑及部署后再提交。{' '}
+                          <Button onClick={reload}>放弃本次编辑并刷新</Button>
                         </div>
+                      )}
+                    </>
+                  }
+                />
+              )}
+              {selection &&
+                !selection.deleting &&
+                (deploymentChanged ||
+                  (selection.kind === 'relation' && !graph?.bindingReport.buildId)) && (
+                  <div className="ontology-actions">
+                    <Button loading={busy} onClick={refreshCandidates}>
+                      刷新绑定候选
+                    </Button>
+                    {candidateError && <span role="alert">{candidateError}</span>}
+                  </div>
+                )}
+              {selection ? (
+                <div className="ontology-editor">
+                  {pendingSelection && (
+                    <div className="ontology-notice" role="alertdialog" aria-label="放弃当前编辑">
+                      <p>当前定义有未保存的修改。</p>
+                      <div className="ontology-actions">
+                        <Button ref={discardButton} onClick={() => setPendingSelection(undefined)}>
+                          继续编辑
+                        </Button>
+                        <Button
+                          danger
+                          onClick={() =>
+                            open(pendingSelection === 'close' ? undefined : pendingSelection)
+                          }
+                        >
+                          放弃修改
+                        </Button>
                       </div>
-                      {o.description && <p>{o.description}</p>}
-                      <Health findings={findings('OBJECT', o.id)} />
-                      <dl>
-                        {o.properties.map((p) => (
-                          <div key={p.id}>
-                            <dt>
-                              {p.name}
-                              {p.id === o.primaryPropertyId && <small>声明主键</small>}
-                            </dt>
-                            <dd>
-                              <code>{p.columnName}</code> · {p.declaredType || '类型未核实'}{' '}
-                              <Health findings={findings('PROPERTY', p.id)} />
-                            </dd>
-                          </div>
-                        ))}
-                      </dl>
-                    </li>
-                  ))}
-                </ul>
-              </section>
-              <section className="management-panel">
-                <header className="panel-heading">
-                  <h3>关系</h3>
-                  <Button
-                    icon={<PlusOutlined aria-hidden />}
-                    disabled={loading || !graph.objects.length}
-                    onClick={() => select('relation')}
-                  >
-                    新建关系
-                  </Button>
-                </header>
-                {graph.relations.length === 0 && <p className="ontology-empty">暂无关系</p>}
-                <ul className="ontology-list">
-                  {graph.relations.map((r) => (
-                    <li key={r.id}>
-                      <div className="ontology-row">
-                        <strong>{r.name}</strong>
-                        <div className="ontology-actions">
-                          <Button
-                            aria-label={'编辑关系 ' + r.name}
-                            onClick={() => select('relation', r.id)}
-                          >
-                            编辑
-                          </Button>
-                          <Button
-                            danger
-                            aria-label={'删除关系 ' + r.name}
-                            onClick={() => select('relation', r.id, true)}
-                          >
-                            删除
-                          </Button>
-                        </div>
+                    </div>
+                  )}
+                  {selection.deleting && selected ? (
+                    <div role="alertdialog" aria-label="删除确认">
+                      <p>确定删除“{selected.name}”？</p>
+                      {blockers.length > 0 ? (
+                        <p>请先处理引用此对象的关系：{blockers.map((r) => r.name).join('、')}</p>
+                      ) : (
+                        <p>删除将在当前环境立即生效。</p>
+                      )}
+                      <div className="ontology-actions">
+                        <Button
+                          danger
+                          disabled={!!blockers.length}
+                          loading={busy}
+                          onClick={() =>
+                            save(() =>
+                              ontologyApi.remove(
+                                environmentId,
+                                selection.kind === 'object' ? 'objects' : 'relations',
+                                selected.id,
+                                graph.revision,
+                              ),
+                            )
+                          }
+                        >
+                          确认删除
+                        </Button>
+                        <Button disabled={busy} onClick={close}>
+                          取消删除
+                        </Button>
                       </div>
-                      <p>
-                        {endpoint(r.sourceObjectId, r.sourcePropertyId)} →{' '}
-                        {endpoint(r.targetObjectId, r.targetPropertyId)} · 声明基数{' '}
-                        {cardinalities[r.cardinality]}
-                      </p>
-                      {r.description && <p>{r.description}</p>}
-                      <Health findings={findings('RELATION', r.id)} />
-                    </li>
-                  ))}
-                </ul>
-              </section>
-            </>
+                    </div>
+                  ) : selection.kind === 'object' ? (
+                    <ObjectEditor
+                      key={selection.id ?? 'new'}
+                      environmentId={environmentId}
+                      original={object}
+                      busy={busy}
+                      candidateVersion={candidateVersion}
+                      deploymentChanged={deploymentChanged}
+                      onChange={() => setDirty(true)}
+                      onClose={close}
+                      onSave={(value, buildId) =>
+                        save(() =>
+                          ontologyApi.saveObject(
+                            environmentId,
+                            graph.revision,
+                            buildId,
+                            value,
+                            !object,
+                          ),
+                        )
+                      }
+                    />
+                  ) : (
+                    <RelationEditor
+                      key={selection.id ?? 'new'}
+                      objects={graph.objects}
+                      original={relation}
+                      buildId={graph.bindingReport.buildId}
+                      busy={busy}
+                      refreshed={candidateVersion > 0}
+                      deploymentChanged={deploymentChanged}
+                      onChange={() => setDirty(true)}
+                      onClose={close}
+                      onSave={(value, buildId) =>
+                        save(() =>
+                          ontologyApi.saveRelation(
+                            environmentId,
+                            graph.revision,
+                            buildId,
+                            value,
+                            !relation,
+                          ),
+                        )
+                      }
+                    />
+                  )}
+                  {selected && !selection.deleting && (
+                    <Button
+                      type="text"
+                      danger
+                      disabled={busy}
+                      onClick={() => select(selection.kind, selected.id, true)}
+                    >
+                      删除{selection.kind === 'object' ? '对象' : '关系'}
+                    </Button>
+                  )}
+                </div>
+              ) : (
+                <DefinitionLibrary
+                  graph={graph}
+                  search={search}
+                  onSearch={setSearch}
+                  onSelect={select}
+                />
+              )}
+            </Modal>
           )}
         </>
       )}

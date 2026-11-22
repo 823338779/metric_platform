@@ -162,8 +162,10 @@ export function createBuildCatalogApi(fetcher?: Fetcher) {
       limit?: number;
     }) => request<BuildPage>(`/builds?${query({ limit: 50, ...filter })}`),
     build: (id: string) => request<BuildView>(build(id)),
-    current: (key: DeploymentKey) =>
-      request<DeploymentTarget>(`/deployments/current?${query(key)}`),
+    current: (key: DeploymentKey, refreshSource = false) =>
+      request<DeploymentTarget>(
+        `/deployments/current?${query({ ...key, refreshSource: String(refreshSource) })}`,
+      ),
     deployments: (key: DeploymentKey, cursor?: string) =>
       request<{ items: DeploymentAttempt[]; nextCursor: string | null }>(
         `/deployments?${query({ ...key, cursor, limit: 50 })}`,

@@ -125,7 +125,6 @@ export function ObjectEditor({
       }}
     >
       <fieldset disabled={busy}>
-        <legend>{original ? '编辑对象' : '新建对象'}</legend>
         {(datasetError || columnError) && (
           <Alert
             type="warning"
@@ -154,7 +153,9 @@ export function ObjectEditor({
                 })
               }
             >
-              <option value="">选择已部署数据集</option>
+              <option value="">
+                {!candidates && !datasetError ? '正在读取数据集…' : '选择已部署数据集'}
+              </option>
               {datasetAssetId &&
                 !candidates?.datasets.some((d) => d.assetId === datasetAssetId) && (
                   <option value={datasetAssetId}>{datasetAssetId}（原绑定）</option>
@@ -168,7 +169,12 @@ export function ObjectEditor({
           </label>
           <label>
             对象名称
-            <input required value={draft.name} onChange={(e) => update({ name: e.target.value })} />
+            <input
+              required
+              placeholder="例如：订单"
+              value={draft.name}
+              onChange={(e) => update({ name: e.target.value })}
+            />
           </label>
           <label>
             对象说明
@@ -205,7 +211,7 @@ export function ObjectEditor({
                     });
                   }}
                 >
-                  <option value="">选择声明列</option>
+                  <option value="">{!datasetAssetId ? '请先选择数据集' : '选择声明列'}</option>
                   {p.columnName && !current && (
                     <option value={p.columnName}>{p.columnName}（原绑定）</option>
                   )}

@@ -315,6 +315,7 @@ it('每次构建选择绑定仓库的分支，超时重试保留提交键', asyn
   };
   mount(api);
   await screen.findByText('测试环境');
+  fireEvent.click(screen.getByRole('button', { name: '选择构建分支' }));
   await screen.findByRole('option', { name: 'feature/isolated' });
   expect(screen.getByLabelText('Git 仓库地址')).toHaveValue('https://example.test/metrics.git');
   expect(screen.getByLabelText('Git 仓库地址')).toHaveAttribute('readonly');

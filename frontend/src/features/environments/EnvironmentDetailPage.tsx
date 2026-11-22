@@ -146,6 +146,7 @@ function SelectedEnvironment({
   const [page, setPage] = useState<EnvironmentBuildPage>({ items: [], nextCursor: null });
   const [error, setError] = useState('');
   const [editing, setEditing] = useState(false);
+  const [buildFormOpen, setBuildFormOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const [refresh, setRefresh] = useState(0);
   const [logBuild, setLogBuild] = useState<string | null>(null);
@@ -292,12 +293,16 @@ function SelectedEnvironment({
                 </span>
               }
             >
-              <BuildSubmissionForm
-                key={environmentId}
-                environment={environment}
-                api={api}
-                onSubmitted={() => setRefresh((value) => value + 1)}
-              />
+              {buildFormOpen ? (
+                <BuildSubmissionForm
+                  key={environmentId}
+                  environment={environment}
+                  api={api}
+                  onSubmitted={() => setRefresh((value) => value + 1)}
+                />
+              ) : (
+                <Button onClick={() => setBuildFormOpen(true)}>选择构建分支</Button>
+              )}
             </Card>
           )}
         </>

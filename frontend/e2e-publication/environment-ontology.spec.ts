@@ -88,11 +88,26 @@ test('测试环境维护订单、客户和两个角色关系，生产环境仍�
   });
   await page.goto('/dbt/environments/' + testId);
   await page.getByRole('link', { name: '本体建模' }).click();
+  const navigation = page.getByRole('navigation', { name: 'Metric Platform' });
+  for (const tab of ['catalog', 'query']) {
+    await page.goto('/dbt/builds/' + BUILD_A + '/' + tab);
+    await expect(navigation.getByRole('link', { name: '本体建模' })).toHaveAttribute(
+      'href',
+      '/dbt/environments/' + testId + '/ontology',
+    );
+  }
+  await navigation.getByRole('link', { name: '本体建模' }).click();
+  await expect(navigation.getByRole('link', { name: '本体建模' })).toHaveAttribute(
+    'aria-current',
+    'page',
+  );
+  const graph = page.getByRole('img', { name: '对象关系拓扑图' });
   for (const [name, asset, columns] of [
     ['订单', 'orders', ['order_id', 'buyer_id']],
     ['客户', 'customers', ['customer_id']],
   ] as const) {
     await page.getByRole('button', { name: '新建对象' }).click();
+    await expect(page.getByRole('dialog', { name: '新建对象' })).toBeVisible();
     await page.getByLabel('绑定数据集').selectOption(asset);
     await page.getByLabel('对象名称').fill(name);
     for (const [index, column] of columns.entries()) {
@@ -102,7 +117,7 @@ test('测试环境维护订单、客户和两个角色关系，生产环境仍�
     }
     await page.getByLabel('声明主键').selectOption({ label: columns[0] });
     await page.getByRole('button', { name: '保存对象' }).click();
-    await expect(page.getByRole('button', { name: '编辑对象 ' + name })).toBeVisible();
+    await expect(graph.getByText(name, { exact: true })).toBeVisible();
   }
   expect(objects[0].primaryPropertyId).toBe(objects[0].properties[0].id);
   for (const name of ['下单客户', '收货人']) {
@@ -114,15 +129,16 @@ test('测试环境维护订单、客户和两个角色关系，生产环境仍�
     await page.getByLabel('目标属性').selectOption({ label: 'customer_id' });
     await page.getByLabel('声明基数').selectOption('MANY_TO_ONE');
     await page.getByRole('button', { name: '保存关系' }).click();
-    await expect(page.getByRole('button', { name: '编辑关系 ' + name })).toBeVisible();
+    await expect(graph.getByText(name, { exact: true })).toBeVisible();
   }
-  const graph = page.getByRole('img', { name: '对象关系拓扑图' });
   await expect(graph.getByText('下单客户', { exact: true })).toBeVisible();
   await graph.getByText('收货人', { exact: true }).click();
   await expect(page.getByLabel('关系名称')).toHaveValue('收货人');
-  await page.getByRole('button', { name: '取消编辑' }).click();
-  await page.getByRole('button', { name: '删除关系 收货人' }).click();
+  await expect(page.getByRole('dialog', { name: '编辑关系' })).toBeVisible();
+  await page.getByRole('button', { name: '删除关系' }).click();
+  await expect(page.getByRole('dialog', { name: '删除关系' })).toBeVisible();
   await page.getByRole('button', { name: '确认删除' }).click();
+  await page.getByRole('button', { name: '管理定义' }).click();
   await expect(page.getByRole('button', { name: '编辑关系 下单客户' })).toBeVisible();
   await expect(page.getByRole('button', { name: '编辑关系 收货人' })).toHaveCount(0);
   await page.goto('/dbt/environments/' + prodId + '/ontology');

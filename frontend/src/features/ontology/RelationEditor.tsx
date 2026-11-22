@@ -82,10 +82,11 @@ export function RelationEditor({
           {label}属性
           <select
             required
+            disabled={!object}
             value={draft[propertyKey]}
             onChange={(e) => update({ [propertyKey]: e.target.value })}
           >
-            <option value="">选择属性</option>
+            <option value="">{object ? '选择属性' : '先选择对象'}</option>
             {object?.properties.map((p) => (
               <option key={p.id} value={p.id}>
                 {p.name}
@@ -105,7 +106,6 @@ export function RelationEditor({
       }}
     >
       <fieldset disabled={busy}>
-        <legend>{original ? '编辑关系' : '新建关系'}</legend>
         <div className="ontology-fields">
           <label>
             关系名称
@@ -119,6 +119,7 @@ export function RelationEditor({
             />
           </label>
         </div>
+        <h3>关系方向</h3>
         {endpoint('source', '源')}
         {endpoint('target', '目标')}
         <label>

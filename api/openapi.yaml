@@ -897,6 +897,13 @@ paths:
       summary: Current
       operationId: current_deployments_current_get
       parameters:
+        - name: refreshSource
+          in: query
+          required: false
+          description: 主动检查远端 Git 分支。默认直接读取生效部署及最近一次观察，观察时间见 headObservedAt。
+          schema:
+            type: boolean
+            default: false
         - name: environmentId
           in: query
           required: true

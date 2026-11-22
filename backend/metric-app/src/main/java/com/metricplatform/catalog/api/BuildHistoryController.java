@@ -59,9 +59,11 @@ public class BuildHistoryController {
     public DeploymentTargetView current(
             @RequestParam String repository,
             @RequestParam UUID environmentId,
-            @RequestParam String branchName) {
+            @RequestParam String branchName,
+            @RequestParam(defaultValue = "false") boolean refreshSource) {
         assets.requireEnvironment(environmentId);
-        var current = gateway.current(new DeploymentKey(repository, environmentId, branchName));
+        var current =
+                gateway.current(new DeploymentKey(repository, environmentId, branchName), refreshSource);
         if (!environmentId.equals(current.environmentId())
                 || current.activeBuildId() != null
                         && !assets.visible(environmentId, current.activeBuildId())
