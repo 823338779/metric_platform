@@ -1,7 +1,7 @@
 package com.metricplatform.persistence.config;
 
 import com.baomidou.mybatisplus.core.handlers.MetaObjectHandler;
-import com.metricplatform.persistence.entity.BaseAuditEntity;
+import com.metricplatform.persistence.entity.BaseEntity;
 import java.time.Clock;
 import java.time.Instant;
 import lombok.RequiredArgsConstructor;
@@ -23,18 +23,18 @@ public class AuditMetaObjectHandler implements MetaObjectHandler {
     public void updateFill(MetaObject metaObject) {
         Instant now = clock.instant();
         setFieldValByName("updatedAt", now, metaObject);
-        BaseAuditEntity entity = auditedEntity(metaObject);
+        BaseEntity entity = auditedEntity(metaObject);
         if (entity != null && entity.isDeleted()) {
             setFieldValByName("deletedAt", now, metaObject);
         }
     }
 
-    private static BaseAuditEntity auditedEntity(MetaObject metaObject) {
-        if (metaObject.getOriginalObject() instanceof BaseAuditEntity entity) {
+    private static BaseEntity auditedEntity(MetaObject metaObject) {
+        if (metaObject.getOriginalObject() instanceof BaseEntity entity) {
             return entity;
         }
         if (metaObject.hasGetter("et")
-                && metaObject.getValue("et") instanceof BaseAuditEntity entity) {
+                && metaObject.getValue("et") instanceof BaseEntity entity) {
             return entity;
         }
         return null;

@@ -1,11 +1,13 @@
 package com.metricplatform.persistence.store;
 
+import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.metricplatform.catalog.BuildContracts.ErrorView;
 import com.metricplatform.catalog.BuildGateway;
 import com.metricplatform.environment.*;
 import com.metricplatform.environment.EnvironmentContracts.*;
 import com.metricplatform.identity.TenantScope;
+import com.metricplatform.persistence.entity.EnvironmentBuildSubmissionEntity;
 import com.metricplatform.persistence.mapper.EnvironmentBuildSubmissionMapper;
 import com.metricplatform.persistence.mapper.ExecutionEnvironmentMapper;
 
@@ -40,14 +42,20 @@ public class EnvironmentBuildSubmissionStore implements BuildSubmissionStore {
         String scope = actor + ":" + command.idempotencyKey();
         submissions.lockIdempotencyKey(scope);
         String original = json(command);
-        var previous = submissions.find(actor, command.idempotencyKey());
+        var previous =
+                submissions.selectOne(
+                        Wrappers.<EnvironmentBuildSubmissionEntity>lambdaQuery()
+                                .eq(EnvironmentBuildSubmissionEntity::getActorId, actor)
+                                .eq(
+                                        EnvironmentBuildSubmissionEntity::getIdempotencyKey,
+                                        command.idempotencyKey()));
         if (previous != null) {
-            if (!environment.equals(previous.environmentId())
-                    || !tree(original).equals(tree(previous.command()))) {
+            if (!environment.equals(previous.getEnvironmentId())
+                    || !tree(original).equals(tree(previous.getCommand()))) {
                 throw conflict("IDEMPOTENCY_CONFLICT");
             }
             try {
-                return mapper.readValue(previous.request(), SnapshotBuildRequest.class);
+                return mapper.readValue(previous.getRequest(), SnapshotBuildRequest.class);
             } catch (Exception error) {
                 throw new IllegalStateException("构建请求无法读取", error);
             }
@@ -65,7 +73,13 @@ public class EnvironmentBuildSubmissionStore implements BuildSubmissionStore {
                         selected.execution(),
                         command.deploymentPolicy(),
                         key);
-        submissions.insert(actor, command.idempotencyKey(), environment, original, json(request));
+        var submission = new EnvironmentBuildSubmissionEntity();
+        submission.setActorId(actor);
+        submission.setIdempotencyKey(command.idempotencyKey());
+        submission.setEnvironmentId(environment);
+        submission.setCommand(original);
+        submission.setRequest(json(request));
+        submissions.insert(submission);
         return request;
     }
 
@@ -74,7 +88,20 @@ public class EnvironmentBuildSubmissionStore implements BuildSubmissionStore {
     public void accepted(String tenant, UUID actor, String key, UUID buildId) {
         TenantScope.require(tenant);
         // 与提交确认原子绑定，重复确认须匹配环境及租户。
-        if (submissions.accept(actor, key, buildId) != 1) throw conflict("IDEMPOTENCY_CONFLICT");
+        var acceptance =
+                Wrappers.<EnvironmentBuildSubmissionEntity>lambdaUpdate()
+                        .eq(EnvironmentBuildSubmissionEntity::getActorId, actor)
+                        .eq(EnvironmentBuildSubmissionEntity::getIdempotencyKey, key)
+                        .and(
+                                row ->
+                                        row.isNull(EnvironmentBuildSubmissionEntity::getBuildId)
+                                                .or()
+                                                .eq(
+                                                        EnvironmentBuildSubmissionEntity
+                                                                ::getBuildId,
+                                                        buildId))
+                        .set(EnvironmentBuildSubmissionEntity::getBuildId, buildId);
+        if (submissions.update(acceptance) != 1) throw conflict("IDEMPOTENCY_CONFLICT");
         if (submissions.bindOwnership(tenant, actor, key) != 1)
             throw conflict("BUILD_OWNERSHIP_CONFLICT");
         if (submissions.bindTarget(tenant, actor, key) != 1)

@@ -7,11 +7,14 @@ import com.metricplatform.persistence.entity.SemanticResourceEntity;
 import com.metricplatform.persistence.mapping.CatalogEntityMapper;
 import com.metricplatform.persistence.service.SemanticDependencyService;
 import com.metricplatform.persistence.service.SemanticResourceService;
-import java.util.List;
-import java.util.UUID;
+
 import lombok.RequiredArgsConstructor;
+
 import org.springframework.stereotype.Repository;
 import org.springframework.transaction.annotation.Transactional;
+
+import java.util.List;
+import java.util.UUID;
 
 /** 使用 MyBatis Plus 保存原生目录投影，调用方在发布事务中替换候选目录。 */
 @Repository
@@ -30,8 +33,10 @@ public class CatalogStore implements CatalogRepository {
         resources.remove(
                 new LambdaQueryWrapper<SemanticResourceEntity>()
                         .eq(SemanticResourceEntity::getReleaseId, releaseId));
-        for (Resource value : values) resources.save(entities.resource(releaseId, value));
-        for (Dependency edge : edges) dependencies.save(entities.dependency(releaseId, edge));
+        for (Resource value : values)
+            resources.insertOrRestore(entities.resource(releaseId, value));
+        for (Dependency edge : edges)
+            dependencies.insertOrRestore(entities.dependency(releaseId, edge));
     }
 
     public List<Resource> resources(UUID releaseId) {

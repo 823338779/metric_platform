@@ -1,6 +1,7 @@
 package com.metricplatform.persistence.entity;
 
 import com.baomidou.mybatisplus.annotation.*;
+import com.metricplatform.persistence.typehandler.JsonbTypeHandler;
 
 import lombok.Getter;
 import lombok.Setter;
@@ -10,8 +11,8 @@ import java.util.UUID;
 /** 服务事实的只读历史投影。 */
 @Getter
 @Setter
-@TableName("build_history")
-public class BuildHistoryEntity extends TenantOwnedEntity {
+@TableName(value = "build_history", autoResultMap = true)
+public class BuildHistoryEntity extends BaseEntity {
     /** 构建唯一身份。 */
     @TableId(type = IdType.INPUT)
     private UUID buildId;
@@ -32,6 +33,7 @@ public class BuildHistoryEntity extends TenantOwnedEntity {
     private long lastSequence;
 
     /** 只读事实摘要。 */
+    @TableField(typeHandler = JsonbTypeHandler.class)
     private String summary;
 
     /** 摘要协议版本。 */

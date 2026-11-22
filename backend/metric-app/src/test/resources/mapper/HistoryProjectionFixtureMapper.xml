@@ -1,6 +1,19 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
 <mapper namespace="com.metricplatform.integration.persistence.HistoryProjectionFixtureMapper">
+    <!-- 重放用例模拟投影物理丢失；租户拦截器限定清理范围。 -->
+    <delete id="clearBuildHistory">
+        DELETE FROM build_history
+    </delete>
+    <delete id="clearDeploymentHistory">
+        DELETE FROM deployment_history
+    </delete>
+    <delete id="clearHistoryCursor">
+        DELETE FROM history_cursor
+    </delete>
+    <delete id="deleteLegacyProject">
+        DELETE FROM semantic_project WHERE project_id = #{projectId}
+    </delete>
     <delete id="deleteOwnership">
         DELETE FROM build_ownership WHERE build_id = #{buildId}
     </delete>

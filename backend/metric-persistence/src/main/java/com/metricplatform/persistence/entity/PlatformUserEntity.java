@@ -12,7 +12,7 @@ import java.util.UUID;
 @Getter
 @Setter
 @TableName("platform_user")
-public class PlatformUserEntity extends BaseAuditEntity {
+public class PlatformUserEntity extends BaseEntity {
     @TableId private UUID id;
 
     private String username;

@@ -10,7 +10,7 @@ import lombok.Setter;
 @Getter
 @Setter
 @TableName("platform_access_token")
-public class PlatformAccessTokenEntity extends BaseAuditEntity {
+public class PlatformAccessTokenEntity extends BaseEntity {
     @TableId private UUID id;
     private String tokenHash;
     private UUID identityId;

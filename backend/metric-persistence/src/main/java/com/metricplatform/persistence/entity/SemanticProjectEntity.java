@@ -14,7 +14,7 @@ import java.util.UUID;
 @Getter
 @Setter
 @TableName("semantic_project")
-public class SemanticProjectEntity extends TenantOwnedEntity {
+public class SemanticProjectEntity extends BaseEntity {
     /** 固定项目标识。 */
     @TableId(type = IdType.INPUT)
     private String projectId;

@@ -1,17 +1,22 @@
 package com.metricplatform.persistence.mapper;
 
+import com.baomidou.mybatisplus.core.mapper.BaseMapper;
+import com.metricplatform.persistence.entity.QueryExecutionAuditEntity;
 import com.metricplatform.query.QueryAuditRepository;
 
 import org.apache.ibatis.annotations.Mapper;
-import org.apache.ibatis.annotations.Param;
 
 import java.util.UUID;
 
 @Mapper
-public interface BuildQueryAuditMapper extends QueryAuditRepository {
+public interface BuildQueryAuditMapper
+        extends BaseMapper<QueryExecutionAuditEntity>, QueryAuditRepository {
     @Override
-    void record(
-            @Param("execution") UUID execution,
-            @Param("build") UUID build,
-            @Param("user") UUID user);
+    default void record(UUID execution, UUID build, UUID user) {
+        var audit = new QueryExecutionAuditEntity();
+        audit.setExecutionId(execution);
+        audit.setBuildId(build);
+        audit.setUserId(user);
+        insert(audit);
+    }
 }

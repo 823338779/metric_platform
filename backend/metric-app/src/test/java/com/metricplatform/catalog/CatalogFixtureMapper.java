@@ -7,6 +7,13 @@ import org.apache.ibatis.annotations.Param;
 
 @Mapper
 public interface CatalogFixtureMapper {
+    record GrantAudit(
+            java.time.Instant createdAt,
+            java.time.Instant updatedAt,
+            java.time.Instant deletedAt) {}
+
+    GrantAudit grantAudit(@Param("reader") UUID reader, @Param("asset") UUID asset);
+
     UUID managerId();
 
     void insertReader(@Param("id") UUID id, @Param("displayName") String displayName);

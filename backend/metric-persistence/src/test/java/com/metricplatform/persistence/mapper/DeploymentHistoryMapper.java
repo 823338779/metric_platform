@@ -1,13 +1,12 @@
 package com.metricplatform.persistence.mapper;
 
-import com.baomidou.mybatisplus.core.mapper.BaseMapper;
 import com.metricplatform.persistence.entity.DeploymentHistoryEntity;
 
 import org.apache.ibatis.annotations.*;
 
 /** 自然对象身份唯一，版本更新只允许前进。 */
 @Mapper
-public interface DeploymentHistoryMapper extends BaseMapper<DeploymentHistoryEntity> {
+public interface DeploymentHistoryMapper extends DeploymentHistoryTableMapper {
     String UPSERT =
             "insert into"
                 + " deployment_history(object_type,object_id,repository,object_version,last_sequence,summary)"

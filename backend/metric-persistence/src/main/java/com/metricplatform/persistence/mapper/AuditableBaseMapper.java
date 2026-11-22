@@ -1,10 +1,10 @@
 package com.metricplatform.persistence.mapper;
 
 import com.baomidou.mybatisplus.core.mapper.BaseMapper;
-import com.metricplatform.persistence.entity.BaseAuditEntity;
+import com.metricplatform.persistence.entity.BaseEntity;
 import java.io.Serializable;
 
-public interface AuditableBaseMapper<T extends BaseAuditEntity> extends BaseMapper<T> {
+public interface AuditableBaseMapper<T extends BaseEntity> extends BaseMapper<T> {
     default int softDeleteById(Serializable id) {
         T entity = selectById(id);
         if (entity == null) {

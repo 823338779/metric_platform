@@ -12,7 +12,7 @@ import java.time.Instant;
 
 @Getter
 @Setter
-public abstract class BaseAuditEntity {
+public abstract class BaseEntity {
     /** 记录归属由 SQL 租户拦截器写入，实体更新不能转移归属。 */
     @TableField(
             value = "tenant_id",
@@ -20,7 +20,7 @@ public abstract class BaseAuditEntity {
             updateStrategy = FieldStrategy.NEVER)
     private String tenantId;
 
-    @TableField(value = "created_at", fill = FieldFill.INSERT)
+    @TableField(value = "created_at", fill = FieldFill.INSERT, updateStrategy = FieldStrategy.NEVER)
     private Instant createdAt;
 
     @TableField(value = "updated_at", fill = FieldFill.INSERT_UPDATE)

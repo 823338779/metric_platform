@@ -43,6 +43,9 @@ class AssetGrantLifecycleTest {
             var asset = store.members(first, reader).getFirst();
             assertThat(asset.ownerId()).isEqualTo(owner.identityId());
             store.grant(reader, asset.assetId());
+            var inserted = fixtures.grantAudit(reader, asset.assetId());
+            assertThat(inserted.createdAt()).isNotNull();
+            assertThat(inserted.deletedAt()).isNull();
             long observed = store.nextScan();
             store.observe(env, first, observed);
             assertThat(store.list(reader))
@@ -110,9 +113,19 @@ class AssetGrantLifecycleTest {
                             });
             publish(target, List.of());
             store.revoke(reader, asset.assetId());
+            var revoked = fixtures.grantAudit(reader, asset.assetId());
+            assertThat(revoked.createdAt()).isEqualTo(inserted.createdAt());
+            assertThat(revoked.updatedAt()).isAfter(inserted.updatedAt());
+            assertThat(revoked.deletedAt()).isEqualTo(revoked.updatedAt());
             assertThat(store.members(publish(target, List.of(metric)), reader))
                     .singleElement()
                     .satisfies(item -> assertThat(item.granted()).isFalse());
+            store.grant(reader, asset.assetId());
+            var regranted = fixtures.grantAudit(reader, asset.assetId());
+            assertThat(regranted.createdAt()).isEqualTo(inserted.createdAt());
+            assertThat(regranted.updatedAt()).isAfter(revoked.updatedAt());
+            assertThat(regranted.deletedAt()).isNull();
+            assertThat(store.members(first, reader)).allMatch(item -> item.granted());
         }
     }
 

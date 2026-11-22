@@ -3,7 +3,7 @@ package com.metricplatform.persistence.identity;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.metricplatform.identity.PlatformIdentityRepository;
 import com.metricplatform.identity.TenantScope;
-import com.metricplatform.persistence.entity.AuditEventEntity;
+import com.metricplatform.persistence.entity.EventEntity;
 import com.metricplatform.persistence.entity.PlatformAccessTokenEntity;
 import com.metricplatform.persistence.entity.PlatformUserEntity;
 import com.metricplatform.persistence.redis.RedisAccessTokenStore;
@@ -154,7 +154,7 @@ public class PlatformIdentityStore implements PlatformIdentityRepository {
             UUID resourceId,
             String outcome,
             String detailJson) {
-        AuditEventEntity event = new AuditEventEntity();
+        EventEntity event = new EventEntity();
         event.setId(UUID.randomUUID());
         event.setActorId(actorId);
         event.setEffectiveIdentityId(resourceId);

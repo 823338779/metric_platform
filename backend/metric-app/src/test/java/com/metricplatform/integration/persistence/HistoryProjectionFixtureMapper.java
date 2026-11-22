@@ -6,6 +6,14 @@ import org.apache.ibatis.annotations.Param;
 
 @Mapper
 interface HistoryProjectionFixtureMapper {
+    void clearBuildHistory();
+
+    void clearDeploymentHistory();
+
+    void clearHistoryCursor();
+
+    void deleteLegacyProject(@Param("projectId") String projectId);
+
     void deleteOwnership(@Param("buildId") UUID buildId);
 
     void insertLegacyProject(@Param("projectId") String projectId);

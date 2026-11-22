@@ -1,6 +1,7 @@
 package com.metricplatform.identity;
 
 import com.baomidou.mybatisplus.annotation.InterceptorIgnore;
+import java.util.List;
 import java.util.UUID;
 import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
@@ -25,4 +26,8 @@ public interface TenantFixtureMapper {
     long setTenantSequence(@Param("value") long value, @Param("called") boolean called);
 
     String databaseVersion();
+
+    List<String> businessTables();
+
+    List<String> tablesMissingAuditFields();
 }

@@ -11,7 +11,7 @@ import java.util.UUID;
 @Getter
 @Setter
 @TableName("semantic_dependency")
-public class SemanticDependencyEntity extends TenantOwnedEntity {
+public class SemanticDependencyEntity extends BaseEntity {
     /** 所属发布版本。 */
     private UUID releaseId;
 

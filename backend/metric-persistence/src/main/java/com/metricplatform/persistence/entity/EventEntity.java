@@ -9,7 +9,7 @@ import lombok.Setter;
 @Getter
 @Setter
 @TableName("audit_event")
-public class AuditEventEntity extends BaseAuditEntity {
+public class EventEntity extends BaseEntity {
     @TableId private UUID id;
     private String actorId;
     private String action;

@@ -29,4 +29,20 @@
     <select id="databaseVersion" resultType="string">
         SELECT version()
     </select>
+    <sql id="businessTables">
+        select table_name from information_schema.tables
+        where table_schema = current_schema() and table_type = 'BASE TABLE'
+          and table_name &lt;&gt; 'flyway_schema_history'
+    </sql>
+    <select id="businessTables" resultType="string">
+        <include refid="businessTables"/>
+    </select>
+    <select id="tablesMissingAuditFields" resultType="string">
+        <include refid="businessTables"/>
+        except
+        select table_name from information_schema.columns where table_schema = current_schema()
+          and ((column_name in ('tenant_id', 'created_at', 'updated_at', 'is_deleted') and is_nullable = 'NO')
+               or (column_name = 'deleted_at' and is_nullable = 'YES'))
+        group by table_name having count(*) = 5
+    </select>
 </mapper>

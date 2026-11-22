@@ -12,15 +12,11 @@ import com.metricplatform.persistence.typehandler.UuidTypeHandler;
 import net.sf.jsqlparser.expression.StringValue;
 import net.sf.jsqlparser.schema.Column;
 
-import org.apache.ibatis.session.SqlSessionFactory;
-import org.springframework.beans.BeansException;
-import org.springframework.beans.factory.config.BeanPostProcessor;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
 import java.time.Clock;
 import java.util.List;
-import java.util.UUID;
 
 @Configuration
 public class MybatisConfiguration {
@@ -35,18 +31,8 @@ public class MybatisConfiguration {
     }
 
     @Bean
-    static BeanPostProcessor uuidHandler() {
-        return new BeanPostProcessor() {
-            @Override
-            public Object postProcessAfterInitialization(Object bean, String name)
-                    throws BeansException {
-                if (bean instanceof SqlSessionFactory factory)
-                    factory.getConfiguration()
-                            .getTypeHandlerRegistry()
-                            .register(UUID.class, UuidTypeHandler.class);
-                return bean;
-            }
-        };
+    UuidTypeHandler uuidHandler() {
+        return new UuidTypeHandler();
     }
 
     @Bean

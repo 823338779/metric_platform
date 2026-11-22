@@ -5,36 +5,21 @@
         select 1 from pg_advisory_xact_lock(hashtextextended(#{scope}, 0))
     </select>
 
-    <select id="find" resultType="com.metricplatform.persistence.mapper.EnvironmentBuildSubmissionMapper$SubmissionRow">
-        select environment_id, cast(command as text) as command, cast(request as text) as request
-        from environment_build_submission where actor_id = #{actor} and idempotency_key = #{key}
-    </select>
-
-    <insert id="insert">
-        insert into environment_build_submission(actor_id, idempotency_key, environment_id, command, request)
-        values(#{actor}, #{key}, #{environment}, cast(#{command} as jsonb), cast(#{request} as jsonb))
-    </insert>
-
-    <update id="accept">
-        update environment_build_submission set build_id = #{buildId}
-        where actor_id = #{actor} and idempotency_key = #{key} and (build_id is null or build_id = #{buildId})
-    </update>
-
     <insert id="bindOwnership">
         insert into build_ownership(build_id, environment_id, tenant_id)
         select build_id, environment_id, tenant_id from environment_build_submission
-        where tenant_id = #{tenant} and actor_id = #{actor} and idempotency_key = #{key}
+        where not is_deleted and tenant_id = #{tenant} and actor_id = #{actor} and idempotency_key = #{key}
         on conflict(build_id) do update set build_id = excluded.build_id
-        where build_ownership.environment_id = excluded.environment_id
+        where not build_ownership.is_deleted and build_ownership.environment_id = excluded.environment_id
           and build_ownership.tenant_id = excluded.tenant_id
     </insert>
 
     <insert id="bindTarget">
         insert into asset_build_scope(tenant_id, build_id, environment_id, repository, branch_name)
         select tenant_id, build_id, environment_id, request->>'repository', request->>'branchName'
-        from environment_build_submission where tenant_id = #{tenant} and actor_id = #{actor} and idempotency_key = #{key}
+        from environment_build_submission where not is_deleted and tenant_id = #{tenant} and actor_id = #{actor} and idempotency_key = #{key}
         on conflict(tenant_id, build_id) do update set build_id = excluded.build_id
-        where (asset_build_scope.environment_id, asset_build_scope.repository, asset_build_scope.branch_name)
+        where not asset_build_scope.is_deleted and (asset_build_scope.environment_id, asset_build_scope.repository, asset_build_scope.branch_name)
             = (excluded.environment_id, excluded.repository, excluded.branch_name)
     </insert>
 </mapper>

@@ -2,7 +2,7 @@ package com.metricplatform;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-import com.metricplatform.persistence.entity.BaseAuditEntity;
+import com.metricplatform.persistence.entity.BaseEntity;
 import com.metricplatform.persistence.entity.PlatformUserEntity;
 import java.io.IOException;
 import java.nio.file.Files;
@@ -25,8 +25,8 @@ class LombokBoilerplateArchitectureTest {
 
     private static final List<String> ENTITY_FILES =
             List.of(
-                    "BaseAuditEntity.java",
-                    "AuditEventEntity.java",
+                    "BaseEntity.java",
+                    "EventEntity.java",
                     "PlatformAccessTokenEntity.java",
                     "PlatformUserEntity.java");
 
@@ -82,7 +82,7 @@ class LombokBoilerplateArchitectureTest {
     @Test
     void generatedAccessorsKeepTheExistingBeanApi() throws NoSuchMethodException {
         assertThat(PlatformUserEntity.class.getMethod("getId")).isNotNull();
-        assertThat(BaseAuditEntity.class.getMethod("setDeleted", boolean.class)).isNotNull();
+        assertThat(BaseEntity.class.getMethod("setDeleted", boolean.class)).isNotNull();
     }
 
     private static void addFinding(

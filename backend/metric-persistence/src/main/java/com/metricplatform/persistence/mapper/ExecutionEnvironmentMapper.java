@@ -20,11 +20,6 @@ public interface ExecutionEnvironmentMapper extends BaseMapper<ExecutionEnvironm
 
     boolean ownsNamespace(@Param("id") UUID id, @Param("input") EnvironmentInput input);
 
-    void insertVersion(
-            @Param("id") UUID id,
-            @Param("version") long version,
-            @Param("execution") String execution);
-
     EnvironmentRow find(@Param("id") UUID id);
 
     List<EnvironmentRow> list();

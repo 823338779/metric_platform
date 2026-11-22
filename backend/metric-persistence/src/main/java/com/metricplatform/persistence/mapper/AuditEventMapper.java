@@ -2,7 +2,7 @@ package com.metricplatform.persistence.mapper;
 
 import com.baomidou.mybatisplus.core.batch.BatchSqlSession;
 import com.baomidou.mybatisplus.core.conditions.Wrapper;
-import com.metricplatform.persistence.entity.AuditEventEntity;
+import com.metricplatform.persistence.entity.EventEntity;
 import java.io.Serializable;
 import java.util.Collection;
 import java.util.List;
@@ -12,7 +12,7 @@ import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.executor.BatchResult;
 
 @Mapper
-public interface AuditEventMapper extends AuditableBaseMapper<AuditEventEntity> {
+public interface AuditEventMapper extends AuditableBaseMapper<EventEntity> {
     @Override
     default int deleteById(Serializable id) {
         throw immutable();
@@ -24,7 +24,7 @@ public interface AuditEventMapper extends AuditableBaseMapper<AuditEventEntity> 
     }
 
     @Override
-    default int deleteById(AuditEventEntity entity) {
+    default int deleteById(EventEntity entity) {
         throw immutable();
     }
 
@@ -34,7 +34,7 @@ public interface AuditEventMapper extends AuditableBaseMapper<AuditEventEntity> 
     }
 
     @Override
-    default int delete(Wrapper<AuditEventEntity> queryWrapper) {
+    default int delete(Wrapper<EventEntity> queryWrapper) {
         throw immutable();
     }
 
@@ -54,57 +54,57 @@ public interface AuditEventMapper extends AuditableBaseMapper<AuditEventEntity> 
     }
 
     @Override
-    default int updateById(AuditEventEntity entity) {
+    default int updateById(EventEntity entity) {
         throw immutable();
     }
 
     @Override
-    default int update(AuditEventEntity entity, Wrapper<AuditEventEntity> updateWrapper) {
+    default int update(EventEntity entity, Wrapper<EventEntity> updateWrapper) {
         throw immutable();
     }
 
     @Override
-    default int update(Wrapper<AuditEventEntity> updateWrapper) {
+    default int update(Wrapper<EventEntity> updateWrapper) {
         throw immutable();
     }
 
     @Override
-    default boolean insertOrUpdate(AuditEventEntity entity) {
+    default boolean insertOrUpdate(EventEntity entity) {
         throw immutable();
     }
 
     @Override
-    default List<BatchResult> updateById(Collection<AuditEventEntity> entityList) {
+    default List<BatchResult> updateById(Collection<EventEntity> entityList) {
         throw immutable();
     }
 
     @Override
-    default List<BatchResult> updateById(Collection<AuditEventEntity> entityList, int batchSize) {
+    default List<BatchResult> updateById(Collection<EventEntity> entityList, int batchSize) {
         throw immutable();
     }
 
     @Override
-    default List<BatchResult> insertOrUpdate(Collection<AuditEventEntity> entityList) {
-        throw immutable();
-    }
-
-    @Override
-    default List<BatchResult> insertOrUpdate(
-            Collection<AuditEventEntity> entityList, int batchSize) {
+    default List<BatchResult> insertOrUpdate(Collection<EventEntity> entityList) {
         throw immutable();
     }
 
     @Override
     default List<BatchResult> insertOrUpdate(
-            Collection<AuditEventEntity> entityList,
-            BiPredicate<BatchSqlSession, AuditEventEntity> insertPredicate) {
+            Collection<EventEntity> entityList, int batchSize) {
         throw immutable();
     }
 
     @Override
     default List<BatchResult> insertOrUpdate(
-            Collection<AuditEventEntity> entityList,
-            BiPredicate<BatchSqlSession, AuditEventEntity> insertPredicate,
+            Collection<EventEntity> entityList,
+            BiPredicate<BatchSqlSession, EventEntity> insertPredicate) {
+        throw immutable();
+    }
+
+    @Override
+    default List<BatchResult> insertOrUpdate(
+            Collection<EventEntity> entityList,
+            BiPredicate<BatchSqlSession, EventEntity> insertPredicate,
             int batchSize) {
         throw immutable();
     }

@@ -8,8 +8,11 @@ import com.metricplatform.environment.EnvironmentContracts.*;
 import com.metricplatform.environment.EnvironmentStore;
 import com.metricplatform.identity.TenantScope;
 import com.metricplatform.persistence.entity.ExecutionEnvironmentEntity;
+import com.metricplatform.persistence.entity.ExecutionEnvironmentVersionEntity;
 import com.metricplatform.persistence.mapper.ExecutionEnvironmentMapper;
 import com.metricplatform.persistence.mapper.ExecutionEnvironmentMapper.EnvironmentRow;
+import com.metricplatform.persistence.mapper.ExecutionEnvironmentVersionMapper;
+
 import org.springframework.stereotype.Repository;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -21,10 +24,13 @@ import java.util.UUID;
 @Repository
 public class ExecutionEnvironmentStore implements EnvironmentStore {
     private final ExecutionEnvironmentMapper environments;
+    private final ExecutionEnvironmentVersionMapper versions;
     private final ObjectMapper mapper = new ObjectMapper();
 
-    public ExecutionEnvironmentStore(ExecutionEnvironmentMapper environments) {
+    public ExecutionEnvironmentStore(
+            ExecutionEnvironmentMapper environments, ExecutionEnvironmentVersionMapper versions) {
         this.environments = environments;
+        this.versions = versions;
     }
 
     @Override
@@ -54,7 +60,11 @@ public class ExecutionEnvironmentStore implements EnvironmentStore {
         if (!environments.ownsNamespace(id, input)) throw conflict("EXECUTION_TARGET_CONFLICT");
         var snapshot = input.snapshot(id, version);
         try {
-            environments.insertVersion(id, version, mapper.writeValueAsString(snapshot));
+            var row = new ExecutionEnvironmentVersionEntity();
+            row.setEnvironmentId(id);
+            row.setConfigVersion(version);
+            row.setExecution(mapper.writeValueAsString(snapshot));
+            versions.insert(row);
         } catch (JsonProcessingException error) {
             throw new IllegalArgumentException("环境配置无法保存", error);
         }

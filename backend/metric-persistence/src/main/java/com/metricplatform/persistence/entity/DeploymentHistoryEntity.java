@@ -1,6 +1,7 @@
 package com.metricplatform.persistence.entity;
 
 import com.baomidou.mybatisplus.annotation.*;
+import com.metricplatform.persistence.typehandler.JsonbTypeHandler;
 
 import lombok.Getter;
 import lombok.Setter;
@@ -8,8 +9,8 @@ import lombok.Setter;
 /** 服务事实的只读历史投影。 */
 @Getter
 @Setter
-@TableName("deployment_history")
-public class DeploymentHistoryEntity extends TenantOwnedEntity {
+@TableName(value = "deployment_history", autoResultMap = true)
+public class DeploymentHistoryEntity extends BaseEntity {
     /** 对象类型。 */
     private String objectType;
 
@@ -26,6 +27,7 @@ public class DeploymentHistoryEntity extends TenantOwnedEntity {
     private long lastSequence;
 
     /** 只读部署摘要。 */
+    @TableField(typeHandler = JsonbTypeHandler.class)
     private String summary;
 
     /** 平台同步时间。 */

@@ -23,7 +23,7 @@
     <select id="membership" resultType="com.metricplatform.identity.PlatformIdentityRepository$Membership">
         SELECT u.tenant_id, t.manager_id = u.id AS manager
         FROM platform_user u
-        JOIN platform_tenant t ON t.tenant_id = u.tenant_id
+        JOIN platform_tenant t ON t.tenant_id = u.tenant_id AND NOT t.is_deleted
         WHERE u.id = #{accountId} AND NOT u.is_deleted
     </select>
 </mapper>

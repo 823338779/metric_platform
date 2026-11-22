@@ -1,6 +1,5 @@
 package com.metricplatform.persistence.mapper;
 
-import com.baomidou.mybatisplus.core.mapper.BaseMapper;
 import com.metricplatform.persistence.entity.BuildHistoryEntity;
 
 import org.apache.ibatis.annotations.*;
@@ -9,7 +8,7 @@ import java.util.List;
 
 /** 使用参数绑定更新投影；旧对象版本不能覆盖已知事实。 */
 @Mapper
-public interface BuildHistoryMapper extends BaseMapper<BuildHistoryEntity> {
+public interface BuildHistoryMapper extends BuildHistoryTableMapper {
     String UPSERT =
             "insert into"
                 + " build_history(build_id,repository,branch_name,object_version,first_sequence,last_sequence,summary)"
@@ -19,9 +18,10 @@ public interface BuildHistoryMapper extends BaseMapper<BuildHistoryEntity> {
                 + " where build_history.object_version<excluded.object_version";
     String LIST =
             "select tenant_id,build_id,summary::text,first_sequence,synced_at from build_history"
-                + " where (#{repository}::text is null or repository=#{repository}) and"
-                + " (#{branch}::text is null or branch_name=#{branch}) and first_sequence>#{after}"
-                + " order by first_sequence limit #{limit}";
+                + " where not is_deleted and (#{repository}::text is null or"
+                + " repository=#{repository}) and (#{branch}::text is null or"
+                + " branch_name=#{branch}) and first_sequence>#{after} order by first_sequence"
+                + " limit #{limit}";
 
     @Insert(UPSERT)
     int upsert(BuildHistoryEntity row);

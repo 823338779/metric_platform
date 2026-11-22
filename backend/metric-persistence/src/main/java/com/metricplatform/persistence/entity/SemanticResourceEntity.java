@@ -13,7 +13,7 @@ import java.util.UUID;
 @Getter
 @Setter
 @TableName(value = "semantic_resource", autoResultMap = true)
-public class SemanticResourceEntity extends TenantOwnedEntity {
+public class SemanticResourceEntity extends BaseEntity {
     /** 所属发布版本。 */
     private UUID releaseId;
 

@@ -1,20 +1,26 @@
 package com.metricplatform;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.baomidou.mybatisplus.annotation.TableName;
+import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import com.baomidou.mybatisplus.core.mapper.BaseMapper;
+import com.metricplatform.identity.TenantFixture;
 import com.metricplatform.identity.TenantFixtureMapper;
-import com.metricplatform.persistence.entity.AuditEventEntity;
+import com.metricplatform.identity.TenantScope;
+import com.metricplatform.persistence.entity.BaseEntity;
+import com.metricplatform.persistence.entity.EventEntity;
 import com.metricplatform.persistence.mapper.AuditEventMapper;
+import java.util.HashSet;
 import java.util.List;
-import java.util.Map;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
+import org.mybatis.spring.SqlSessionTemplate;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.core.ResolvableType;
 import org.springframework.test.context.ActiveProfiles;
 
 @SpringBootTest
@@ -30,26 +36,36 @@ class MetricPlatformApplicationTest {
     @Test
     void contextLoads() {}
 
+    @Autowired private SqlSessionTemplate sqlSessions;
+
     @Test
-    void mapsEveryMetadataTableToAnEntityAndBaseMapper() throws ClassNotFoundException {
-        Map<String, String> entityTables =
-                Map.of(
-                        "PlatformUserEntity", "platform_user",
-                        "PlatformAccessTokenEntity", "platform_access_token",
-                        "AuditEventEntity", "audit_event");
-
-        for (Map.Entry<String, String> entityTable : entityTables.entrySet()) {
-            Class<?> entity =
-                    Class.forName("com.metricplatform.persistence.entity." + entityTable.getKey());
-            TableName tableName = entity.getAnnotation(TableName.class);
-            assertEquals(entityTable.getValue(), tableName.value());
-
-            Class<?> mapper =
-                    Class.forName(
-                            "com.metricplatform.persistence.mapper."
-                                    + entityTable.getKey().replace("Entity", "Mapper"));
-            assertTrue(BaseMapper.class.isAssignableFrom(mapper));
+    void mapsEveryMetadataTableToAnEntityAndBaseMapper() {
+        var businessTables = database.businessTables();
+        var mappedTables = new HashSet<String>();
+        for (var mapper : sqlSessions.getConfiguration().getMapperRegistry().getMappers()) {
+            var entity = ResolvableType.forClass(mapper).as(BaseMapper.class).resolveGeneric(0);
+            if (entity == null
+                    || !entity.getPackageName().equals(BaseEntity.class.getPackageName())) {
+                continue;
+            }
+            assertThat(entity).isAssignableTo(BaseEntity.class);
+            assertThat(entity.getDeclaredAnnotation(TableName.class))
+                    .as(entity.getName())
+                    .isNotNull();
+            String table = entity.getDeclaredAnnotation(TableName.class).value();
+            if (mappedTables.add(table) && businessTables.contains(table)) {
+                try (var scope = TenantScope.open(TenantFixture.ID)) {
+                    BaseMapper<?> rows = (BaseMapper<?>) sqlSessions.getMapper(mapper);
+                    verifyMappedColumns(rows);
+                }
+            }
         }
+        assertThat(mappedTables).containsAll(businessTables);
+        assertThat(database.tablesMissingAuditFields()).isEmpty();
+    }
+
+    private static <T> void verifyMappedColumns(BaseMapper<T> rows) {
+        assertThat(rows.selectList(new QueryWrapper<T>().last("LIMIT 0"))).isEmpty();
     }
 
     @Test
@@ -60,7 +76,7 @@ class MetricPlatformApplicationTest {
 
     @Test
     void auditEventsCannotBeUpdatedOrDeleted() {
-        AuditEventEntity event = new AuditEventEntity();
+        EventEntity event = new EventEntity();
         event.setId(UUID.randomUUID());
 
         assertThrows(UnsupportedOperationException.class, () -> auditEventMapper.updateById(event));

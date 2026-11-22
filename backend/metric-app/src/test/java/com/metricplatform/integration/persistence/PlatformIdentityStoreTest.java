@@ -6,7 +6,7 @@ import static org.mockito.Mockito.verifyNoInteractions;
 
 import com.metricplatform.identity.PlatformIdentityRepository;
 import com.metricplatform.identity.TenantScope;
-import com.metricplatform.persistence.entity.AuditEventEntity;
+import com.metricplatform.persistence.entity.EventEntity;
 import com.metricplatform.persistence.redis.RedisAccessTokenStore;
 import com.metricplatform.persistence.service.AuditEventPersistenceService;
 import java.time.Instant;
@@ -110,7 +110,7 @@ class PlatformIdentityStoreTest {
         }
         try (var scope = TenantScope.open(tenant)) {
             assertThat(identities.findById(id).failedLoginCount()).isZero();
-            assertThat(events.lambdaQuery().eq(AuditEventEntity::getResourceId, id).count())
+            assertThat(events.lambdaQuery().eq(EventEntity::getResourceId, id).count())
                     .isEqualTo(1);
         }
     }

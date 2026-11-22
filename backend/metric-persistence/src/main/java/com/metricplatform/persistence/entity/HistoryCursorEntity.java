@@ -9,7 +9,7 @@ import lombok.Setter;
 @Getter
 @Setter
 @TableName("history_cursor")
-public class HistoryCursorEntity extends TenantOwnedEntity {
+public class HistoryCursorEntity extends BaseEntity {
     /** 消费者唯一标识。 */
     @TableId(type = IdType.INPUT)
     private String consumer;

@@ -16,7 +16,7 @@ import java.util.UUID;
 @Getter
 @Setter
 @TableName(value = "semantic_release", autoResultMap = true)
-public class SemanticReleaseEntity extends TenantOwnedEntity {
+public class SemanticReleaseEntity extends BaseEntity {
     /** 平台发布版本 ID。 */
     @TableId(type = IdType.INPUT)
     private UUID releaseId;
@@ -78,12 +78,6 @@ public class SemanticReleaseEntity extends TenantOwnedEntity {
 
     /** 脱敏失败码。 */
     private String errorCode;
-
-    /** 创建时间。 */
-    private OffsetDateTime createdAt;
-
-    /** 更新时间。 */
-    private OffsetDateTime updatedAt;
 
     /** 生效时间。 */
     private OffsetDateTime publishedAt;

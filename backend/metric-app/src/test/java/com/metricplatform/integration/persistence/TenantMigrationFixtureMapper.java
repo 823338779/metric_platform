@@ -53,6 +53,10 @@ interface TenantMigrationFixtureMapper {
 
     UUID eventIdentity(@Param("event") UUID event);
 
+    void legacySoftDeleteEvent(@Param("event") UUID event);
+
+    boolean recoveredDeletionTime(@Param("event") UUID event);
+
     void addAuditTenantColumn();
 
     void assignAuditEvent(@Param("event") UUID event, @Param("tenant") String tenant);

@@ -10,7 +10,7 @@ import java.util.UUID;
 
 @Getter
 @TableName("build_ownership")
-public class BuildOwnershipEntity extends TenantOwnedEntity {
+public class BuildOwnershipEntity extends BaseEntity {
     @TableId(type = IdType.INPUT)
     private UUID buildId;
 

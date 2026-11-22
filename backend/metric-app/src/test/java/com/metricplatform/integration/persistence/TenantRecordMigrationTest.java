@@ -3,6 +3,7 @@ package com.metricplatform.integration.persistence;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import com.metricplatform.identity.TenantFixtureMapper;
 import java.util.UUID;
 import org.flywaydb.core.Flyway;
 import org.junit.jupiter.api.Test;
@@ -43,8 +44,13 @@ class TenantRecordMigrationTest {
             assertThat(fixture.eventIdentity(unassignedEvent)).isEqualTo(unknownAccount);
             fixture.addAuditTenantColumn();
             fixture.assignAuditEvent(unassignedEvent, SECOND);
+            fixture.legacySoftDeleteEvent(unassignedEvent);
             upgrade.migrate();
 
+            var schema = TestMappers.get(source, TenantFixtureMapper.class);
+            assertThat(schema.businessTables()).contains("tenant_cutover_submission_archive");
+            assertThat(schema.tablesMissingAuditFields()).isEmpty();
+            assertThat(fixture.recoveredDeletionTime(unassignedEvent)).isTrue();
             assertThat(fixture.invalidOwnerColumns()).isEmpty();
             assertThat(fixture.countHistoryCursors()).isZero();
             assertThat(fixture.anonymousEventTenant(anonymousEvent, unknownAccount))

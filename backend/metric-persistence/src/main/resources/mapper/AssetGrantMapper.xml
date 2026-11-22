@@ -2,13 +2,14 @@
 <!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
 <mapper namespace="com.metricplatform.persistence.mapper.AssetGrantMapper">
     <select id="tenants" resultType="string">
-        select distinct tenant_id from build_ownership
+        select distinct tenant_id from build_ownership where not is_deleted
     </select>
 
     <select id="discover" resultType="com.metricplatform.catalog.AssetGrantRepository$OwnedBuild">
         select b.build_id as build, b.environment_id as environment
-        from build_ownership b left join asset_build_scope s using (tenant_id, build_id)
-        where b.tenant_id = #{tenant} and s.build_id is null
+        from build_ownership b left join asset_build_scope s
+          on s.tenant_id = b.tenant_id and s.build_id = b.build_id and not s.is_deleted
+        where not b.is_deleted and b.tenant_id = #{tenant} and s.build_id is null
     </select>
 
     <insert id="bind">
@@ -19,22 +20,22 @@
 
     <select id="targets" resultType="com.metricplatform.catalog.BuildContracts$DeploymentKey">
         select distinct repository, environment_id, branch_name from asset_build_scope
-        where tenant_id = #{tenant}
+        where not is_deleted and tenant_id = #{tenant}
     </select>
 
     <select id="datasetName" resultType="string">
         select canonical_name from deployed_asset
-        where tenant_id = #{tenant} and environment_id = #{environment}
+        where not is_deleted and tenant_id = #{tenant} and environment_id = #{environment}
           and asset_id = #{asset} and kind = 'DATASET'
     </select>
 
     <select id="target" resultType="com.metricplatform.catalog.BuildContracts$DeploymentKey">
         select repository, environment_id, branch_name from asset_build_scope
-        where tenant_id = #{tenant} and build_id = #{build}
+        where not is_deleted and tenant_id = #{tenant} and build_id = #{build}
     </select>
 
     <sql id="indexedBuild">
-        select indexed from asset_build_scope where tenant_id = #{tenant} and build_id = #{build}
+        select indexed from asset_build_scope where not is_deleted and tenant_id = #{tenant} and build_id = #{build}
     </sql>
 
     <select id="indexed" resultType="boolean">
@@ -53,9 +54,9 @@
         ), assets as (
             insert into deployed_asset(tenant_id, owner_id, environment_id, kind, canonical_name, dimension_name)
             select t.tenant_id, t.manager_id, #{environment}, e.kind, e.query_name, e.dimension_name
-            from platform_tenant t cross join entries e where t.tenant_id = #{tenant}
+            from platform_tenant t cross join entries e where not t.is_deleted and t.tenant_id = #{tenant}
             on conflict (tenant_id, environment_id, kind, canonical_name, dimension_name)
-            do update set owner_id = excluded.owner_id
+            do update set owner_id = excluded.owner_id, is_deleted = false
             returning tenant_id, asset_id, kind, canonical_name, dimension_name
         )
         insert into asset_build_member(tenant_id, asset_id, build_id, query_name, selector, node_id)
@@ -65,7 +66,7 @@
     </insert>
 
     <update id="finishIndex">
-        update asset_build_scope set indexed = true where tenant_id = #{tenant} and build_id = #{build}
+        update asset_build_scope set indexed = true where not is_deleted and tenant_id = #{tenant} and build_id = #{build}
     </update>
 
     <!-- 授权沿用稳定资产身份，节点和选择器取自本次构建。 -->
@@ -76,16 +77,17 @@
     </sql>
 
     <sql id="assetJoin">
-        from deployed_asset a join asset_build_member m using (tenant_id, asset_id)
-        join asset_build_scope b on b.tenant_id = m.tenant_id and b.build_id = m.build_id
-        join platform_user u on u.tenant_id = a.tenant_id and u.id = #{reader}
-        left join asset_user_grant g on g.tenant_id = a.tenant_id and g.asset_id = a.asset_id and g.user_id = u.id
+        from deployed_asset a join asset_build_member m
+          on m.tenant_id = a.tenant_id and m.asset_id = a.asset_id and not m.is_deleted
+        join asset_build_scope b on b.tenant_id = m.tenant_id and b.build_id = m.build_id and not b.is_deleted
+        join platform_user u on u.tenant_id = a.tenant_id and u.id = #{reader} and not u.is_deleted
+        left join asset_user_grant g on g.tenant_id = a.tenant_id and g.asset_id = a.asset_id and g.user_id = u.id and not g.is_deleted
     </sql>
 
     <select id="members" resultType="com.metricplatform.persistence.mapper.AssetGrantMapper$AssetRow">
         select <include refid="assetFields"/>, null::text as environment_name
         <include refid="assetJoin"/>
-        where a.tenant_id = #{tenant} and m.build_id = #{build} order by m.node_id, a.dimension_name
+        where not a.is_deleted and a.tenant_id = #{tenant} and m.build_id = #{build} order by m.node_id, a.dimension_name
     </select>
 
     <select id="nextScan" resultType="long" flushCache="true" useCache="false">
@@ -95,7 +97,7 @@
     <insert id="observe">
         insert into asset_catalog_observation(tenant_id, environment_id, build_id, scan_sequence)
         values (#{tenant}, #{environment}, #{build}, #{sequence}) on conflict (tenant_id, environment_id)
-        do update set build_id = excluded.build_id, scan_sequence = excluded.scan_sequence
+        do update set build_id = excluded.build_id, scan_sequence = excluded.scan_sequence, is_deleted = false
         where asset_catalog_observation.scan_sequence &lt; excluded.scan_sequence
     </insert>
 
@@ -103,42 +105,43 @@
     <sql id="activeAssetJoin">
         <include refid="assetJoin"/>
         join asset_catalog_observation o
-            on o.tenant_id = b.tenant_id and o.environment_id = b.environment_id and o.build_id = b.build_id
+            on o.tenant_id = b.tenant_id and o.environment_id = b.environment_id and o.build_id = b.build_id and not o.is_deleted
     </sql>
 
     <select id="list" resultType="com.metricplatform.persistence.mapper.AssetGrantMapper$AssetRow">
         select <include refid="assetFields"/>, coalesce(e.name, a.environment_id::text) as environment_name
         <include refid="activeAssetJoin"/>
-        left join execution_environment e on e.tenant_id = a.tenant_id and e.environment_id = a.environment_id
-        where a.tenant_id = #{tenant}
+        left join execution_environment e on e.tenant_id = a.tenant_id and e.environment_id = a.environment_id and not e.is_deleted
+        where not a.is_deleted and a.tenant_id = #{tenant}
         order by environment_name, a.environment_id, m.node_id, a.dimension_name
     </select>
 
     <select id="asset" resultType="com.metricplatform.persistence.mapper.AssetGrantMapper$AssetRow">
         select <include refid="assetFields"/>, null::text as environment_name
         <include refid="activeAssetJoin"/>
-        where a.tenant_id = #{tenant} and a.asset_id = #{asset}
+        where not a.is_deleted and a.tenant_id = #{tenant} and a.asset_id = #{asset}
     </select>
 
     <select id="hasReader" resultType="boolean">
         select exists(select from platform_user u join platform_tenant t using (tenant_id)
-            where u.tenant_id = #{tenant} and u.id = #{reader} and u.id &lt;&gt; t.manager_id)
+            where not u.is_deleted and not t.is_deleted and u.tenant_id = #{tenant} and u.id = #{reader} and u.id &lt;&gt; t.manager_id)
     </select>
 
     <select id="readers" resultType="com.metricplatform.catalog.AssetGrantRepository$Account">
         select u.id, u.username from platform_user u join platform_tenant t using (tenant_id)
-        where u.tenant_id = #{tenant} and u.id &lt;&gt; t.manager_id order by u.username
+        where not u.is_deleted and not t.is_deleted and u.tenant_id = #{tenant} and u.id &lt;&gt; t.manager_id order by u.username
     </select>
 
     <insert id="grant">
         insert into asset_user_grant(tenant_id, user_id, asset_id) values (#{tenant}, #{reader}, #{asset})
-        on conflict do nothing
+        on conflict (tenant_id, user_id, asset_id) do update set is_deleted = false
+        where asset_user_grant.is_deleted
     </insert>
 
     <select id="revoke" resultType="boolean" affectData="true" flushCache="true" useCache="false">
         with removed as (
-            delete from asset_user_grant where tenant_id = #{tenant} and user_id = #{reader} and asset_id = #{asset}
+            update asset_user_grant set is_deleted = true where not is_deleted and tenant_id = #{tenant} and user_id = #{reader} and asset_id = #{asset}
         )
-        select exists(select from deployed_asset where tenant_id = #{tenant} and asset_id = #{asset})
+        select exists(select from deployed_asset where not is_deleted and tenant_id = #{tenant} and asset_id = #{asset})
     </select>
 </mapper>

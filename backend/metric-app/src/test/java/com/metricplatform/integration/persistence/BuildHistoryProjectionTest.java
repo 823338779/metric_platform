@@ -13,8 +13,6 @@ import com.metricplatform.identity.TenantScope;
 import com.metricplatform.persistence.entity.DeploymentHistoryEntity;
 import com.metricplatform.persistence.mapper.BuildHistoryMapper;
 import com.metricplatform.persistence.mapper.DeploymentHistoryMapper;
-import com.metricplatform.persistence.mapper.HistoryCursorMapper;
-import com.metricplatform.persistence.mapper.SemanticProjectMapper;
 import java.util.*;
 import org.junit.jupiter.api.*;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -32,8 +30,6 @@ class BuildHistoryProjectionTest {
     @Autowired HistoryProjectionFixtureMapper fixtures;
     @Autowired BuildHistoryMapper builds;
     @Autowired DeploymentHistoryMapper deployments;
-    @Autowired HistoryCursorMapper cursors;
-    @Autowired SemanticProjectMapper projects;
     private UUID id;
     private TenantScope scope;
     private final List<UUID> ownedBuilds = new ArrayList<>();
@@ -54,9 +50,9 @@ class BuildHistoryProjectionTest {
     }
 
     private void clearProjection() {
-        builds.delete(Wrappers.emptyWrapper());
-        deployments.delete(Wrappers.emptyWrapper());
-        cursors.delete(Wrappers.emptyWrapper());
+        fixtures.clearBuildHistory();
+        fixtures.clearDeploymentHistory();
+        fixtures.clearHistoryCursor();
     }
 
     @AfterEach
@@ -142,7 +138,7 @@ class BuildHistoryProjectionTest {
                     .isInstanceOf(org.springframework.dao.DataAccessException.class);
         } finally {
             fixtures.deleteLegacyMapping(release);
-            projects.deleteById(project);
+            fixtures.deleteLegacyProject(project);
         }
     }
 

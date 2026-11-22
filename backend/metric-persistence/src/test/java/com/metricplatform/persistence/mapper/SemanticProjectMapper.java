@@ -1,6 +1,5 @@
 package com.metricplatform.persistence.mapper;
 
-import com.baomidou.mybatisplus.core.mapper.BaseMapper;
 import com.metricplatform.persistence.entity.SemanticProjectEntity;
 
 import org.apache.ibatis.annotations.Insert;
@@ -10,14 +9,15 @@ import org.apache.ibatis.annotations.Select;
 
 /** 仅保留项目绑定的冲突处理与发布并发边界所需的 SQL。 */
 @Mapper
-public interface SemanticProjectMapper extends BaseMapper<SemanticProjectEntity> {
+public interface SemanticProjectMapper extends SemanticProjectTableMapper {
     String INSERT_BINDING_SQL =
             "insert into"
                 + " semantic_project(project_id,repository_id,project_subdir,profile_binding_id)"
                 + " values (#{projectId},#{repositoryId},#{projectSubdir},#{profileBindingId}) on"
                 + " conflict (tenant_id,project_id) do nothing";
     String LOCK_PROJECT_SQL =
-            "select * from semantic_project where project_id=#{projectId} for update";
+            "select * from semantic_project where not is_deleted and project_id=#{projectId} for"
+                + " update";
 
     @Insert(INSERT_BINDING_SQL)
     int insertBinding(SemanticProjectEntity project);

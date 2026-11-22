@@ -3,20 +3,32 @@ package com.metricplatform.persistence.mapping;
 import com.metricplatform.persistence.entity.SemanticDependencyEntity;
 import com.metricplatform.persistence.entity.SemanticResourceEntity;
 import com.metricplatform.persistence.store.CatalogStore;
-import java.util.UUID;
+
 import org.mapstruct.Mapper;
 import org.mapstruct.Mapping;
 import org.mapstruct.ReportingPolicy;
 
+import java.util.UUID;
+
 /** 重复字段映射交由 MapStruct 生成，复合主键的 releaseId 显式传入。 */
 @Mapper(componentModel = "spring", unmappedTargetPolicy = ReportingPolicy.ERROR)
 public interface CatalogEntityMapper {
+    @Mapping(target = "tenantId", ignore = true)
+    @Mapping(target = "createdAt", ignore = true)
+    @Mapping(target = "updatedAt", ignore = true)
+    @Mapping(target = "deleted", ignore = true)
+    @Mapping(target = "deletedAt", ignore = true)
     @Mapping(target = "releaseId", source = "releaseId")
     @Mapping(target = "searchText", ignore = true)
     SemanticResourceEntity resource(UUID releaseId, CatalogStore.Resource resource);
 
     CatalogStore.Resource resource(SemanticResourceEntity entity);
 
+    @Mapping(target = "tenantId", ignore = true)
+    @Mapping(target = "createdAt", ignore = true)
+    @Mapping(target = "updatedAt", ignore = true)
+    @Mapping(target = "deleted", ignore = true)
+    @Mapping(target = "deletedAt", ignore = true)
     @Mapping(target = "releaseId", source = "releaseId")
     SemanticDependencyEntity dependency(UUID releaseId, CatalogStore.Dependency dependency);
 

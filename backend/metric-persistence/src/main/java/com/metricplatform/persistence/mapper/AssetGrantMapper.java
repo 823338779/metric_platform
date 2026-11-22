@@ -1,12 +1,14 @@
 package com.metricplatform.persistence.mapper;
 
 import com.baomidou.mybatisplus.annotation.InterceptorIgnore;
+import com.baomidou.mybatisplus.core.mapper.BaseMapper;
 import com.metricplatform.catalog.AssetGrantRepository.Account;
 import com.metricplatform.catalog.AssetGrantRepository.Asset;
 import com.metricplatform.catalog.AssetGrantRepository.CatalogItem;
 import com.metricplatform.catalog.AssetGrantRepository.Entry;
 import com.metricplatform.catalog.AssetGrantRepository.OwnedBuild;
 import com.metricplatform.catalog.BuildContracts.DeploymentKey;
+import com.metricplatform.persistence.entity.AssetUserGrantEntity;
 
 import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
@@ -16,7 +18,7 @@ import java.util.Optional;
 import java.util.UUID;
 
 @Mapper
-public interface AssetGrantMapper {
+public interface AssetGrantMapper extends BaseMapper<AssetUserGrantEntity> {
     @InterceptorIgnore(tenantLine = "true")
     List<String> tenants();
 

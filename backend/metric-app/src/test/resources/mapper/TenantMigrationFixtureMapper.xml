@@ -84,6 +84,15 @@
         select effective_identity_id from audit_event where id = #{event}
     </select>
 
+    <update id="legacySoftDeleteEvent">
+        update audit_event set is_deleted = true where id = #{event}
+    </update>
+
+    <select id="recoveredDeletionTime" resultType="boolean">
+        select is_deleted and deleted_at is not null and deleted_at = updated_at
+        from audit_event where id = #{event}
+    </select>
+
     <update id="addAuditTenantColumn">
         alter table audit_event add column tenant_id varchar(8)
     </update>

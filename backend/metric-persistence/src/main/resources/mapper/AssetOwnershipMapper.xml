@@ -3,12 +3,12 @@
 <mapper namespace="com.metricplatform.persistence.mapper.AssetOwnershipMapper">
     <select id="hasEnvironment" resultType="boolean">
         select exists(
-            select 1 from execution_environment where tenant_id = #{tenant} and environment_id = #{environment}
+            select 1 from execution_environment where not is_deleted and tenant_id = #{tenant} and environment_id = #{environment}
             union all
-            select 1 from build_ownership where tenant_id = #{tenant} and environment_id = #{environment}
+            select 1 from build_ownership where not is_deleted and tenant_id = #{tenant} and environment_id = #{environment}
         )
     </select>
     <select id="cursorSecret" resultType="java.util.UUID">
-        select cursor_secret from platform_tenant
+        select cursor_secret from platform_tenant where not is_deleted
     </select>
 </mapper>

@@ -210,6 +210,8 @@ class PersistenceTest {
         catalog.replace(second, List.of(), List.of());
         assertThat(catalog.resources(first)).hasSize(1);
         assertThat(catalog.resources(second)).isEmpty();
+        catalog.replace(second, List.of(resource), List.of());
+        assertThat(catalog.resources(second)).isEqualTo(catalog.resources(first));
     }
 
     private static ProjectRevision revision(char sha, char digest) {
