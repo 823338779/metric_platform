@@ -1,5 +1,5 @@
 import { createHttpClient, type Fetcher } from './httpClient';
-import type { ExecutionSnapshot } from './environmentApi';
+import type { BuildExecutionSnapshot } from './environmentApi';
 
 export type ServiceError = {
   code: string;
@@ -31,7 +31,7 @@ export type DeploymentTarget = DeploymentKey & {
 /** 构建执行事实；查询能力由执行请求的实际结果确定。 */
 export type BuildView = Omit<DeploymentKey, 'environmentId'> & {
   /** 受理时固定的完整执行快照。 */
-  execution: ExecutionSnapshot;
+  execution: BuildExecutionSnapshot;
   buildId: string;
   requestedCommitSha: string | null;
   commitSha: string | null;

@@ -303,9 +303,8 @@ class BuildHistoryProjectionTest {
         summary.put("branchName", "feature/a");
         summary.put(
                 "execution",
-                new com.metricplatform.environment.EnvironmentContracts.ExecutionSnapshot(
+                new com.metricplatform.environment.EnvironmentContracts.BuildExecutionSnapshot(
                         ENVIRONMENT_ID,
-                        1,
                         new com.metricplatform.environment.EnvironmentContracts.ConnectionTarget(
                                 "starrocks", "warehouse", "localhost", 9030, null),
                         "warehouse-test",

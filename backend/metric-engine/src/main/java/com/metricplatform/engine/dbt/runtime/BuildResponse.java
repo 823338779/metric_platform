@@ -5,7 +5,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.metricplatform.catalog.BuildContracts.ErrorView;
 import com.metricplatform.catalog.BuildGateway;
-import com.metricplatform.environment.EnvironmentContracts.ExecutionSnapshot;
+import com.metricplatform.environment.EnvironmentContracts.BuildExecutionSnapshot;
 import java.util.UUID;
 
 final class BuildResponse {
@@ -13,14 +13,13 @@ final class BuildResponse {
 
     private BuildResponse() {}
 
-    static ExecutionSnapshot execution(JsonNode build) {
+    static BuildExecutionSnapshot execution(JsonNode build) {
         // 构建读取与提交共用完整快照校验，不接受只有 environmentId 的局部响应。
         try {
-            ExecutionSnapshot snapshot =
-                    JSON.treeToValue(build.path("execution"), ExecutionSnapshot.class);
+            BuildExecutionSnapshot snapshot =
+                    JSON.treeToValue(build.path("execution"), BuildExecutionSnapshot.class);
             if (snapshot == null
                     || snapshot.environmentId() == null
-                    || snapshot.configVersion() < 1
                     || snapshot.connection() == null
                     || snapshot.connection().type() == null
                     || snapshot.connection().instanceId() == null

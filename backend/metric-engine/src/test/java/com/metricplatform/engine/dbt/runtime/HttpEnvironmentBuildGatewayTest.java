@@ -23,7 +23,7 @@ class HttpEnvironmentBuildGatewayTest {
         reply.put("repository", request(environment).repository());
         reply.put("branchName", request(environment).branchName());
         reply.put("buildStatus", "QUEUED");
-        reply.set("execution", json.valueToTree(request(environment).execution()));
+        reply.set("execution", json.valueToTree(request(environment).execution().forBuild()));
         var server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
         server.createContext(
                 "/builds",
@@ -31,6 +31,8 @@ class HttpEnvironmentBuildGatewayTest {
                     seen.add(exchange.getRequestMethod());
                     assertThat(exchange.getRequestHeaders().getFirst("Authorization"))
                             .isEqualTo("Bearer private-token");
+                    var submitted = json.readTree(exchange.getRequestBody());
+                    assertThat(submitted.required("execution").has("configVersion")).isFalse();
                     byte[] body = reply.toString().getBytes(StandardCharsets.UTF_8);
                     exchange.sendResponseHeaders(202, body.length);
                     try (var output = exchange.getResponseBody()) {
@@ -57,7 +59,7 @@ class HttpEnvironmentBuildGatewayTest {
                     .put("schema", "other_schema");
             assertThatThrownBy(() -> gateway.submit(request))
                     .isInstanceOf(BuildGateway.Failure.class);
-            reply.set("execution", json.valueToTree(request.execution()));
+            reply.set("execution", json.valueToTree(request.execution().forBuild()));
             reply.put("repository", "https://example.test/other.git");
             assertThatThrownBy(() -> gateway.submit(request))
                     .isInstanceOf(BuildGateway.Failure.class);

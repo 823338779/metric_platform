@@ -1,6 +1,8 @@
 package com.metricplatform.engine.dbt.runtime;
 
 import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.metricplatform.catalog.BuildContracts.BuildFilter;
 import com.metricplatform.environment.EnvironmentBuildGateway;
 import com.metricplatform.environment.EnvironmentContracts.*;
@@ -14,6 +16,7 @@ import org.springframework.stereotype.Component;
 /** 复用有界 HTTP 传输，完整环境快照构建，不回退旧绑定。 */
 @Component
 public class HttpEnvironmentBuildGateway implements EnvironmentBuildGateway {
+    private static final ObjectMapper JSON = new ObjectMapper();
     private static final String BUILDS = "/builds", GET = "GET", POST = "POST", SLASH = "/";
     private static final String EXECUTION_LOGS = "/execution-logs", LIMIT = "limit";
     private static final String BUILD_ID = "buildId";
@@ -32,8 +35,11 @@ public class HttpEnvironmentBuildGateway implements EnvironmentBuildGateway {
 
     @Override
     public JsonNode submit(SnapshotBuildRequest request) {
-        JsonNode value = transport.call(POST, BUILDS, request, JsonNode.class);
-        if (!request.execution().equals(BuildResponse.execution(value)))
+        var execution = request.execution().forBuild();
+        ObjectNode body = JSON.valueToTree(request);
+        body.set("execution", JSON.valueToTree(execution));
+        JsonNode value = transport.call(POST, BUILDS, body, JsonNode.class);
+        if (!execution.equals(BuildResponse.execution(value)))
             throw BuildResponse.invalid();
         // 受理回执必须属于同一源码请求，避免将错误构建固定到本次提交。
         if (!Objects.equals(request.repository(), value.path(REPOSITORY).asText(null))

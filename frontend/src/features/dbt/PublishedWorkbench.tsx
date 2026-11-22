@@ -387,8 +387,10 @@ function FixedPublishedWorkbench({ api }: { api: BuildCatalogApi }) {
         <p>
           仓库：{identity?.repository} · 分支：{identity?.branchName} · 环境：
           {identity?.execution
-            ? `${identity.execution.catalog} / ${identity.execution.schema} · 配置版本 ${identity.execution.configVersion}`
+            ? `${identity.execution.catalog} / ${identity.execution.schema}`
             : undefined}
+          {identity?.execution.configVersion != null &&
+            ` · 配置版本 ${identity.execution.configVersion}`}
         </p>
         <p>
           固定版本：<code>{buildId || '尚未选择'}</code> · 源码提交：

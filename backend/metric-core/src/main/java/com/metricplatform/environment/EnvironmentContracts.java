@@ -1,6 +1,7 @@
 package com.metricplatform.environment;
 
 import com.fasterxml.jackson.annotation.JsonAnySetter;
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 
 import java.util.List;
 import java.util.UUID;
@@ -42,6 +43,22 @@ public final class EnvironmentContracts {
             /** dbt 并行度。 */
             int threads,
             /** 查询业务时区。 */
+            String businessTimezone) {
+        public BuildExecutionSnapshot forBuild() {
+            return new BuildExecutionSnapshot(
+                    environmentId, connection, credentialRef, catalog, schema, threads, businessTimezone);
+        }
+    }
+
+    /** dbt-service 固定物理执行参数，平台本地配置版本仅用于提交时的并发校验和留档。 */
+    @JsonIgnoreProperties("configVersion")
+    public record BuildExecutionSnapshot(
+            UUID environmentId,
+            ConnectionTarget connection,
+            String credentialRef,
+            String catalog,
+            String schema,
+            int threads,
             String businessTimezone) {}
 
     public record EnvironmentInput(

@@ -196,7 +196,7 @@ npm run test:e2e -- --config=playwright.publication.config.ts
 
 - `/api/dbt/environments`：本租户全部环境列表和新增；`/{environmentId}`：读取和按期望版本更新。
 - `/{environmentId}/builds`：POST 提交；GET 按环境读取全部构建历史，可选仓库、分支、状态和游标。失败、排队、未部署构建也保留。
-- `/api/dbt/builds/{buildId}`：固定元信息，完整 execution 为必填字段；配置版本读取 `execution.configVersion`，不再返回顶层 configVersion、cancelRequested、queryAvailable 或 queryUnavailableReason。
+- `/api/dbt/builds/{buildId}`：固定元信息，完整 execution 为必填字段；dbt-service 返回构建受理时固定的物理执行参数。平台环境配置版本由环境接口返回，并在提交时通过 `expectedConfigVersion` 校验。
 - `/api/dbt/builds/{buildId}/execution-logs?cursor=…&limit=100`：结构化执行日志，limit 范围 1–200；旧 `/logs` 已移除。
 - 固定 buildId 的目录和查询使用同一无版本号资源接口，`/dbt/projects` 按环境 UUID 查询部署。
 

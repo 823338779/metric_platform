@@ -90,6 +90,30 @@ class HttpBuildGatewayTest {
         assertInvalidHistory(page.toString(), filter);
     }
 
+    @Test
+    void historyAcceptsServiceSnapshotWithoutPlatformConfigVersion() throws Exception {
+        var fixture = mapper.readTree(getClass().getResourceAsStream("/contracts/dbt.json"));
+        var build = fixture.path("examples").findParent("buildStatus").deepCopy();
+        var execution = (ObjectNode) build.path("execution");
+        execution.remove("configVersion");
+        var environment = UUID.fromString(execution.required("environmentId").asText());
+        var page = mapper.createObjectNode();
+        page.putArray("items").add(build);
+        var upstream = server(new ArrayList<>(), 200, page.toString());
+        try {
+            var gateway = client(upstream);
+            var filter = new BuildFilter(environment, null, null, null, null, 50);
+            assertThat(new HttpEnvironmentBuildGateway(gateway).history(filter).toString())
+                    .isEqualTo(page.toString());
+            var typed = gateway.listBuilds(filter).items().getFirst();
+            assertThat(typed.execution().environmentId()).isEqualTo(environment);
+            assertThat(mapper.valueToTree(typed).at("/execution/configVersion").isMissingNode())
+                    .isTrue();
+        } finally {
+            upstream.stop(0);
+        }
+    }
+
     private void assertInvalidHistory(String body, BuildFilter filter) throws Exception {
         var server = server(new ArrayList<>(), 200, body);
         try {

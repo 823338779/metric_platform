@@ -335,8 +335,12 @@ export function PublishedCatalogPage({ api = buildCatalogApi }: { api?: BuildCat
                     <dd>
                       <Typography.Text copyable>{build.commitSha}</Typography.Text>
                     </dd>
-                    <dt>{COPY.config}</dt>
-                    <dd>{build.execution.configVersion}</dd>
+                    {build.execution.configVersion != null && (
+                      <>
+                        <dt>{COPY.config}</dt>
+                        <dd>{build.execution.configVersion}</dd>
+                      </>
+                    )}
                     <dt>远端分支</dt>
                     <dd>
                       {current?.headObservedAt

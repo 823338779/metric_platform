@@ -1477,6 +1477,10 @@ components:
         buildId: {type: string, format: uuid, description: 资产所属环境的当前生效构建}
         granted: {type: boolean, description: 列表对应账号是否具有使用权，资产所有者具有使用权}
     ExecutionSnapshot:
+      allOf:
+        - $ref: '#/components/schemas/BuildExecutionSnapshot'
+      required: [configVersion]
+    BuildExecutionSnapshot:
       additionalProperties: false
       properties:
         environmentId:
@@ -1485,7 +1489,7 @@ components:
           title: Environmentid
           type: string
         configVersion:
-          description: 外部环境配置版本，不是 worker 运行版本
+          description: 兼容旧构建返回的平台配置版本，当前 dbt-service 的构建不含此字段
           minimum: 1
           title: Configversion
           type: integer
@@ -1522,12 +1526,11 @@ components:
           type: string
       required:
         - environmentId
-        - configVersion
         - connection
         - credentialRef
         - catalog
         - schema
-      title: ExecutionSnapshot
+      title: BuildExecutionSnapshot
       type: object
     ConnectionTarget:
       additionalProperties: false
@@ -1788,7 +1791,7 @@ components:
           description: 受理时附带的部署意图
           title: Initialdeployment
         execution:
-          $ref: '#/components/schemas/ExecutionSnapshot'
+          $ref: '#/components/schemas/BuildExecutionSnapshot'
           description: 受理时固定的完整执行快照
       required:
       - buildId

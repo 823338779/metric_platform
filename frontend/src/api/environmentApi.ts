@@ -18,6 +18,9 @@ export type ExecutionSnapshot = {
   threads: number;
   businessTimezone: string;
 };
+export type BuildExecutionSnapshot = Omit<ExecutionSnapshot, 'configVersion'> & {
+  configVersion?: number;
+};
 export type EnvironmentInput = Omit<ExecutionSnapshot, 'environmentId' | 'configVersion'> & {
   name: string;
 };
@@ -35,7 +38,7 @@ export type EnvironmentBuild = {
   buildStatus: string;
   phase: string;
   createdAt: string;
-  execution: ExecutionSnapshot;
+  execution: BuildExecutionSnapshot;
   catalogAvailable: boolean;
   initialDeployment: { deploymentStatus: string } | null;
 };

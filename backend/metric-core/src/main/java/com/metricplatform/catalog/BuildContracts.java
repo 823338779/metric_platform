@@ -1,6 +1,6 @@
 package com.metricplatform.catalog;
 
-import com.metricplatform.environment.EnvironmentContracts.ExecutionSnapshot;
+import com.metricplatform.environment.EnvironmentContracts.BuildExecutionSnapshot;
 
 import java.util.List;
 import java.util.Map;
@@ -60,7 +60,7 @@ public final class BuildContracts {
             /** 固定源码版本。 */
             String commitSha,
             /** 受理时固定的完整执行快照。 */
-            ExecutionSnapshot execution,
+            BuildExecutionSnapshot execution,
             /** 固定工具链版本。 */
             String toolchainVersion,
             /** 构建状态，不代表部署状态。 */

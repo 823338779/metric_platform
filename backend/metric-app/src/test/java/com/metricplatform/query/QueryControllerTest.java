@@ -118,9 +118,8 @@ class QueryControllerTest {
                                 "a",
                                 null,
                                 null,
-                                new EnvironmentContracts.ExecutionSnapshot(
+                                new EnvironmentContracts.BuildExecutionSnapshot(
                                         ENVIRONMENT_ID,
-                                        1,
                                         new EnvironmentContracts.ConnectionTarget(
                                                 "starrocks", "warehouse", "localhost", 9030, null),
                                         "warehouse-test",
