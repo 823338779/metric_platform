@@ -18,7 +18,27 @@ enum BindingEvidence {
     AMBIGUOUS_ASSET(NEEDS_REPAIR),
     COLUMN_UNDECLARED(UNVERIFIED),
     TYPE_UNKNOWN(UNVERIFIED),
+    TARGET_NOT_ALLOWED(UNVERIFIED),
+    TARGET_UNRESOLVED(UNVERIFIED),
+    METADATA_CREDENTIALS_MISSING(UNVERIFIED),
+    METADATA_INVISIBLE(UNVERIFIED),
+    METADATA_PERMISSION_DENIED(UNVERIFIED),
+    METADATA_TIMEOUT(UNVERIFIED),
+    METADATA_UNAVAILABLE(UNVERIFIED),
+    COLUMN_MISSING(NEEDS_REPAIR),
     TYPE_CONFLICT(NEEDS_REPAIR);
+
+    boolean temporary() {
+        return switch (this) {
+            case METADATA_CREDENTIALS_MISSING,
+                    METADATA_INVISIBLE,
+                    METADATA_PERMISSION_DENIED,
+                    METADATA_TIMEOUT,
+                    METADATA_UNAVAILABLE ->
+                    true;
+            default -> false;
+        };
+    }
 
     final BindingStatus status;
 

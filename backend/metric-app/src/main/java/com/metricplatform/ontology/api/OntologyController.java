@@ -18,8 +18,10 @@ public class OntologyController {
     private final OntologyService service;
 
     @GetMapping
-    public View get(@PathVariable UUID environmentId) {
-        return service.read(environmentId);
+    public View get(
+            @PathVariable UUID environmentId,
+            @RequestParam(defaultValue = "false") boolean refresh) {
+        return refresh ? service.refresh(environmentId) : service.read(environmentId);
     }
 
     @GetMapping("/datasets")

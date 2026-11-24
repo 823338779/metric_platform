@@ -1,3 +1,4 @@
+import { reasons } from './BindingHealth';
 import { Alert, Button } from 'antd';
 import { useEffect, useState } from 'react';
 import {
@@ -218,6 +219,7 @@ export function ObjectEditor({
                   {available?.columns.map((c) => (
                     <option key={c.name} value={c.name}>
                       {c.name} · {c.declaredType || '类型未核实'}
+                      {c.lastObservation && ' · 实测 ' + c.lastObservation.physicalType}
                     </option>
                   ))}
                 </select>
@@ -235,6 +237,16 @@ export function ObjectEditor({
               >
                 移除
               </Button>
+              {current?.reason && (
+                <small>
+                  {reasons[current.reason] ?? current.reason}
+                  {current.lastObservation &&
+                    ' · 仓库实测 ' +
+                      current.lastObservation.physicalType +
+                      ' · ' +
+                      new Date(current.lastObservation.observedAt).toLocaleString()}
+                </small>
+              )}
               {current?.declaredType && current.declaredType !== p.declaredType && (
                 <Button
                   onClick={() => changeProperty(p.id, { declaredType: current.declaredType })}

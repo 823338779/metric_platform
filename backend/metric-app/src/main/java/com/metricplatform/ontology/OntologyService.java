@@ -25,7 +25,15 @@ public class OntologyService {
             List<Relation> relations,
             BindingReport bindingReport) {}
 
-    public record ObjectWrite(Long expectedRevision, UUID sourceBuildId, ObjectType object) {}
+    public record ObjectWrite(
+            Long expectedRevision,
+            UUID sourceBuildId,
+            ObjectType object,
+            List<TypeAcceptance> acceptPhysicalTypes) {
+        public ObjectWrite(Long expectedRevision, UUID sourceBuildId, ObjectType object) {
+            this(expectedRevision, sourceBuildId, object, List.of());
+        }
+    }
 
     public record RelationWrite(Long expectedRevision, UUID sourceBuildId, Relation relation) {}
 
@@ -43,6 +51,16 @@ public class OntologyService {
         var graph = store.read(scope);
         return new View(
                 graph.revision(), graph.objects(), graph.relations(), bindings.check(scope, graph));
+    }
+
+    public View refresh(UUID environmentId) {
+        var scope = scope(environmentId);
+        var graph = store.read(scope);
+        return new View(
+                graph.revision(),
+                graph.objects(),
+                graph.relations(),
+                bindings.check(scope, graph, true));
     }
 
     public Datasets datasets(UUID environmentId) {
@@ -79,6 +97,12 @@ public class OntologyService {
         if (original != null && original.datasetAssetId().equals(object.datasetAssetId())) {
             for (var p : original.properties()) previous.put(p.id(), p);
         }
+        var accepts =
+                request.acceptPhysicalTypes() == null
+                        ? List.<TypeAcceptance>of()
+                        : request.acceptPhysicalTypes();
+        if (!accepts.isEmpty() && (pathId == null || !bindings.physicalEnabled()))
+            throw invalid("仅支持对已存在的实测绑定接受类型");
         var changed = new HashSet<UUID>();
         boolean primaryChanged =
                 original != null
@@ -100,6 +124,16 @@ public class OntologyService {
                                 property.columnName(),
                                 old.declaredType());
             }
+            // 证据一律从当前图库绑定取得。数据集或列变更后从无基准开始。
+            property =
+                    new Property(
+                            property.id(),
+                            property.name(),
+                            property.columnName(),
+                            property.declaredType(),
+                            old != null && old.columnName().equals(property.columnName())
+                                    ? old.evidence()
+                                    : null);
             properties.add(property);
             if (old == null
                     || !old.columnName().equals(property.columnName())
@@ -116,6 +150,27 @@ public class OntologyService {
                         object.primaryPropertyId(),
                         properties);
         if (original != null) OntologyReferences.checkUpdate(graph, original, normalized);
+        if ((!changed.isEmpty() || !accepts.isEmpty()) && bindings.physicalEnabled()) {
+            for (var accept : accepts) {
+                if (accept == null
+                        || !previous.containsKey(accept.propertyId())
+                        || changed.contains(accept.propertyId()))
+                    throw OntologyBindingService.revisionConflict();
+            }
+            var verified =
+                    bindings.verifyObject(
+                            scope, request.sourceBuildId(), normalized, changed, accepts);
+            long revision =
+                    store.writeObservedObject(
+                            scope,
+                            graph.revision(),
+                            verified.object(),
+                            pathId == null,
+                            request.sourceBuildId(),
+                            changed,
+                            verified.observation());
+            return new Saved(object.id(), revision);
+        }
         var verified =
                 changed.isEmpty()
                         ? normalized
@@ -152,13 +207,24 @@ public class OntologyService {
         if (bindingChanged) {
             var source = object(graph, relation.sourceObjectId());
             var target = object(graph, relation.targetObjectId());
-            bindings.bindRelation(
-                    scope,
-                    request.sourceBuildId(),
-                    source,
-                    property(source, relation.sourcePropertyId()),
-                    target,
-                    property(target, relation.targetPropertyId()));
+            var observation =
+                    bindings.bindRelation(
+                            scope,
+                            request.sourceBuildId(),
+                            source,
+                            property(source, relation.sourcePropertyId()),
+                            target,
+                            property(target, relation.targetPropertyId()));
+            if (observation != null)
+                return new Saved(
+                        relation.id(),
+                        store.writeObservedRelation(
+                                scope,
+                                graph.revision(),
+                                relation,
+                                previous == null,
+                                request.sourceBuildId(),
+                                observation));
         }
         long revision;
         if (previous == null) {

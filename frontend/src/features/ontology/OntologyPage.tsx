@@ -31,6 +31,7 @@ export function OntologyPage() {
 function EnvironmentOntology({ environmentId }: { environmentId: string }) {
   const [name, setName] = useState('');
   const [graph, setGraph] = useState<Topology>();
+  const forceObservation = useRef(false);
   const [refresh, setRefresh] = useState(0);
   const [loadError, setLoadError] = useState('');
   const [loading, setLoading] = useState(true);
@@ -69,7 +70,11 @@ function EnvironmentOntology({ environmentId }: { environmentId: string }) {
     const environment = environmentApi.get(environmentId).then((e) => {
       if (active) setName(e.name);
     });
-    Promise.all([environment, ontologyApi.get(environmentId)])
+    const topology = forceObservation.current
+      ? ontologyApi.get(environmentId, true)
+      : ontologyApi.get(environmentId);
+    forceObservation.current = false;
+    Promise.all([environment, topology])
       .then(([, g]) => {
         if (active) setGraph(g);
       })
@@ -111,6 +116,10 @@ function EnvironmentOntology({ environmentId }: { environmentId: string }) {
     setLibraryOpen(false);
     open();
     setRefresh((value) => value + 1);
+  }
+  function refreshEvidence() {
+    forceObservation.current = true;
+    reload();
   }
   async function save(write: () => Promise<unknown>) {
     if (pending.current) return;
@@ -178,6 +187,9 @@ function EnvironmentOntology({ environmentId }: { environmentId: string }) {
         <div className="ontology-actions">
           <Button icon={<ReloadOutlined aria-hidden />} loading={loading} onClick={reload}>
             刷新拓扑
+          </Button>
+          <Button disabled={busy || dirty || loading} onClick={refreshEvidence}>
+            重新核实
           </Button>
           {graph && !loadError && graph.objects.length > 0 && (
             <>
@@ -292,7 +304,7 @@ function EnvironmentOntology({ environmentId }: { environmentId: string }) {
                       {problem?.status === 409 && !deploymentChanged && (
                         <div>
                           请核对最新的拓扑及部署后再提交。{' '}
-                          <Button onClick={reload}>放弃本次编辑并刷新</Button>
+                          <Button onClick={refreshEvidence}>放弃本次编辑并刷新</Button>
                         </div>
                       )}
                     </>
@@ -407,6 +419,54 @@ function EnvironmentOntology({ environmentId }: { environmentId: string }) {
                       }
                     />
                   )}
+                  {selected &&
+                    !selection.deleting &&
+                    graph.bindingReport.findings
+                      .filter((f) =>
+                        selection.kind === 'relation'
+                          ? f.kind === 'RELATION' && f.id === selected.id
+                          : f.kind === 'PROPERTY' && object?.properties.some((p) => p.id === f.id),
+                      )
+                      .map((f) => {
+                        const baseline = f.evidence?.acceptedPhysicalType;
+                        const observed = f.evidence?.lastObservation;
+                        return (
+                          <div key={f.id}>
+                            <Health findings={[f]} />
+                            {object &&
+                              f.id &&
+                              f.reason === 'TYPE_CONFLICT' &&
+                              f.evidence?.typeSource === 'WAREHOUSE' &&
+                              baseline &&
+                              observed &&
+                              baseline !== observed.physicalType && (
+                                <Button
+                                  disabled={busy || dirty}
+                                  onClick={() =>
+                                    save(() =>
+                                      ontologyApi.saveObject(
+                                        environmentId,
+                                        graph.revision,
+                                        graph.bindingReport.buildId,
+                                        object,
+                                        false,
+                                        [
+                                          {
+                                            propertyId: f.id!,
+                                            expectedBaselineType: baseline,
+                                            observedType: observed.physicalType,
+                                          },
+                                        ],
+                                      ),
+                                    )
+                                  }
+                                >
+                                  接受当前物理类型
+                                </Button>
+                              )}
+                          </div>
+                        );
+                      })}
                   {selected && !selection.deleting && (
                     <Button
                       type="text"

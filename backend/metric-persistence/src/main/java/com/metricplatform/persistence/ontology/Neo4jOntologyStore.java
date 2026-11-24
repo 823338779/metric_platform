@@ -111,7 +111,7 @@ public final class Neo4jOntologyStore implements OntologyStore {
                 """, params(scope)).list(row -> {
             Value o = row.get("o");
             var properties = row.get("properties").asList(p -> new Property(id(p, "id"), p.get("name").asString(),
-                    p.get("columnName").asString(), p.get("declaredType").asString(null)));
+                    p.get("columnName").asString(), p.get("declaredType").asString(null), evidence(p)));
             return new ObjectType(id(o, "id"), o.get("name").asString(), o.get("description").asString(null),
                     id(o, "datasetAssetId"), id(o, "primaryPropertyId"), properties);
         });
@@ -130,33 +130,77 @@ public final class Neo4jOntologyStore implements OntologyStore {
         return new Topology(revision, objects, relations);
     }
 
+    private static PropertyEvidence evidence(Value node) {
+        var json = node.get("physicalEvidence").asString(null);
+        if (json == null) return null;
+        try { return JSON.readValue(json, PropertyEvidence.class); }
+        catch (JsonProcessingException ex) { throw new IllegalStateException("无法读取字段证据",ex); }
+    }
+
+    @Override public long beginObservation(Scope scope) {
+        return transaction(tx -> {
+            lock(tx,scope,true);
+            return tx.run("MATCH " + SCOPE_NODE + " SET s.issued=coalesce(s.issued,0)+1 RETURN s.issued",
+                    params(scope)).single().get(0).asLong();
+        });
+    }
+
+    // 范围锁覆盖比较和写入。拒绝迟到的结果，避免报告与属性基准取自不同次核实。
+    private static boolean currentSequence(TransactionContext tx,Scope scope,ObservationWrite observation) {
+        return tx.run("MATCH " + SCOPE_NODE + " RETURN coalesce(s.applied,0)",params(scope))
+                .single().get(0).asLong() < observation.sequence();
+    }
+
+    private static void applyEvidence(TransactionContext tx, Scope scope,ObservationWrite observation) {
+        for (var delta : observation.updates()) {
+            var args = params(scope,"id",delta.propertyId());
+            var row = tx.run("MATCH (p:OntologyProperty " + KEY + ") RETURN p",args);
+            if (!row.hasNext()) throw new OntologyException(CONFLICT,"绑定已变更");
+            var previous = evidence(row.single().get(0));
+            if (!Objects.equals(previous,delta.expectedPrevious()))
+                throw new OntologyException(CONFLICT,"类型基准已更新");
+            try { args.put("json",JSON.writeValueAsString(delta.value())); }
+            catch (JsonProcessingException ex) { throw new IllegalStateException("无法编码字段证据",ex); }
+            tx.run("MATCH (p:OntologyProperty " + KEY + ") SET p.physicalEvidence=$json",args).consume();
+        }
+        tx.run("MATCH " + SCOPE_NODE + " SET s.applied=$seq",params(scope,"seq",observation.sequence())).consume();
+        observation.checkDeployment().run();
+    }
+
     private static UUID id(Value item, String field) {
         return UUID.fromString(item.get(field).asString());
     }
 
     private long mutate(Scope scope, long expected, BiConsumer<TransactionContext, Topology> mutation) {
+        return mutate(scope,expected,null,mutation);
+    }
+
+    private long mutate(Scope scope,long expected,ObservationWrite observation,BiConsumer<TransactionContext,Topology> mutation) {
         return transaction(tx -> {
             long revision = lock(tx, scope, true);
+            if (observation != null && !currentSequence(tx,scope,observation))
+                throw new OntologyException(CONFLICT,"核实结果已过期");
             if (revision != expected) throw new OntologyException(CONFLICT, "图已更新，请刷新后重试");
             mutation.accept(tx, topology(tx, scope, revision));
             tx.run("MATCH " + SCOPE_NODE + " SET s.revision = s.revision + 1", params(scope)).consume();
             tx.run("MATCH (c:OntologyCheck " + SCOPE + ") DELETE c", params(scope)).consume();
+            if (observation != null) applyEvidence(tx,scope,observation);
             return revision + 1;
         });
     }
 
     @Override
     public long createObject(Scope scope, long expected, ObjectType object, UUID buildId, Set<UUID> verified) {
-        return writeObject(scope, expected, object, true, buildId, verified);
+        return writeObservedObject(scope, expected, object, true, buildId, verified,null);
     }
 
     @Override
     public long updateObject(Scope scope, long expected, ObjectType object, UUID buildId, Set<UUID> verified) {
-        return writeObject(scope, expected, object, false, buildId, verified);
+        return writeObservedObject(scope, expected, object, false, buildId, verified,null);
     }
 
-    private long writeObject(Scope scope, long expected, ObjectType object, boolean create, UUID buildId, Set<UUID> verified) {
-        return mutate(scope, expected, (tx, graph) -> {
+    @Override public long writeObservedObject(Scope scope, long expected, ObjectType object, boolean create, UUID buildId, Set<UUID> verified,ObservationWrite observation) {
+        return mutate(scope, expected, observation, (tx, graph) -> {
             require(object != null && object.id() != null && hasText(object.name()) && object.datasetAssetId() != null
                     && object.properties() != null, "对象名称、数据集和属性不能为空");
             var old = graph.objects().stream().filter(o -> o.id().equals(object.id())).findFirst();
@@ -196,6 +240,9 @@ public final class Neo4jOntologyStore implements OntologyStore {
                     row.put("checkedBuildId", null);
                     row.put("checkedRevision", null);
                 }
+                if (old.isPresent() && (!object.datasetAssetId().equals(old.get().datasetAssetId())
+                        || old.get().properties().stream().anyMatch(previous -> previous.id().equals(p.id())
+                            && !previous.columnName().equals(p.columnName())))) row.put("physicalEvidence",null);
                 rows.add(row);
             }
             var args = params(scope, "id", object.id(), "rows", rows);
@@ -235,16 +282,16 @@ public final class Neo4jOntologyStore implements OntologyStore {
 
     @Override
     public long createRelation(Scope scope, long expected, Relation relation, UUID buildId) {
-        return writeRelation(scope, expected, relation, true, buildId);
+        return writeObservedRelation(scope, expected, relation, true, buildId,null);
     }
 
     @Override
     public long updateRelation(Scope scope, long expected, Relation relation, UUID buildId) {
-        return writeRelation(scope, expected, relation, false, buildId);
+        return writeObservedRelation(scope, expected, relation, false, buildId,null);
     }
 
-    private long writeRelation(Scope scope, long expected, Relation r, boolean create, UUID buildId) {
-        return mutate(scope, expected, (tx, graph) -> {
+    @Override public long writeObservedRelation(Scope scope, long expected, Relation r, boolean create, UUID buildId,ObservationWrite observation) {
+        return mutate(scope, expected, observation, (tx, graph) -> {
             require(r != null && r.id() != null && hasText(r.name()) && r.cardinality() != null
                     && r.sourceObjectId() != null && r.sourcePropertyId() != null
                     && r.targetObjectId() != null && r.targetPropertyId() != null, "关系需要名称、基数和两端属性");
@@ -291,14 +338,20 @@ public final class Neo4jOntologyStore implements OntologyStore {
 
     @Override
     public boolean saveReport(Scope scope, BindingReport report) {
+        return saveObservedReport(scope,report,null);
+    }
+
+    @Override public boolean saveObservedReport(Scope scope, BindingReport report,ObservationWrite observation) {
         return transaction(tx -> {
             if (lock(tx, scope, true) != report.revision()) return false;
+            if (observation != null && !currentSequence(tx,scope,observation)) return false;
             try {
                 tx.run("""
                         MERGE (c:OntologyCheck {tenantId:$tenant, environmentId:$env, build:$build})
                         SET c.revision=$revision, c.report=$report
                         """, params(scope, "build", Objects.toString(report.buildId(), ""),
                         "revision", report.revision(), "report", JSON.writeValueAsString(report))).consume();
+                if (observation != null) applyEvidence(tx,scope,observation);
                 return true;
             } catch (JsonProcessingException ex) {
                 throw new IllegalStateException("无法编码绑定报告", ex);
@@ -316,7 +369,8 @@ public final class Neo4jOntologyStore implements OntologyStore {
                     """, params(scope, "build", Objects.toString(buildId, ""), "revision", revision));
             if (!result.hasNext()) return Optional.empty();
             try {
-                return Optional.of(JSON.readValue(result.single().get(0).asString(), BindingReport.class));
+                var report = JSON.readValue(result.single().get(0).asString(), BindingReport.class);
+                return report.formatVersion() == 2 ? Optional.of(report) : Optional.empty();
             } catch (JsonProcessingException ex) {
                 throw new IllegalStateException("无法读取绑定报告", ex);
             }

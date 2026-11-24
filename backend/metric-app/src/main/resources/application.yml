@@ -38,6 +38,9 @@ management:
         enabled: true
 metric-platform:
   ontology:
+    # 由部署配置按租户和实例开启物理列核实，默认只使用模型声明。
+    warehouse:
+      instances: []
     uri: ${METRIC_NEO4J_URI:bolt://localhost:17687}
     username: ${METRIC_NEO4J_USERNAME:neo4j}
     password: ${METRIC_NEO4J_PASSWORD:}

@@ -97,6 +97,14 @@ public class DeployedAssets {
     }
 
     UUID live(DeploymentKey key) {
+        var pointer = livePointer(key);
+        return pointer == null ? null : pointer.activeBuildId();
+    }
+
+    /** 一次归属检查中固定的活动构建及指针版本。 */
+    record ActivePointer(UUID activeBuildId, long version) {}
+
+    private ActivePointer livePointer(DeploymentKey key) {
         DeploymentTargetView current;
         try {
             current = service.current(key);
@@ -111,21 +119,28 @@ public class DeployedAssets {
         UUID build = current.activeBuildId();
         if (build == null || !ownership.hasBuild(TenantScope.require(), key.environmentId(), build))
             return null;
-        return build;
+        return new ActivePointer(build, current.version());
     }
 
     public UUID current(DeploymentKey key) {
-        UUID build = live(key);
-        if (build == null) return null;
+        var pointer = currentPointer(key);
+        return pointer == null ? null : pointer.activeBuildId();
+    }
+
+    // 返回完成归属检查的指针及其版本，以区分同一构建的两次激活。
+    ActivePointer currentPointer(DeploymentKey key) {
+        var pointer = livePointer(key);
+        if (pointer == null) return null;
+        var build = pointer.activeBuildId();
         store.bind(build, key);
         if (!key.equals(store.target(build))) throw new IllegalStateException("生效构建归属不一致");
         if (!store.ready(build)) {
             store.register(build, key, entries(build));
             // 首次登记可能读取多个语义模型；登记期间切换的构建不得作为当前资源返回。
-            if (!build.equals(live(key)))
+            if (!pointer.equals(livePointer(key)))
                 throw new ResponseStatusException(HttpStatus.GONE, "部署已切换，请刷新资产列表");
         }
-        return build;
+        return pointer;
     }
 
     /** 使用 dbt 原生节点与模型内维度名称，缺少完整目录时不提交登记。 */

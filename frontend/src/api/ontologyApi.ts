@@ -25,11 +25,33 @@ export type Relation = {
   targetPropertyId: string;
   cardinality: Cardinality;
 };
+export type ColumnObservation = {
+  physicalType: string;
+  observedAt: string;
+  buildId: string;
+  table: { instanceId: string; catalog: string; schema: string; table: string };
+};
+export type EndpointEvidence = {
+  columnName: string;
+  declaredType?: string | null;
+  typeSource?: string | null;
+  acceptedPhysicalType?: string | null;
+  lastObservation?: ColumnObservation | null;
+  reason: string;
+};
+export type TypeAcceptance = {
+  propertyId: string;
+  expectedBaselineType: string;
+  observedType: string;
+};
 export type Finding = {
   kind: 'ENVIRONMENT' | 'OBJECT' | 'PROPERTY' | 'RELATION';
   id: string | null;
   status: 'COMPATIBLE' | 'UNVERIFIED' | 'NEEDS_REPAIR';
   reason: string;
+  evidence?: EndpointEvidence | null;
+  sourceEvidence?: EndpointEvidence | null;
+  targetEvidence?: EndpointEvidence | null;
 };
 export type Topology = {
   revision: number;
@@ -41,7 +63,13 @@ export type Datasets = { buildId: string | null; datasets: { assetId: string; na
 export type Columns = {
   buildId: string;
   assetId: string;
-  columns: { name: string; declaredType: string | null }[];
+  columns: {
+    name: string;
+    declaredType: string | null;
+    typeSource?: string | null;
+    lastObservation?: ColumnObservation | null;
+    reason?: string | null;
+  }[];
 };
 type Saved = { id: string; revision: number };
 const request = createHttpClient(undefined, '/api/dbt/environments');
@@ -60,7 +88,8 @@ function write(
 }
 
 export const ontologyApi = {
-  get: (environmentId: string) => request<Topology>(root(environmentId)),
+  get: (environmentId: string, refresh = false) =>
+    request<Topology>(root(environmentId) + (refresh ? '?refresh=true' : '')),
   datasets: (environmentId: string) => request<Datasets>(root(environmentId) + '/datasets'),
   columns: (environmentId: string, assetId: string, buildId: string) =>
     request<Columns>(
@@ -76,7 +105,14 @@ export const ontologyApi = {
     sourceBuildId: string | null,
     object: ObjectType,
     create: boolean,
-  ) => write(environmentId, 'objects', object, create, { expectedRevision, sourceBuildId, object }),
+    acceptPhysicalTypes?: TypeAcceptance[],
+  ) =>
+    write(environmentId, 'objects', object, create, {
+      expectedRevision,
+      sourceBuildId,
+      object,
+      acceptPhysicalTypes,
+    }),
   saveRelation: (
     environmentId: string,
     expectedRevision: number,

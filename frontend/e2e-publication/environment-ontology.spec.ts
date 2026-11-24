@@ -26,6 +26,27 @@ test('测试环境维护订单、客户和两个角色关系，生产环境仍�
   const objects: ObjectType[] = [],
     relations: Relation[] = [];
   let revision = 0;
+  let refreshed = false,
+    accepted = false;
+  const observed = {
+    physicalType: 'varchar(24)',
+    observedAt: '2026-11-24T10:00:00Z',
+    buildId: BUILD_A,
+    table: {
+      instanceId: 'fixture',
+      catalog: 'default_catalog',
+      schema: 'fixture',
+      table: 'orders',
+    },
+  };
+  const details = {
+    columnName: 'order_id',
+    declaredType: null,
+    typeSource: 'WAREHOUSE',
+    acceptedPhysicalType: 'bigint(20)',
+    lastObservation: observed,
+    reason: 'TYPE_CONFLICT',
+  };
   await page.route('**/api/dbt/environments/**', async (route) => {
     const url = new URL(route.request().url());
     const [, id, resource] = url.pathname.match(/^\/api\/dbt\/environments\/([^/]+)(?:\/(.*))?$/)!;
@@ -33,6 +54,7 @@ test('测试环境维护订单、客户和两个角色关系，生产环境仍�
     if (resource === 'builds') return route.fulfill({ json: { items: [], nextCursor: null } });
     if (resource === 'ontology') {
       const isTest = id === testId;
+      if (isTest && url.searchParams.get('refresh') === 'true') refreshed = true;
       return route.fulfill({
         json: {
           revision: isTest ? revision : 0,
@@ -41,7 +63,26 @@ test('测试环境维护订单、客户和两个角色关系，生产环境仍�
           bindingReport: {
             buildId: isTest ? BUILD_A : null,
             revision: isTest ? revision : 0,
-            findings: [],
+            findings:
+              isTest && refreshed && objects.length
+                ? [
+                    {
+                      kind: 'PROPERTY',
+                      id: objects[0].primaryPropertyId,
+                      status: accepted ? 'COMPATIBLE' : 'NEEDS_REPAIR',
+                      reason: accepted ? 'MATCHED' : 'TYPE_CONFLICT',
+                      evidence: details,
+                    },
+                    ...relations.map((r) => ({
+                      kind: 'RELATION',
+                      id: r.id,
+                      status: 'NEEDS_REPAIR',
+                      reason: 'TYPE_CONFLICT',
+                      sourceEvidence: details,
+                      targetEvidence: { ...details, columnName: 'customer_id' },
+                    })),
+                  ]
+                : [],
           },
         },
       });
@@ -81,7 +122,17 @@ test('测试环境维护订单、客户和两个角色关系，生产环境仍�
     const body = route.request().postDataJSON();
     expect(body.expectedRevision).toBe(revision);
     expect(body.sourceBuildId).toBe(BUILD_A);
-    if (resource === 'ontology/objects') objects.push(body.object);
+    if (body.acceptPhysicalTypes) {
+      expect(body.acceptPhysicalTypes).toEqual([
+        {
+          propertyId: objects[0].primaryPropertyId,
+          expectedBaselineType: 'bigint(20)',
+          observedType: 'varchar(24)',
+        },
+      ]);
+      expect(body.object.id).toBe(objects[0].id);
+      accepted = true;
+    } else if (resource === 'ontology/objects') objects.push(body.object);
     else if (resource === 'ontology/relations') relations.push(body.relation);
     else throw new Error(resource);
     return route.fulfill({ json: { id: (body.object ?? body.relation).id, revision: ++revision } });
@@ -132,7 +183,13 @@ test('测试环境维护订单、客户和两个角色关系，生产环境仍�
     await expect(graph.getByText(name, { exact: true })).toBeVisible();
   }
   await expect(graph.getByText('下单客户', { exact: true })).toBeVisible();
+  await page.getByRole('button', { name: '重新核实' }).click();
+  await graph.getByText('订单', { exact: true }).click();
+  await page.getByRole('button', { name: '接受当前物理类型' }).click();
+  await expect.poll(() => accepted).toBe(true);
   await graph.getByText('收货人', { exact: true }).click();
+  await expect(page.getByText(/源端 order_id/).first()).toBeVisible();
+  await expect(page.getByText(/目标端 customer_id/).first()).toBeVisible();
   await expect(page.getByLabel('关系名称')).toHaveValue('收货人');
   await expect(page.getByRole('dialog', { name: '编辑关系' })).toBeVisible();
   await page.getByRole('button', { name: '删除关系' }).click();

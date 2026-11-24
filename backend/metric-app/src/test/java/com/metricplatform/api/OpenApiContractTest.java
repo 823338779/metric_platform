@@ -16,6 +16,13 @@ class OpenApiContractTest {
                         .readTree(Files.readString(Path.of("..", "..", "api", "openapi.yaml")));
         String base = "/api/dbt/environments/{environmentId}/ontology";
         var paths = api.path("paths");
+        assertThat(paths.path(base).path("get").path("parameters").toString()).contains("refresh");
+        assertThat(
+                        api.at("/components/schemas/OntologyObjectWrite/properties")
+                                .has("acceptPhysicalTypes"))
+                .isTrue();
+        assertThat(api.at("/components/schemas/OntologyFinding/properties").has("sourceEvidence"))
+                .isTrue();
         for (String suffix : List.of("", "/datasets", "/datasets/{assetId}/columns"))
             assertThat(paths.path(base + suffix).path("get").path("responses").has("200"))
                     .as(suffix)

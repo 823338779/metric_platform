@@ -135,7 +135,7 @@ export function DefinitionLibrary({
                               )}
                             </dt>
                             <dd>
-                              <code>{p.columnName}</code> · {p.declaredType || '类型未核实'}{' '}
+                              <code>{p.columnName}</code> · {'模型声明 ' + (p.declaredType || '无')}{' '}
                               <Health
                                 findings={findings.filter(
                                   (f) => f.kind === 'PROPERTY' && f.id === p.id,

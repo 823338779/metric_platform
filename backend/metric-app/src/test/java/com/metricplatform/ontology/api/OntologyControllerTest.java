@@ -75,6 +75,17 @@ class OntologyControllerTest {
     }
 
     @Test
+    void explicitRefreshBypassesReportCache() throws Exception {
+        var graph = new Topology(3, List.of(), List.of());
+        when(store.read(scope)).thenReturn(graph);
+        when(bindings.check(scope, graph, true)).thenReturn(new BindingReport(null, 3, List.of()));
+        mvc.perform(get(base).param("refresh", "true"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.bindingReport.revision").value(3));
+        verify(bindings).check(scope, graph, true);
+    }
+
+    @Test
     void managerReadsCheckedGraphAndReceivesRevisionConflict() throws Exception {
         var graph = new Topology(3, List.of(), List.of());
         when(store.read(scope)).thenReturn(graph);

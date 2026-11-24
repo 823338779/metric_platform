@@ -91,6 +91,56 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
+it('手动重新核实绕过当前部署的缓存', async () => {
+  mount();
+  fireEvent.click(await screen.findByRole('button', { name: '重新核实' }));
+  await waitFor(() => expect(ontologyApi.get).toHaveBeenCalledWith('test', true));
+});
+
+it('接受操作冲突后主动观察最新仓库类型', async () => {
+  const observed = {
+    physicalType: 'varchar(24)',
+    observedAt: '2026-11-24T12:00:00Z',
+    buildId: 'build',
+    table: {
+      instanceId: 'fixture',
+      catalog: 'default_catalog',
+      schema: 'fixture',
+      table: 'orders',
+    },
+  };
+  vi.mocked(ontologyApi.get).mockResolvedValue({
+    ...graph,
+    bindingReport: {
+      ...graph.bindingReport,
+      findings: [
+        {
+          kind: 'PROPERTY',
+          id: 'order-id',
+          status: 'NEEDS_REPAIR',
+          reason: 'TYPE_CONFLICT',
+          evidence: {
+            columnName: 'old_id',
+            acceptedPhysicalType: 'bigint',
+            reason: 'TYPE_CONFLICT',
+            typeSource: 'WAREHOUSE',
+            lastObservation: observed,
+          },
+        },
+      ],
+    },
+  });
+  vi.spyOn(ontologyApi, 'saveObject').mockRejectedValue(
+    new ApiProblem({ status: 409, title: '冲突', detail: '观察已过期' }),
+  );
+  mount();
+  await openLibrary();
+  fireEvent.click(await screen.findByRole('button', { name: '编辑对象 订单' }));
+  fireEvent.click(await screen.findByRole('button', { name: '接受当前物理类型' }));
+  fireEvent.click(await screen.findByRole('button', { name: '放弃本次编辑并刷新' }));
+  await waitFor(() => expect(ontologyApi.get).toHaveBeenLastCalledWith('test', true));
+});
+
 it('只读账号直接访问建模地址不会读取管理数据', async () => {
   const session = getAuthSession()!;
   saveAuthSession({ ...session, identity: { ...session.identity, role: 'READ_ONLY' } });

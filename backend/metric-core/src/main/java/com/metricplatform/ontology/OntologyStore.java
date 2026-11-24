@@ -25,6 +25,10 @@ public interface OntologyStore {
     long createRelation(Scope scope, long expectedRevision, Relation relation, UUID sourceBuildId);
     long updateRelation(Scope scope, long expectedRevision, Relation relation, UUID sourceBuildId);
     long deleteRelation(Scope scope, long expectedRevision, UUID relationId);
+    long beginObservation(Scope scope);
+    boolean saveObservedReport(Scope scope,BindingReport report,ObservationWrite observation);
+    long writeObservedObject(Scope scope,long revision,ObjectType object,boolean create,UUID buildId,Set<UUID> verified,ObservationWrite observation);
+    long writeObservedRelation(Scope scope,long revision,Relation relation,boolean create,UUID buildId,ObservationWrite observation);
     boolean saveReport(Scope scope, BindingReport report);
     Optional<BindingReport> readReport(Scope scope, UUID buildId, long revision);
 }

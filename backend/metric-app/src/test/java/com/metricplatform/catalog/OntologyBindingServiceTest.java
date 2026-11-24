@@ -52,6 +52,9 @@ class OntologyBindingServiceTest {
                 .setAuthentication(new UsernamePasswordAuthenticationToken(principal, null));
         when(assets.targets()).thenReturn(List.of(target));
         when(deployed.current(target)).thenReturn(build);
+        var pointer = mock(DeployedAssets.ActivePointer.class);
+        when(pointer.activeBuildId()).thenReturn(build);
+        when(deployed.currentPointer(target)).thenReturn(pointer);
         when(assets.members(build, actor)).thenReturn(List.of(member(asset, target)));
         when(store.saveReport(eq(scope), any())).thenReturn(true);
     }
@@ -85,6 +88,413 @@ class OntologyBindingServiceTest {
                                         "columns",
                                         columns),
                                 null));
+    }
+
+    private OntologyBindingService physical(com.metricplatform.ontology.WarehouseColumns reader) {
+        var policy =
+                new WarehouseMetadataPolicy(
+                        List.of(
+                                new WarehouseMetadataPolicy.Instance(
+                                        "warehouse",
+                                        true,
+                                        "jdbc:mysql://fixture",
+                                        "test",
+                                        "test",
+                                        "1",
+                                        true,
+                                        Map.of(scope.tenantId(), List.of()))));
+        var physical = new OntologyBindingService(deployed, assets, gateway, store, policy, reader);
+        var snapshot =
+                new com.metricplatform.environment.EnvironmentContracts.BuildExecutionSnapshot(
+                        scope.environmentId(),
+                        new com.metricplatform.environment.EnvironmentContracts.ConnectionTarget(
+                                "starrocks", "warehouse", "localhost", 9030, null),
+                        null,
+                        "default_catalog",
+                        "env_prod",
+                        1,
+                        "UTC");
+        var detail = mock(BuildContracts.BuildView.class);
+        when(detail.buildId()).thenReturn(build);
+        when(detail.execution()).thenReturn(snapshot);
+        when(gateway.getBuild(build)).thenReturn(detail);
+        when(gateway.resource(build, "model.shop.orders"))
+                .thenReturn(
+                        new ResourceView(
+                                build,
+                                "model.shop.orders",
+                                Map.of(
+                                        "unique_id",
+                                        "model.shop.orders",
+                                        "resource_type",
+                                        "model",
+                                        "schema",
+                                        "env_prod",
+                                        "alias",
+                                        "orders",
+                                        "columns",
+                                        Map.of("order_id", Map.of(), "buyer_id", Map.of())),
+                                null));
+        when(reader.read(any(), any()))
+                .thenReturn(
+                        new com.metricplatform.ontology.WarehouseColumns.TableInventory(
+                                Map.of("order_id", "bigint(20)", "buyer_id", "varchar(24)"),
+                                true,
+                                "2026-11-24T12:00:00Z",
+                                null));
+        return physical;
+    }
+
+    @Test
+    void readsSelfRelationOnceAndUsesObservedTypes() {
+        var reader = mock(com.metricplatform.ontology.WarehouseColumns.class);
+        var physical = physical(reader);
+        assertThatThrownBy(() -> physical.bindRelation(scope, build, order, key, order, buyer))
+                .hasMessageContaining("422");
+        verify(reader, times(1)).read(any(), any());
+        var columns = physical.columns(scope, asset, build);
+        assertThat(columns.columns().getFirst().lastObservation().physicalType())
+                .isEqualTo("varchar(24)");
+        assertThat(columns.columns().getFirst().declaredType()).isNull();
+    }
+
+    @Test
+    void staleAcceptanceRequiresFreshCompatibleObservation() {
+        var reader = mock(com.metricplatform.ontology.WarehouseColumns.class);
+        var physical = physical(reader);
+        var previous =
+                new Property(
+                        buyer.id(),
+                        buyer.name(),
+                        buyer.columnName(),
+                        null,
+                        new PropertyEvidence("bigint", null, "MATCHED"));
+        var original =
+                new ObjectType(
+                        order.id(), order.name(), "", asset, key.id(), List.of(key, previous));
+        var accept = new TypeAcceptance(buyer.id(), "bigint", "varchar(24)");
+        var verified = physical.verifyObject(scope, build, original, Set.of(), List.of(accept));
+        var update = verified.observation().updates().getFirst();
+        assertThat(update.expectedPrevious().acceptedPhysicalType()).isEqualTo("bigint");
+        assertThat(update.value().acceptedPhysicalType()).isEqualTo("varchar(24)");
+        assertThat(verified.object()).isEqualTo(original);
+        when(reader.read(any(), any()))
+                .thenReturn(
+                        new com.metricplatform.ontology.WarehouseColumns.TableInventory(
+                                Map.of("buyer_id", "varchar(48)"), true, "today", null));
+        assertThatThrownBy(
+                        () ->
+                                physical.verifyObject(
+                                        scope, build, original, Set.of(), List.of(accept)))
+                .hasMessageContaining("409");
+    }
+
+    @Test
+    void temporaryFailurePreservesLastSuccessAndKnownConflict() {
+        var reader = mock(com.metricplatform.ontology.WarehouseColumns.class);
+        var physical = physical(reader);
+        var last =
+                new ColumnObservation(
+                        "varchar(24)",
+                        "yesterday",
+                        build,
+                        new com.metricplatform.ontology.WarehouseColumns.TableTarget(
+                                "warehouse", "default_catalog", "env_prod", "orders"));
+        var previous =
+                new Property(
+                        buyer.id(),
+                        buyer.name(),
+                        buyer.columnName(),
+                        null,
+                        new PropertyEvidence("bigint", last, "TYPE_CONFLICT", "TYPE_CONFLICT"));
+        var original =
+                new ObjectType(
+                        order.id(), order.name(), "", asset, key.id(), List.of(key, previous));
+        when(reader.read(any(), any()))
+                .thenReturn(
+                        com.metricplatform.ontology.WarehouseColumns.TableInventory.unavailable(
+                                "METADATA_TIMEOUT"));
+        when(store.saveObservedReport(eq(scope), any(), any())).thenReturn(true);
+        var topology = new Topology(2, List.of(original), List.of());
+        when(store.read(scope)).thenReturn(topology);
+        var report = physical.check(scope, topology, true);
+        var finding =
+                report.findings().stream()
+                        .filter(x -> buyer.id().equals(x.id()))
+                        .findFirst()
+                        .orElseThrow();
+        assertThat(finding.status()).isEqualTo(UNVERIFIED);
+        assertThat(finding.evidence().lastObservation()).isEqualTo(last);
+        assertThatThrownBy(
+                        () ->
+                                physical.bindRelation(
+                                        scope, build, original, key, original, previous))
+                .hasMessageContaining("422");
+        assertThat(
+                        physical.verifyObject(scope, build, order, Set.of(key.id()), List.of())
+                                .observation()
+                                .updates()
+                                .getFirst()
+                                .value()
+                                .reason())
+                .isEqualTo("METADATA_TIMEOUT");
+    }
+
+    @Test
+    void deniedSecondEndpointOpensNoWarehouseConnection() {
+        var reader = mock(com.metricplatform.ontology.WarehouseColumns.class);
+        var physical = physical(reader);
+        var id = UUID.randomUUID();
+        var node = "model.shop.private";
+        var second =
+                new Asset(id, actor, target, new Entry("DATASET", node, "", "private", ""), true);
+        when(assets.members(build, actor)).thenReturn(List.of(member(asset, target), second));
+        when(gateway.resource(build, node))
+                .thenReturn(
+                        new ResourceView(
+                                build,
+                                node,
+                                Map.of(
+                                        "unique_id",
+                                        node,
+                                        "resource_type",
+                                        "model",
+                                        "schema",
+                                        "private",
+                                        "alias",
+                                        "orders",
+                                        "columns",
+                                        Map.of("order_id", Map.of())),
+                                null));
+        var other = new ObjectType(UUID.randomUUID(), "other", "", id, key.id(), List.of(key));
+        assertThatThrownBy(() -> physical.bindRelation(scope, build, order, buyer, other, key))
+                .hasMessageContaining("403");
+        verifyNoInteractions(reader);
+    }
+
+    @Test
+    void disabledInstanceUsesCurrentDeclarationsDespiteHistoricalDrift() {
+        metadata(
+                build,
+                Map.of(
+                        "order_id",
+                        Map.of("data_type", "bigint"),
+                        "buyer_id",
+                        Map.of("data_type", "bigint")));
+        var old =
+                new Property(
+                        buyer.id(),
+                        buyer.name(),
+                        buyer.columnName(),
+                        null,
+                        new PropertyEvidence("bigint", null, "TYPE_CONFLICT", "TYPE_CONFLICT"));
+        assertThatCode(() -> service.bindRelation(scope, build, order, key, order, old))
+                .doesNotThrowAnyException();
+    }
+
+    @Test
+    void missingColumnIsDefinitiveOnlyWithCompleteInventory() {
+        var reader = mock(com.metricplatform.ontology.WarehouseColumns.class);
+        var physical = physical(reader);
+        when(reader.read(any(), any()))
+                .thenReturn(
+                        new com.metricplatform.ontology.WarehouseColumns.TableInventory(
+                                Map.of("order_id", "bigint"), true, "now", null),
+                        new com.metricplatform.ontology.WarehouseColumns.TableInventory(
+                                Map.of("order_id", "bigint"), false, "now", null));
+        assertThatThrownBy(() -> physical.bindRelation(scope, build, order, key, order, buyer))
+                .hasMessageContaining("422");
+        assertThat(physical.bindRelation(scope, build, order, key, order, buyer)).isNotNull();
+    }
+
+    // 可选的本地验收只加载去标识的旧图与目录快照；所有写入均发生在临时图库。
+    @Test
+    @org.junit.jupiter.api.condition.EnabledIfSystemProperty(
+            named = "ontology.legacy.fixture",
+            matches = ".+")
+    void rechecksLegacyGraphWithoutChangingIdentities() throws Exception {
+        var json = new com.fasterxml.jackson.databind.ObjectMapper();
+        var fixture =
+                json.readTree(
+                        java.nio.file.Files.readString(
+                                java.nio.file.Path.of(
+                                        System.getProperty("ontology.legacy.fixture"))));
+        var objects = List.of(json.treeToValue(fixture.get("objects"), ObjectType[].class));
+        var edges = List.of(json.treeToValue(fixture.get("relations"), Relation[].class));
+        String password = UUID.randomUUID().toString();
+        try (var container =
+                new org.testcontainers.containers.GenericContainer<>("neo4j:2026.10.1")
+                        .withExposedPorts(7687)
+                        .withEnv("NEO4J_AUTH", "neo4j/" + password)
+                        .waitingFor(
+                                org.testcontainers.containers.wait.strategy.Wait.forLogMessage(
+                                        ".*Started.*\n", 1))) {
+            container.start();
+            try (var driver =
+                    org.neo4j.driver.GraphDatabase.driver(
+                            "bolt://" + container.getHost() + ":" + container.getMappedPort(7687),
+                            org.neo4j.driver.AuthTokens.basic("neo4j", password))) {
+                var neo = new com.metricplatform.persistence.ontology.Neo4jOntologyStore(driver);
+                int revision = 0;
+                for (var obj : objects) neo.createObject(scope, revision++, obj);
+                for (var edge : edges) neo.createRelation(scope, revision++, edge);
+                try (var session = driver.session()) {
+                    session.run(
+                                    "MATCH (s:OntologyScope) SET s.revision=39 CREATE (c:OntologyCheck {tenantId:s.tenantId,environmentId:s.environmentId,build:$build,revision:39,report:$report})",
+                                    Map.of(
+                                            "build",
+                                            build.toString(),
+                                            "report",
+                                            json.writeValueAsString(
+                                                    Map.of(
+                                                            "buildId",
+                                                            build,
+                                                            "revision",
+                                                            39,
+                                                            "findings",
+                                                            List.of()))))
+                            .consume();
+                }
+                assertThat(neo.readReport(scope, build, 39)).isEmpty();
+                var entries = new ArrayList<Asset>();
+                var inventories =
+                        new HashMap<
+                                String,
+                                com.metricplatform.ontology.WarehouseColumns.TableInventory>();
+                for (var obj : objects) {
+                    var data = fixture.get("models").get(obj.datasetAssetId().toString());
+                    var alias = data.get("name").asText();
+                    var node = "model.fixture." + alias;
+                    entries.add(
+                            new Asset(
+                                    obj.datasetAssetId(),
+                                    actor,
+                                    target,
+                                    new Entry("DATASET", node, "", alias, ""),
+                                    true));
+                    when(gateway.resource(build, node))
+                            .thenReturn(
+                                    new ResourceView(
+                                            build,
+                                            node,
+                                            Map.of(
+                                                    "unique_id",
+                                                    node,
+                                                    "resource_type",
+                                                    "model",
+                                                    "schema",
+                                                    "fixture",
+                                                    "alias",
+                                                    alias,
+                                                    "columns",
+                                                    json.convertValue(
+                                                            data.get("columns"), Map.class)),
+                                            null));
+                    var types =
+                            json.convertValue(
+                                    data.get("actual"),
+                                    new com.fasterxml.jackson.core.type.TypeReference<
+                                            Map<String, String>>() {});
+                    inventories.put(
+                            alias,
+                            new com.metricplatform.ontology.WarehouseColumns.TableInventory(
+                                    types, true, "2026-11-24T12:00:00Z", null));
+                }
+                when(assets.members(build, actor)).thenReturn(entries);
+                var detail = mock(BuildContracts.BuildView.class);
+                when(detail.buildId()).thenReturn(build);
+                when(detail.execution())
+                        .thenReturn(
+                                new com.metricplatform.environment.EnvironmentContracts
+                                        .BuildExecutionSnapshot(
+                                        scope.environmentId(),
+                                        new com.metricplatform.environment.EnvironmentContracts
+                                                .ConnectionTarget(
+                                                "starrocks", "fixture", "localhost", 9030, null),
+                                        null,
+                                        "default_catalog",
+                                        "fixture",
+                                        1,
+                                        "UTC"));
+                when(gateway.getBuild(build)).thenReturn(detail);
+                var policy =
+                        new WarehouseMetadataPolicy(
+                                List.of(
+                                        new WarehouseMetadataPolicy.Instance(
+                                                "fixture",
+                                                true,
+                                                "jdbc:mysql://fixture",
+                                                "fixture",
+                                                "fixture",
+                                                "1",
+                                                true,
+                                                Map.of(scope.tenantId(), List.of()))));
+                var calls = new java.util.concurrent.atomic.AtomicInteger();
+                var service =
+                        new OntologyBindingService(
+                                deployed,
+                                assets,
+                                gateway,
+                                neo,
+                                policy,
+                                (table, access) -> {
+                                    calls.incrementAndGet();
+                                    return inventories.get(table.table());
+                                });
+                var original = neo.read(scope);
+                assertThat(original.objects()).hasSize(13);
+                assertThat(
+                                original.objects().stream()
+                                        .flatMap(o -> o.properties().stream())
+                                        .filter(p -> p.declaredType() == null))
+                        .hasSize(63);
+                var report = service.check(scope, original);
+                assertThat(report.findings())
+                        .filteredOn(f -> "PROPERTY".equals(f.kind()))
+                        .hasSize(64)
+                        .allMatch(f -> f.status() == COMPATIBLE);
+                assertThat(report.findings())
+                        .filteredOn(f -> "RELATION".equals(f.kind()))
+                        .hasSize(21)
+                        .allMatch(f -> f.status() == COMPATIBLE);
+                assertThat(calls.get()).isEqualTo(13);
+                var after = neo.read(scope);
+                assertThat(json.valueToTree(after).toString())
+                        .isEqualTo(json.valueToTree(original).toString());
+                assertThat(service.check(scope, after)).isEqualTo(report);
+                assertThat(calls.get()).isEqualTo(13);
+            }
+        }
+    }
+
+    @Test
+    void reactivatedBuildCannotReuseOldReport() {
+        var physical = physical(mock(com.metricplatform.ontology.WarehouseColumns.class));
+        var snapshot = mock(DeployedAssets.ActivePointer.class);
+        when(snapshot.activeBuildId()).thenReturn(build);
+        when(snapshot.version()).thenReturn(3L);
+        when(deployed.currentPointer(target)).thenReturn(snapshot);
+        var empty = new Topology(2, List.of(), List.of());
+        when(store.read(scope)).thenReturn(empty);
+        when(store.saveObservedReport(eq(scope), any(), any())).thenReturn(true);
+        var current = physical.check(scope, empty, true);
+        when(store.readReport(scope, build, 2)).thenReturn(Optional.of(current));
+        when(snapshot.version()).thenReturn(5L);
+        var reactivated = physical.check(scope, empty);
+        assertThat(reactivated.deploymentVersion()).isEqualTo(5);
+        verify(store, times(2)).saveObservedReport(eq(scope), any(), any());
+    }
+
+    @Test
+    void supersededObservationReturnsWinningReport() {
+        var physical = physical(mock(com.metricplatform.ontology.WarehouseColumns.class));
+        var empty = new Topology(2, List.of(), List.of());
+        when(store.read(scope)).thenReturn(empty);
+        when(store.saveObservedReport(eq(scope), any(), any())).thenReturn(true);
+        var winner = physical.check(scope, empty, true);
+        when(store.saveObservedReport(eq(scope), any(), any())).thenReturn(false);
+        when(store.readReport(scope, build, 2)).thenReturn(Optional.of(winner));
+        assertThat(physical.check(scope, empty, true)).isEqualTo(winner);
     }
 
     @Test

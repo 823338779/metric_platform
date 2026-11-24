@@ -99,6 +99,59 @@ class Neo4jOntologyStoreTest extends OntologyGraphFixture {
     }
 
     @Test
+    void lateObservationCannotOverwriteNewerEvidence() {
+        var obj = object("订单");
+        store.createObject(scope,0,obj);
+        var a = store.beginObservation(scope);
+        var b = store.beginObservation(scope);
+        assertTrue(b > a);
+        var build = UUID.randomUUID();
+        var observation = new ColumnObservation("bigint(20)", "2026-11-24T12:00:00Z", build,
+                new com.metricplatform.ontology.WarehouseColumns.TableTarget("instance","default_catalog","env_prod","orders"));
+        var evidence = new PropertyEvidence("bigint(20)",observation,"MATCHED");
+        var delta = new EvidenceUpdate(obj.primaryPropertyId(),null,evidence);
+        var report = new BindingReport(build,1,List.of(),2,"policy");
+        assertTrue(store.saveObservedReport(scope,report,new ObservationWrite(b,List.of(delta),() -> {})));
+        assertFalse(store.saveObservedReport(scope,report,new ObservationWrite(a,List.of(delta),() -> fail())));
+        assertEquals(evidence,store.read(scope).objects().getFirst().properties().getFirst().evidence());
+        assertEquals(1,store.read(scope).revision());
+    }
+
+    @Test
+    void unsuccessfulObservationFromStaleGraphCannotEraseLastSuccess() {
+        var obj=object("订单"); var build=UUID.randomUUID(); store.createObject(scope,0,obj);
+        var report=new BindingReport(build,1,List.of(),2,"active");
+        var before=new PropertyEvidence("bigint",null,"MATCHED");
+        var table=new com.metricplatform.ontology.WarehouseColumns.TableTarget("instance","default_catalog","env_prod","orders");
+        var fresh=new PropertyEvidence("bigint",new ColumnObservation("bigint(20)","2026-11-24T12:00:00Z",build,table),"MATCHED");
+        var id=obj.primaryPropertyId();
+        assertTrue(store.saveObservedReport(scope,report,new ObservationWrite(store.beginObservation(scope),
+                List.of(new EvidenceUpdate(id,null,before)),()->{})));
+        assertTrue(store.saveObservedReport(scope,report,new ObservationWrite(store.beginObservation(scope),
+                List.of(new EvidenceUpdate(id,before,fresh)),()->{})));
+        var failed=new PropertyEvidence("bigint",null,"METADATA_TIMEOUT");
+        var stale=new ObservationWrite(store.beginObservation(scope),List.of(new EvidenceUpdate(id,before,failed)),()->{});
+        assertThrows(OntologyException.class,()->store.saveObservedReport(scope,report,stale));
+        assertEquals(fresh,store.read(scope).objects().getFirst().properties().getFirst().evidence());
+    }
+
+    @Test
+    void deploymentSwitchRollsBackAcceptedTypeAndGraphEdit() {
+        var obj=object("订单"); var build=UUID.randomUUID(); store.createObject(scope,0,obj);
+        var report=new BindingReport(build,1,List.of(),2,"active");
+        var initial=new PropertyEvidence("bigint",null,"MATCHED");
+        var first=new EvidenceUpdate(obj.primaryPropertyId(),null,initial);
+        assertTrue(store.saveObservedReport(scope,report,new ObservationWrite(store.beginObservation(scope),List.of(first),()->{})));
+        var migrated=new EvidenceUpdate(obj.primaryPropertyId(),initial,new PropertyEvidence("varchar(32)",null,"MATCHED"));
+        var write=new ObservationWrite(store.beginObservation(scope),List.of(migrated),
+                () -> { throw new OntologyException(CONFLICT,"部署已切换"); });
+        assertThrows(OntologyException.class,() -> store.writeObservedObject(scope,1,obj,false,build,java.util.Set.of(),write));
+        assertEquals(initial,store.read(scope).objects().getFirst().properties().getFirst().evidence());
+        assertEquals(1,store.read(scope).revision());
+        assertEquals(report,store.readReport(scope,build,1).orElseThrow());
+    }
+
+    @Test
     void reportsAreKeyedByBuildAndConditionalOnCurrentRevision() {
         var object = object("订单");
         store.createObject(scope, 0, object);

@@ -200,6 +200,30 @@ npm run test:e2e -- --config=playwright.publication.config.ts
 - `/api/dbt/builds/{buildId}/execution-logs?cursor=…&limit=100`：结构化执行日志，limit 范围 1–200；旧 `/logs` 已移除。
 - 固定 buildId 的目录和查询使用同一无版本号资源接口，`/dbt/projects` 按环境 UUID 查询部署。
 
+### 本体字段的 StarRocks 实测类型
+
+平台 API 容器可通过 Spring 部署配置 `metric-platform.ontology.warehouse.instances` 开启内部 `default_catalog` 的元数据查询。默认列表为空。以下配置使用环境变量引用，实例 ID 对应活动构建快照。只在实例下列出的租户能访问其环境快照的 schema，租户列表值用于明确追加其他 schema。
+
+```yaml
+metric-platform:
+  ontology:
+    warehouse:
+      instances:
+        - id: ${WAREHOUSE_INSTANCE_ID}
+          enabled: true
+          url: ${WAREHOUSE_METADATA_JDBC_URL}
+          username: ${WAREHOUSE_METADATA_USER}
+          password: ${WAREHOUSE_METADATA_PASSWORD}
+          generation: "1"
+          complete: false
+          tenants:
+            "[tn_00001]": []
+```
+
+上线前从平台容器验证独立只读身份、JDBC 路由和 TLS；URL 仅放主机、端口及驱动选项，凭据分别注入。先用已知列验证可见性，只有该实例所有获准范围的整表列清单均可见时才设置 `complete: true`；空结果始终显示未核实。轮换凭据时递增 `generation`，重新加载平台配置。停用实例后，下次读取用模型声明重新评估，过去的实测值保留观察时间。主动发现同一部署上的 DDL 时，在本体页点击“重新核实”。
+
+隔离 StarRocks 验收从产品根目录运行 `mvn -f backend/pom.xml -B -pl metric-app -am '-Dtest=StarRocksOntologyMetadataIntegrationTest' '-Dontology.starrocks.it=true' '-Dsurefire.failIfNoSpecifiedTests=false' test`。测试自行启动临时 StarRocks，仅在该容器内准备表、执行 DDL 和授权。
+
 部署时平台和服务必须配置相同的 `EXECUTION_INSTANCES` JSON，例如 `{"warehouse":{"type":"starrocks","hosts":["localhost","127.0.0.1"],"port":9030}}`。这份清单只规范物理实例和地址别名，不含环境的 catalog/schema。凭据引用及 secret 仅由服务部署解析；浏览器不提交密码或服务令牌。
 
 平台通过 Flyway V17/V18 保存环境版本、物理目标归属和幂等提交。提交前固定登录身份、环境版本和完整快照；HTTP 超时后用原 `idempotencyKey` 重试，仍发送原快照，即使环境已修改。只有明确开始新的提交才生成新键。初始化新数据库并启动 dbt-service 后，再启动平台。
