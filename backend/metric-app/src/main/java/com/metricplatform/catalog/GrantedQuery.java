@@ -11,6 +11,9 @@ import java.util.stream.Collectors;
 /** 在完整的固定构建成员集合内消歧，再检查用户授权。 */
 record GrantedQuery(UUID build, List<Asset> assets, BuildGateway gateway) {
     private static final String TIME = "metric_time";
+    private static final String DIMENSION_TYPE = "dimensionType",
+            TIME_TYPE = "time",
+            GRANULARITIES = "granularities";
     private static final String DENIED = "无权限使用所选指标或维度";
 
     /** 在授权过滤前消歧，避免同名的未授权资源被过滤后产生虚假的唯一匹配。 */
@@ -111,15 +114,23 @@ record GrantedQuery(UUID build, List<Asset> assets, BuildGateway gateway) {
         }
         metrics(q.metrics());
         Set<String> needed = new HashSet<>();
+        Set<String> boundNames = new HashSet<>();
+        Map<String, Map<String, Map<String, Object>>> perMetric = new HashMap<>();
         if (q.groupBy() != null)
-            for (var item : q.groupBy()) needed.add(item == null ? null : item.optionId());
+            for (var item : q.groupBy()) {
+                if (item instanceof BoundDimension bound) {
+                    checkBindings(bound, perMetric);
+                    boundNames.add(bound.name());
+                } else if (item instanceof SelectedDimension shared) needed.add(shared.optionId());
+                else throw new SecurityException(DENIED);
+            }
         if (q.filters() != null)
             for (var item : q.filters()) needed.add(item == null ? null : item.optionId());
         if (q.mode() == QueryMode.DIMENSION_VALUES) needed.add(q.dimensionOptionId());
         if (q.orderBy() != null)
             for (var item : q.orderBy()) {
                 String id = item == null ? null : item.fieldId();
-                if (!q.metrics().contains(id)) needed.add(id);
+                if (!q.metrics().contains(id) && !boundNames.contains(id)) needed.add(id);
             }
         if (!needed.isEmpty()) {
             var options = dimensions(new AvailableDimensionsRequest(q.metrics())).dimensions();
@@ -128,5 +139,38 @@ record GrantedQuery(UUID build, List<Asset> assets, BuildGateway gateway) {
             if (!ids.containsAll(needed)) throw new SecurityException(DENIED);
         }
         return q;
+    }
+
+    private void checkBindings(
+            BoundDimension bound, Map<String, Map<String, Map<String, Object>>> perMetric) {
+        String alignedType = null, alignedGrain = null;
+        for (var entry : bound.bindings().entrySet()) {
+            // 单指标选项只能在同一构建的该指标内解释。请求内复用选项以支持多个绑定分组。
+            var selection = entry.getValue();
+            var options = perMetric.computeIfAbsent(entry.getKey(), this::singleMetricOptions);
+            var option = options.get(selection.optionId());
+            if (option == null) throw new SecurityException(DENIED);
+            if (!(option.get(DIMENSION_TYPE) instanceof String type))
+                throw new IllegalStateException("绑定维度缺少类型");
+            var grain = selection.grain();
+            if (grain == null
+                    ? TIME_TYPE.equals(type)
+                    : !(option.get(GRANULARITIES) instanceof List<?> grains
+                            && grains.contains(grain)))
+                throw new IllegalArgumentException("绑定维度的时间粒度无效");
+            if (alignedType != null
+                    && (!alignedType.equals(type) || !Objects.equals(alignedGrain, grain)))
+                throw new IllegalArgumentException("对齐的绑定维度必须具有相同类型和粒度");
+            alignedType = type;
+            alignedGrain = grain;
+        }
+    }
+
+    private Map<String, Map<String, Object>> singleMetricOptions(String metric) {
+        var view = dimensions(new AvailableDimensionsRequest(List.of(metric)));
+        return view.dimensions().stream()
+                .collect(
+                        Collectors.toMap(
+                                option -> (String) option.get(OPTION_ID), option -> option));
     }
 }

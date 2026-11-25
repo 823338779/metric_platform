@@ -16,6 +16,7 @@ import org.springframework.web.bind.annotation.*;
 public class PublishedCatalogController {
     public static final String ROOT = "/api/dbt";
     private static final String BUILD = "/builds/{buildId}",
+            CATALOG_SEARCH = BUILD + "/catalog/search",
             RESOURCE = BUILD + "/resources/{resourceId}";
     private static final String LINEAGE = "/lineage";
 
@@ -23,6 +24,19 @@ public class PublishedCatalogController {
     private final BuildGateway gateway;
 
     private final TenantAssets assets;
+
+    @GetMapping(CATALOG_SEARCH)
+    public CatalogSearchPage search(
+            @PathVariable UUID buildId,
+            @RequestParam(required = false) String keyword,
+            @RequestParam(required = false) String resourceId,
+            @RequestParam(required = false) String resourceType,
+            @RequestParam(required = false) String cursor,
+            @RequestParam(defaultValue = "50") int limit) {
+        assets.requireTenantBuild(buildId);
+        return gateway.searchCatalog(
+                buildId, new CatalogSearch(keyword, resourceId, resourceType, cursor, limit));
+    }
 
     @GetMapping(RESOURCE)
     public ResourceView resource(@PathVariable UUID buildId, @PathVariable String resourceId) {

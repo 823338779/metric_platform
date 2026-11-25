@@ -182,6 +182,31 @@ class HttpBuildGatewayTest {
     }
 
     @Test
+    void searchUsesSealedBuildAndForwardsExactIdOrEncodedPageFilters() throws Exception {
+        var paths = new ArrayList<String>();
+        var item = new ResourceSummary("metric.shop.sales", "sales", null, "", "metric", true);
+        var next = new CatalogSearchPage(List.of(item), "next+page");
+        var server = server(paths, 200, mapper.writeValueAsString(next));
+        try {
+            var gateway = client(server);
+            assertThat(
+                            gateway.searchCatalog(
+                                    BUILD,
+                                    new CatalogSearch(null, item.resourceId(), "metric", null, 1)))
+                    .isEqualTo(next);
+            gateway.searchCatalog(
+                    BUILD, new CatalogSearch("销售 &", null, null, next.nextCursor(), 20));
+            String path = "/builds/" + BUILD + "/catalog/search?";
+            assertThat(paths)
+                    .containsExactly(
+                            path + "resourceId=metric.shop.sales&resourceType=metric&limit=1",
+                            path + "keyword=%E9%94%80%E5%94%AE%20%26&cursor=next%2Bpage&limit=20");
+        } finally {
+            server.stop(0);
+        }
+    }
+
+    @Test
     void resourceIdsAreEncodedAsSingleSegment() throws Exception {
         var paths = new ArrayList<String>();
         var server =
@@ -194,6 +219,31 @@ class HttpBuildGatewayTest {
         try {
             assertThat(client(server).resource(BUILD, "a/b").source().content()).isEqualTo("x");
             assertThat(paths).containsExactly("/builds/" + BUILD + "/resources/a%2Fb");
+        } finally {
+            server.stop(0);
+        }
+    }
+
+    @org.junit.jupiter.params.ParameterizedTest
+    @org.junit.jupiter.params.provider.ValueSource(
+            strings = {
+                "{\"items\":[null]}",
+                "{\"items\":[{}]}",
+                "{\"items\":[]}",
+                "{\"items\":[{\"resourceId\":\"metric.other\",\"name\":\"sales\",\"resourceType\":\"metric\",\"description\":\"\",\"queryNameUnique\":true}]}",
+                "{\"items\":[{\"resourceId\":\"metric.sales\",\"name\":\"sales\",\"resourceType\":\"model\",\"description\":\"\"}]}",
+                "{\"items\":[{\"resourceId\":\"metric.sales\",\"name\":\"sales\",\"resourceType\":\"metric\",\"description\":\"\"}]}"
+            })
+    void rejectsUnusableExactCatalogPages(String body) throws Exception {
+        var server = server(new ArrayList<>(), 200, body);
+        try {
+            var filter = new CatalogSearch(null, "metric.sales", "metric", null, 1);
+            assertThatThrownBy(() -> client(server).searchCatalog(BUILD, filter))
+                    .isInstanceOfSatisfying(
+                            BuildGateway.Failure.class,
+                            failure ->
+                                    assertThat(failure.error().code())
+                                            .isEqualTo("INVALID_SERVICE_RESPONSE"));
         } finally {
             server.stop(0);
         }

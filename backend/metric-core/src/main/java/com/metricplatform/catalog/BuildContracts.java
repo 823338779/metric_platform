@@ -1,5 +1,7 @@
 package com.metricplatform.catalog;
 
+import com.fasterxml.jackson.annotation.JsonSubTypes;
+import com.fasterxml.jackson.annotation.JsonTypeInfo;
 import com.metricplatform.environment.EnvironmentContracts.BuildExecutionSnapshot;
 
 import java.util.List;
@@ -178,6 +180,38 @@ public final class BuildContracts {
             /** 绑定筛选条件的后续分页游标。 */
             String nextCursor) {}
 
+    public record CatalogSearch(
+            /** 按资源名称、ID、标签或描述匹配的关键词，与 resourceId 二选一。 */
+            String keyword,
+            /** 在指定构建中精确匹配的 dbt unique_id。 */
+            String resourceId,
+            /** 可选的 dbt 业务资源类型。 */
+            String resourceType,
+            /** 上游绑定到同一构建和筛选条件的不透明游标。 */
+            String cursor,
+            /** 本页最多返回的资源数量。 */
+            int limit) {}
+
+    public record ResourceSummary(
+            /** 固定构建内的 dbt unique_id。 */
+            String resourceId,
+            /** dbt 节点名称，指标查询使用此名称。 */
+            String name,
+            /** 资源的可选展示标签。 */
+            String label,
+            /** 原生资源描述。 */
+            String description,
+            /** dbt 业务资源类型。 */
+            String resourceType,
+            /** 精确查找指标时，其查询名在整个构建内是否唯一。 */
+            Boolean queryNameUnique) {}
+
+    public record CatalogSearchPage(
+            /** 当前页的资源摘要。 */
+            List<ResourceSummary> items,
+            /** 下一页游标，末页为空。 */
+            String nextCursor) {}
+
     public record ResourceSource(
             /** 构建封存的工程相对路径。 */
             String path,
@@ -194,11 +228,25 @@ public final class BuildContracts {
             /** 无源码路径时为空，不从工作目录猜测源码。 */
             ResourceSource source) {}
 
+    /** 以字段区分两种引擎原生分组形式，传输时不增加类型标记。 */
+    @JsonTypeInfo(use = JsonTypeInfo.Id.DEDUCTION)
+    @JsonSubTypes({
+        @JsonSubTypes.Type(SelectedDimension.class),
+        @JsonSubTypes.Type(BoundDimension.class)
+    })
+    public sealed interface GroupDimension permits SelectedDimension, BoundDimension {}
+
     public record SelectedDimension(
-            /** 过滤选项身份。 */
+            /** 固定指标集合内的维度选项。 */
             String optionId,
             /** 引擎支持的时间粒度。 */
-            String grain) {}
+            String grain) implements GroupDimension {}
+
+    public record BoundDimension(
+            /** 对齐后的公共输出列名，排序时使用该名称。 */
+            String name,
+            /** 指标查询名到其单指标维度选项的绑定。 */
+            Map<String, SelectedDimension> bindings) implements GroupDimension {}
 
     public record SelectedFilter(
             /** 过滤选项身份。 */
@@ -209,7 +257,7 @@ public final class BuildContracts {
             Object value) {}
 
     public record SelectedOrder(
-            /** 已选择的指标或分组选项。 */
+            /** 所选指标名、共享维度选项或绑定分组的输出列名。 */
             String fieldId,
             /** 排序方向。 */
             String direction) {}
@@ -226,7 +274,7 @@ public final class BuildContracts {
             /** 规范化指标集合。 */
             List<String> metrics,
             /** 有序分组。 */
-            List<SelectedDimension> groupBy,
+            List<? extends GroupDimension> groupBy,
             /** 类型化过滤条件。 */
             List<SelectedFilter> filters,
             /** 起点，按构建业务时区解释。 */

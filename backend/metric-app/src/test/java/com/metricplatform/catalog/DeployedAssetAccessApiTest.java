@@ -228,6 +228,10 @@ class DeployedAssetAccessApiTest {
         for (String denied :
                 List.of(
                         "{\"mode\":\"QUERY\",\"metrics\":[\"sales\",\"other\"]}",
+                        """
+                        {"mode":"QUERY","metrics":["sales"],
+                         "groupBy":[{"name":"channel","bindings":{"sales":{"optionId":"region"}}}]}
+                        """,
                         "{\"mode\":\"PREVIEW\",\"selector\":\"orders\"}")) {
             mvc.perform(
                             post(path)
@@ -239,6 +243,36 @@ class DeployedAssetAccessApiTest {
                             jsonPath("$.detail")
                                     .value(org.hamcrest.Matchers.containsString("无权限")));
         }
+        // 维度选项合法，但查询授权期间部署发生切换，后面的调用计数保证请求没有执行。
+        when(gateway.availableDimensions(build, options))
+                .thenAnswer(
+                        invocation -> {
+                            when(current.activeBuildId()).thenReturn(null);
+                            return new AvailableDimensionsView(
+                                    build,
+                                    options.metrics(),
+                                    List.of(
+                                            Map.of(
+                                                    "name",
+                                                    "metric_time",
+                                                    "optionId",
+                                                    "date",
+                                                    "dimensionType",
+                                                    "time",
+                                                    "granularities",
+                                                    List.of("day"))));
+                        });
+        mvc.perform(
+                        post(path)
+                                .header("Authorization", "Bearer reader")
+                                .contentType("application/json")
+                                .content(
+                                        """
+                                        {"mode":"QUERY","metrics":["sales"],"groupBy":[{"name":"period",
+                                        "bindings":{"sales":{"optionId":"date","grain":"day"}}}]}
+                                        """))
+                .andExpect(status().isGone());
+        when(current.activeBuildId()).thenReturn(build);
         mvc.perform(delete(grant).header("Authorization", "Bearer owner"))
                 .andExpect(status().isNoContent());
         mvc.perform(get("/api/v1/assets").header("Authorization", "Bearer reader"))

@@ -56,6 +56,7 @@ class TenantAssetAccessTest {
                 List.of(
                         "",
                         "/catalog",
+                        "/catalog/search?keyword=sales",
                         "/execution-logs",
                         "/resources/example",
                         "/lineage?selector=test"))

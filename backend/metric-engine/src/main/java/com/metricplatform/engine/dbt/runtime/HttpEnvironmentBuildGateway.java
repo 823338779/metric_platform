@@ -53,10 +53,11 @@ public class HttpEnvironmentBuildGateway implements EnvironmentBuildGateway {
         try {
             com.metricplatform.catalog.BuildContracts.BuildStatus.valueOf(
                     value.path(STATUS).asText());
+            // 上游可能已经受理提交。无效的回执身份应允许调用方用原幂等键恢复。
+            UUID.fromString(value.path(BUILD_ID).asText());
         } catch (IllegalArgumentException exception) {
             throw BuildResponse.invalid();
         }
-        UUID.fromString(value.path(BUILD_ID).asText());
         return value;
     }
 

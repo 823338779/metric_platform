@@ -165,6 +165,65 @@ class GrantedQueryTest {
                 """));
     }
 
+    @Test
+    void checksBindingsInTheirOwnMetricContextAndAcceptsSortingByAuthorizedOutput() {
+        var members = new ArrayList<>(assets);
+        members.add(asset("METRIC", "cost", "", "", true));
+        var access = new GrantedQuery(build, members, gateway);
+        var revenue = new AvailableDimensionsRequest(List.of("revenue"));
+        var cost = new AvailableDimensionsRequest(List.of("cost"));
+        var mine = timeOption("local", "customer");
+        var denied = timeOption("local", "orders");
+        var revenueOnly = timeOption("revenue_only", "customer");
+        when(gateway.availableDimensions(build, revenue))
+                .thenReturn(
+                        new AvailableDimensionsView(
+                                build, revenue.metrics(), List.of(mine, revenueOnly)));
+        when(gateway.availableDimensions(build, cost))
+                .thenReturn(new AvailableDimensionsView(build, cost.metrics(), List.of(mine)));
+        var query =
+                """
+                {"mode":"QUERY","metrics":["revenue","cost"],
+                 "groupBy":[{"name":"period","bindings":{"revenue":{"optionId":"local","grain":"day"},
+                                                         "cost":{"optionId":"%s","grain":"%s"}}},
+                            {"name":"monthly","bindings":{"revenue":{"optionId":"local","grain":"month"},
+                                                          "cost":{"optionId":"local","grain":"month"}}}],
+                 "orderBy":[{"fieldId":"period","direction":"ASC"},{"fieldId":"monthly","direction":"DESC"}]}
+                """;
+        validate(access, query.formatted("local", "day"));
+        verify(gateway).availableDimensions(build, revenue);
+        verify(gateway).availableDimensions(build, cost);
+        verifyNoMoreInteractions(gateway);
+        // 两个指标都有同名选项时仍分别查授权；一个指标的选项或粒度不能借给另一个指标。
+        assertThrows(
+                SecurityException.class,
+                () -> validate(access, query.formatted("revenue_only", "day")));
+        assertThrows(
+                IllegalArgumentException.class,
+                () -> validate(access, query.formatted("local", "year")));
+        assertThrows(
+                IllegalArgumentException.class,
+                () -> validate(access, query.formatted("local", "month")));
+        when(gateway.availableDimensions(build, cost))
+                .thenReturn(new AvailableDimensionsView(build, cost.metrics(), List.of(denied)));
+        assertThrows(
+                SecurityException.class, () -> validate(access, query.formatted("local", "day")));
+    }
+
+    private Map<String, Object> timeOption(String id, String model) {
+        return Map.of(
+                "optionId",
+                id,
+                "name",
+                "region",
+                "semanticModelName",
+                model,
+                "dimensionType",
+                "time",
+                "granularities",
+                List.of("day", "month"));
+    }
+
     private void validate(GrantedQuery access, String input) {
         access.check(BuildRequestParser.parse(input, QueryRequest.class));
     }

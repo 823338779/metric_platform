@@ -1179,6 +1179,36 @@ paths:
                 $ref: '#/components/schemas/Problem'
       security:
       - bearerAuth: []
+  /api/dbt/builds/{buildId}/catalog/search:
+    get:
+      operationId: searchBuildCatalog
+      summary: 搜索指定构建的资源摘要
+      description: 本租户所有账号可查阅。keyword 与 resourceId 必须二选一。关键词匹配忽略大小写，无匹配时返回空页；精确 ID 无匹配时返回 404。
+      security: [{bearerAuth: []}]
+      parameters:
+      - {name: buildId, in: path, required: true, schema: {type: string, format: uuid}}
+      - {name: keyword, in: query, schema: {type: string, minLength: 1}, description: 匹配资源 ID、名称、标签或描述的非空白关键词}
+      - {name: resourceId, in: query, schema: {type: string}, description: 精确的 dbt 资源 unique_id}
+      - name: resourceType
+        in: query
+        schema: {type: string, enum: [source, seed, snapshot, model, semantic_model, metric, saved_query, exposure]}
+        description: 可选的资源类型筛选
+      - {name: cursor, in: query, schema: {type: string}, description: 上一页返回的游标，仅对同一构建及筛选条件有效}
+      - {name: limit, in: query, schema: {type: integer, minimum: 1, maximum: 200, default: 50}}
+      responses:
+        '200':
+          description: 固定构建内的一页资源摘要
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/CatalogSearchPage'}
+        '400': {description: 请求参数格式错误}
+        '401': {description: 登录令牌无效}
+        '404': {description: 构建不属于当前租户或指定资源不存在, content: {application/problem+json: {schema: {$ref: '#/components/schemas/Problem'}}}}
+        '409': {description: 构建目录尚未就绪, content: {application/problem+json: {schema: {$ref: '#/components/schemas/Problem'}}}}
+        '410': {description: 构建产物已清理, content: {application/problem+json: {schema: {$ref: '#/components/schemas/Problem'}}}}
+        '422': {description: 搜索条件或游标无效，或单条结果超过大小限制, content: {application/problem+json: {schema: {$ref: '#/components/schemas/Problem'}}}}
+        '502': {description: 上游服务响应或凭据无效, content: {application/problem+json: {schema: {$ref: '#/components/schemas/Problem'}}}}
+        '503': {description: 构建产物或运行服务暂不可用, content: {application/problem+json: {schema: {$ref: '#/components/schemas/Problem'}}}}
   /api/dbt/builds/{buildId}/resources/{resourceId}:
     get:
       summary: Resource
@@ -2142,6 +2172,24 @@ components:
           EXPLAIN: '#/components/schemas/MetricQueryRequest'
           DIMENSION_VALUES: '#/components/schemas/DimensionValuesRequest'
           PREVIEW: '#/components/schemas/PreviewRequest'
+    CatalogSearchPage:
+      type: object
+      additionalProperties: false
+      required: [items]
+      properties:
+        items: {type: array, items: {$ref: '#/components/schemas/ResourceSummary'}}
+        nextCursor: {type: [string, 'null'], description: 后续分页游标，末页为空}
+    ResourceSummary:
+      type: object
+      additionalProperties: false
+      required: [resourceId, name, description, resourceType]
+      properties:
+        resourceId: {type: string, description: 固定构建内的 dbt unique_id}
+        name: {type: string, description: 原生资源名称}
+        label: {type: [string, 'null'], description: 资源展示标签}
+        description: {type: string, description: 原生资源描述}
+        resourceType: {type: string, description: dbt 业务资源类型}
+        queryNameUnique: {type: [boolean, 'null'], description: 精确查找指标时表示查询名在构建内是否唯一，其他搜索为空}
     ResourceSourceView:
       type: object
       additionalProperties: false
@@ -2195,6 +2243,7 @@ components:
       properties:
         optionId:
           type: string
+          minLength: 1
           title: Optionid
           description: 版本及指标集合固定的选项
         grain:
@@ -2208,6 +2257,24 @@ components:
       required:
       - optionId
       title: SelectedDimension
+    BoundDimension:
+      type: object
+      additionalProperties: false
+      required:
+      - name
+      - bindings
+      properties:
+        name:
+          type: string
+          pattern: '^[a-z][a-z0-9_]{0,62}$'
+          description: 对齐后的公共输出列名，必须唯一且与指标名不同，可作为排序的 fieldId
+        bindings:
+          type: object
+          minProperties: 1
+          maxProperties: 100
+          additionalProperties:
+            $ref: '#/components/schemas/SelectedDimension'
+          description: 按指标查询名精确覆盖全部所选指标。每项 optionId 来自该指标单独的可用维度；对齐项类型和粒度须相同，时间维度必须指定粒度。
     SelectedFilter:
       properties:
         optionId:
@@ -2233,7 +2300,7 @@ components:
         fieldId:
           type: string
           title: Fieldid
-          description: 已选择的指标或分组选项
+          description: 所选指标名、共享分组的 optionId 或显式绑定分组的输出列名
         direction:
           type: string
           enum:
@@ -2547,11 +2614,13 @@ components:
           maxItems: 100
         groupBy:
           items:
-            $ref: '#/components/schemas/SelectedDimension'
+            oneOf:
+            - $ref: '#/components/schemas/SelectedDimension'
+            - $ref: '#/components/schemas/BoundDimension'
           type: array
           maxItems: 100
           title: Groupby
-          description: 有序分组
+          description: 有序分组，支持共享选项和按指标显式绑定。使用绑定时指标名称必须唯一。
         orderBy:
           items:
             $ref: '#/components/schemas/SelectedOrder'

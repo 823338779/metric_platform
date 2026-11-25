@@ -34,6 +34,10 @@ public class HttpBuildGateway implements BuildGateway {
             BRANCH = "branchName",
             ENVIRONMENT = "environmentId",
             BUILD_STATUS = "buildStatus",
+            KEYWORD = "keyword",
+            METRIC = "metric",
+            RESOURCE_ID = "resourceId",
+            RESOURCE_TYPE = "resourceType",
             CURSOR = "cursor",
             LIMIT = "limit",
             SELECTOR = "selector",
@@ -49,6 +53,7 @@ public class HttpBuildGateway implements BuildGateway {
             REQUEST_VALIDATION_ERROR = "REQUEST_VALIDATION_ERROR";
     private static final String SERVICE_AUTHENTICATION_FAILED = "SERVICE_AUTHENTICATION_FAILED";
     private static final String CATALOG = "/catalog",
+            CATALOG_SEARCH = CATALOG + "/search",
             RESOURCES = "/resources/",
             LINEAGE = "/lineage";
     private static final int MAX_BYTES = 8 * 1024 * 1024;
@@ -191,6 +196,41 @@ public class HttpBuildGateway implements BuildGateway {
         var result = call(GET, BUILDS + SLASH + id + CATALOG, null, JsonNode.class);
         if (!result.isArray()) throw invalid();
         return result;
+    }
+
+    public CatalogSearchPage searchCatalog(UUID id, CatalogSearch filter) {
+        var page =
+                call(
+                        GET,
+                        BUILDS
+                                + SLASH
+                                + id
+                                + CATALOG_SEARCH
+                                + parameters(
+                                        KEYWORD, filter.keyword(),
+                                        RESOURCE_ID, filter.resourceId(),
+                                        RESOURCE_TYPE, filter.resourceType(),
+                                        CURSOR, filter.cursor(),
+                                        LIMIT, filter.limit()),
+                        null,
+                        CatalogSearchPage.class);
+        boolean exact = filter.resourceId() != null;
+        if (page.items() == null || (exact && page.items().size() != 1)) throw invalid();
+        // 精确匹配来自封存目录，错误资源或缺失的唯一性标记不能进入后续指标查询。
+        for (var item : page.items()) {
+            if (item == null
+                    || item.resourceId() == null
+                    || item.name() == null
+                    || item.description() == null
+                    || item.resourceType() == null
+                    || (filter.resourceType() != null
+                            && !filter.resourceType().equals(item.resourceType()))
+                    || (exact && !filter.resourceId().equals(item.resourceId()))
+                    || (exact
+                            && METRIC.equals(item.resourceType())
+                            && item.queryNameUnique() == null)) throw invalid();
+        }
+        return page;
     }
 
     public ResourceView resource(UUID id, String resource) {

@@ -12,8 +12,17 @@
 | `backend/metric-app` | 登录与授权、环境管理、构建提交、目录和历史读取、查询代理及归因 |
 | `frontend` | 部署历史筛选、固定版本目录与查询界面 |
 | `api/openapi.yaml` | 平台公开接口的唯一契约，构建时同步打包 |
+| `mcp/` | 独立安装的 stdio MCP 工具，使用登录账号调用平台 API |
 
 产品独立构建，不导入 Agent 或 dbt-service 的实现类。旧审计表、历史资源和已应用的迁移继续保留；这些记录不再驱动发布。
+
+## MCP 客户端接入
+
+在平台仓库的 `mcp/` 目录执行 `uv sync --frozen`。将客户端的 command 设为安装后的 `metric-platform-mcp` 绝对路径（Windows 位于 `.venv/Scripts`，Linux/macOS 位于 `.venv/bin`），args 留空，传输选择 stdio。也可使用同一虚拟环境的 Python，args 填 `["-m", "metric_platform_mcp"]`。
+
+通过客户端的进程环境注入 `METRIC_PLATFORM_URL`（平台地址，例如 `http://127.0.0.1:8090`）和 `METRIC_PLATFORM_TOKEN`（平台登录接口签发的账号访问令牌）。远程连接使用 HTTPS。令牌到期后更新客户端环境并重启 MCP 进程。由旧版本迁移时，替换原 `dbt-metricflow-mcp` 命令及两项环境变量。
+
+`tools/list` 可发现部署、目录搜索、资源详情、可用维度、指标查询、提交构建和构建详情七个工具。查询权限与该账号在平台中的权限一致。提交构建需要管理者权限，使用 `environment_id` 和 `expected_config_version` 选择平台环境的配置版本。完整的调用顺序和幂等重试示例见[查询与构建示例](mcp/查询与构建示例.md)。
 
 ## 本地运行
 
@@ -158,6 +167,8 @@ docker run --rm -v "${restoreVolume}:/data" -v "${backupVolume}:/backups:ro" $gr
 ## 验证
 
 按改动范围选择验证命令，不必每轮依次运行后端、前端、构建和浏览器验收。后端使用系统 Maven；涉及事务的测试使用真实 Testcontainers PostgreSQL，需要 Docker。
+
+MCP 独立测试在 `mcp/` 目录运行 `uv run --frozen pytest -q`。设置 `MCP_INSPECTOR_ENTRY` 指向本机 MCP Inspector CLI 的 JavaScript 入口，可额外比对 Inspector 和 Python 客户端发现的工具以及读取的生效构建。
 
 在本仓库运行受影响模块的定向测试，例如引擎 HTTP 适配层：
 

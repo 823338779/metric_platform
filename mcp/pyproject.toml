@@ -1,0 +1,20 @@
+[project]
+name = "metric-platform-mcp"
+version = "0.1.0"
+description = "Metric Platform stdio MCP Server"
+requires-python = ">=3.11,<3.15"
+dependencies = ["httpx==0.28.1", "mcp>=1.20,<2", "pydantic>=2.11,<3"]
+
+[project.scripts]
+metric-platform-mcp = "metric_platform_mcp.server:run"
+
+[build-system]
+requires = ["hatchling==1.27.0"]
+build-backend = "hatchling.build"
+
+[dependency-groups]
+dev = ["pytest>=9,<10", "pytest-asyncio>=1,<2"]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]

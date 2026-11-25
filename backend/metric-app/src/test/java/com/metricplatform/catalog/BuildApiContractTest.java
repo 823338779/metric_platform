@@ -105,6 +105,41 @@ class BuildApiContractTest {
     }
 
     @Test
+    void catalogSearchPreservesPageAndUpstreamErrors() throws Exception {
+        String path = ROOT + "/builds/" + build + "/catalog/search";
+        String resourceId = "metric.demo.sales";
+        var summary = new ResourceSummary(resourceId, "sales", null, "销售额", "metric", false);
+        var filter = new CatalogSearch(null, resourceId, "metric", null, 50);
+        when(gateway.searchCatalog(build, filter))
+                .thenReturn(new CatalogSearchPage(List.of(summary), null));
+        mvc.perform(
+                        get(path)
+                                .param("resourceId", resourceId)
+                                .param("resourceType", "metric")
+                                .header("Authorization", "Bearer " + TOKEN))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.items[0].resourceId").value(resourceId))
+                .andExpect(jsonPath("$.items[0].queryNameUnique").value(false));
+
+        var page = new CatalogSearch("销售", null, null, "other-build-cursor", 2);
+        when(gateway.searchCatalog(build, page))
+                .thenThrow(
+                        new BuildGateway.Failure(
+                                422,
+                                new ErrorView(
+                                        "INVALID_CURSOR", "invalid cursor", false, null, build)));
+        mvc.perform(
+                        get(path)
+                                .param("keyword", "销售")
+                                .param("cursor", "other-build-cursor")
+                                .param("limit", "2")
+                                .header("Authorization", "Bearer " + TOKEN))
+                .andExpect(status().isUnprocessableEntity())
+                .andExpect(jsonPath("$.code").value("INVALID_CURSOR"));
+        verify(gateway, never()).catalog(any());
+    }
+
+    @Test
     void bffPreservesBuildAndBusinessError() throws Exception {
         when(gateway.catalog(build))
                 .thenReturn(

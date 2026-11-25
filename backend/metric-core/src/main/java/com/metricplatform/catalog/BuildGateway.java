@@ -20,6 +20,8 @@ public interface BuildGateway {
 
     com.fasterxml.jackson.databind.JsonNode catalog(UUID buildId);
 
+    CatalogSearchPage searchCatalog(UUID buildId, CatalogSearch filter);
+
     ResourceView resource(UUID buildId, String resourceId);
 
     com.fasterxml.jackson.databind.JsonNode lineage(UUID buildId, String selector);

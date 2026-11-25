@@ -64,6 +64,14 @@ class HttpEnvironmentBuildGatewayTest {
             assertThatThrownBy(() -> gateway.submit(request))
                     .isInstanceOf(BuildGateway.Failure.class);
             assertThat(seen).containsExactly("POST", "POST", "POST", "POST");
+            reply.put("repository", request.repository());
+            reply.remove("buildId");
+            assertThatThrownBy(() -> gateway.submit(request))
+                    .isInstanceOfSatisfying(
+                            BuildGateway.Failure.class,
+                            failure ->
+                                    assertThat(failure.error().code())
+                                            .isEqualTo("INVALID_SERVICE_RESPONSE"));
         } finally {
             server.stop(0);
         }
